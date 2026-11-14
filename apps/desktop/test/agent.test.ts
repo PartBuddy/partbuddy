@@ -12,6 +12,7 @@ import { instructionsFor, MAX_STEPS, REFUSAL_GUIDANCE } from '../src/main/agents
 import { GateProxy, REPEAT_REASON, type ToolCallRecord, type UpstreamTools } from '../src/main/agents/gateProxy';
 import { photoFile, photoNote } from '../src/main/agents/photoNote';
 import { decide, TOOL_ARGUMENTS } from '../src/main/agents/policy';
+import { Review } from '../src/main/agents/review';
 import { TOOL_NOTES } from '../src/main/agents/toolNotes';
 import { reduce, type ConversationItem } from '../src/renderer/src/assistant/store';
 import type { AgentEvent, AgentStatus, ModelChoice } from '../src/shared/contract';
@@ -387,7 +388,7 @@ describe('Claude Code adapter', () => {
 // Every test starts the fake Claude Code as a real process and waits up to 15 s for it (vi.waitFor below); the
 // default 5 s cut that short on a loaded runner (CI of pull request 376).
 describe('agent service with a fake Claude Code', { timeout: 20_000 }, () => {
-  function setup(env: Record<string, string> = {}) {
+  function setup(env: Record<string, string> = {}, review?: Review) {
     const workDir = mkdtempSync(join(tmpdir(), 'partbuddy-agent-'));
     cleanups.push(() => {
       rmSync(workDir, { recursive: true, force: true });
@@ -408,9 +409,10 @@ describe('agent service with a fake Claude Code', { timeout: 20_000 }, () => {
         home: workDir,
         workDir,
         apiBilling: { get: () => billing.allowed, set: (allow: boolean) => (billing.allowed = allow) },
-        tools: () => Promise.resolve(upstream),
+        tools: () => Promise.resolve(review ? review.tools(upstream) : upstream),
         log: () => undefined,
         choices,
+        ...(review ? { review } : {}),
       },
       { status: (status) => statuses.push(status), event: (event) => events.push(event) },
     );
@@ -539,6 +541,40 @@ describe('agent service with a fake Claude Code', { timeout: 20_000 }, () => {
     await service.send('How many bodies?');
     expect(service.freshConversation()).toBe(false);
     await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(3), { timeout: 15_000 });
+  }, 30_000);
+
+  it('sends a turn that built and ended without the review back once; the user sees one end (review.ts)', async () => {
+    const lines: string[] = [];
+    const review = new Review((line) => lines.push(line), () => false, true);
+    const { service, events, calls } = setup({}, review);
+    await service.refresh();
+    review.newTurn();
+    await service.send('Make a box');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true), { timeout: 15_000 });
+    expect(calls).toEqual(['execute', 'partbuddy_view']);
+    expect(events.filter((e) => e.type === 'tool' && e.ok === true).map((e) => (e as { name: string }).name)).toEqual(['execute', 'partbuddy_review']);
+    expect(events.filter((e) => e.type === 'text').at(-1)).toEqual({ type: 'text', text: 'Reviewed with 0 pictures and the checklist: nothing to fix.' });
+    expect(events.filter((e) => e.type === 'user')).toHaveLength(1);
+    expect(lines).toEqual(['the assistant ended a changing turn without partbuddy_review; it is sent back once']);
+    // A question changes nothing: no review, one end.
+    review.newTurn();
+    await service.send('How many bodies?');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 15_000 });
+    expect(events.filter((e) => e.type === 'text').at(-1)).toEqual({ type: 'text', text: 'The design has one body.' });
+  }, 30_000);
+
+  it('lets the turn end when Claude Code skips the review again, and logs it (review.ts)', async () => {
+    const lines: string[] = [];
+    const review = new Review((line) => lines.push(line), () => false, true);
+    const { service, events } = setup({ FAKE_CLAUDE_NO_REVIEW: '1' }, review);
+    await service.refresh();
+    review.newTurn();
+    await service.send('Make a box');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true), { timeout: 15_000 });
+    expect(events.filter((e) => e.type === 'done')).toEqual([expect.objectContaining({ ok: true })]);
+    expect(events.filter((e) => e.type === 'text').at(-1)).toEqual({ type: 'text', text: 'Ended again without a review.' });
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toContain('although it was sent back once');
   }, 30_000);
 
   it('removes its MCP configuration with the token on dispose', async () => {

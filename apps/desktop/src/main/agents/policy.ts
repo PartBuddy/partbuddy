@@ -52,6 +52,8 @@ const ALLOWED = new Set([
   'partbuddy_block',
   // The rules and sizes for a kind of part (standardTool.ts), answered by PartBuddy; it builds nothing.
   'partbuddy_standard',
+  // The review before "done": view, check, pictures and checklist (review.ts), answered by PartBuddy; it changes nothing.
+  'partbuddy_review',
 ]);
 
 /**

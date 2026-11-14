@@ -7,6 +7,7 @@ import { ClaudeSession, findClaudeCode, listModels, readAuth, readVersion, start
 import { userEvent, type AgentBackend, type PictureKind } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
 import { allowedChoice, choiceStatus, CLAUDE_STANDARD, withoutChoice, type ChoiceStore } from './modelChoice';
+import type { TurnReview } from './review';
 import { composeMessage } from './viewContext';
 
 /**
@@ -34,6 +35,8 @@ export interface AgentServiceOptions {
   research?: () => boolean;
   /** Lists the models of the plan; Claude Code's own `initialize` answer by default (tests replace it). */
   listModels?: (claude: ClaudeCommand) => Promise<ModelOption[]>;
+  /** The review before "done" (review.ts), asked when Claude Code ends a turn. */
+  review?: TurnReview;
   log(message: string): void;
 }
 
@@ -62,6 +65,8 @@ export class AgentService implements AgentBackend {
   private choice: ModelChoice | null = null;
   /** Claude Code compacted the session since the last message: the next one counts as fresh (audit H-11). */
   private compacted = false;
+  /** The user pressed Stop in this turn. */
+  private stopping = false;
 
   constructor(
     private readonly options: AgentServiceOptions,
@@ -122,6 +127,7 @@ export class AgentService implements AgentBackend {
       return;
     }
     await this.ensureSession(tools);
+    this.stopping = false;
     // The notes for a fresh conversation (print profile, check) were read before this call and go with this message.
     this.compacted = false;
     const message = composeMessage(text, selections, note);
@@ -155,6 +161,8 @@ export class AgentService implements AgentBackend {
   }
 
   async stop(): Promise<void> {
+    // A turn ending after Stop is not sent back for the review.
+    this.stopping = true;
     await this.session?.stop();
   }
 
@@ -223,6 +231,12 @@ export class AgentService implements AgentBackend {
           this.listeners.event(event);
           break;
         case 'done': {
+          // A changing turn that ended without the review goes back to the model once (review.ts); the user sees no end yet.
+          const back = event.ok && !this.stopping && session.running ? (this.options.review?.due() ?? null) : null;
+          if (back) {
+            session.send(back);
+            break;
+          }
           const { reason, ...done } = event;
           if (reason) this.options.log(`Claude Code ended the turn with: ${reason}`);
           this.listeners.event(done);

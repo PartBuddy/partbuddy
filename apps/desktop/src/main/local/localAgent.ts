@@ -7,6 +7,7 @@ import { userEvent, type AgentBackend, type PictureKind } from '../agents/assist
 import type { UpstreamTools } from '../agents/gateProxy';
 import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
+import type { TurnReview } from '../agents/review';
 import { SKETCH_LIST } from '../agents/sketchNote';
 import { composeMessage } from '../agents/viewContext';
 import { contextFor, findOllama, LOCAL_CONTEXT, MIN_CONTEXT, OLLAMA_URL, type OllamaFound } from './ollama';
@@ -27,6 +28,8 @@ export interface LocalAgentOptions {
   changed(): void;
   log(message: string): void;
   choices: ChoiceStore;
+  /** The review before "done" (review.ts), asked when the model ends a turn. */
+  review?: TurnReview;
   fetch?: typeof fetch;
   /** Where the servers listen; tests point them elsewhere. */
   url?: string;
@@ -380,34 +383,43 @@ export class LocalAgent implements AgentBackend {
         this.tested.add(model.option.id);
       }
       this.history.push(turn);
-      const result = streamText({
-        model: languageModel,
-        instructions: instructionsFor(upstream, false),
-        messages: this.history,
-        tools: await policyToolSet(upstream, {
-          nextId: () => `local-${String((this.sequence += 1))}`,
-          event: (event) => {
-            this.options.event(event);
-          },
-        }),
-        stopWhen: [stepCountIs(MAX_STEPS), repeatsItself],
-        abortSignal: signal,
-        providerOptions,
-        // A local server that refuses a request refuses it again; the user gets its reason at once.
-        maxRetries: 0,
+      const tools = await policyToolSet(upstream, {
+        nextId: () => `local-${String((this.sequence += 1))}`,
+        event: (event) => {
+          this.options.event(event);
+        },
       });
-      for await (const part of result.stream) {
-        if (part.type === 'text-delta') this.options.event({ type: 'textDelta', text: part.text });
-        if (part.type === 'error') throw part.error instanceof Error ? part.error : new Error(String(part.error));
+      let steps;
+      for (;;) {
+        const result = streamText({
+          model: languageModel,
+          instructions: instructionsFor(upstream, false),
+          messages: this.history,
+          tools,
+          stopWhen: [stepCountIs(MAX_STEPS), repeatsItself],
+          abortSignal: signal,
+          providerOptions,
+          // A local server that refuses a request refuses it again; the user gets its reason at once.
+          maxRetries: 0,
+        });
+        for await (const part of result.stream) {
+          if (part.type === 'text-delta') this.options.event({ type: 'textDelta', text: part.text });
+          if (part.type === 'error') throw part.error instanceof Error ? part.error : new Error(String(part.error));
+        }
+        this.history.push(...(await result.responseMessages));
+        steps = await result.steps;
+        // A changing turn that ended without the review goes back to the model once (review.ts).
+        const back = signal.aborted || repeatsItself({ steps }) || usedAllRounds(steps) ? null : (this.options.review?.due() ?? null);
+        if (!back) break;
+        this.history.push({ role: 'user', content: back });
       }
-      this.history.push(...(await result.responseMessages));
-      this.context = contextAfter(await result.steps, model.option.context) ?? this.context;
-      if (repeatsItself({ steps: await result.steps })) {
+      this.context = contextAfter(steps, model.option.context) ?? this.context;
+      if (repeatsItself({ steps })) {
         this.options.event({ type: 'error', message: LOOP_NOTICE });
         this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: 'failed' });
         return;
       }
-      if (usedAllRounds(await result.steps)) {
+      if (usedAllRounds(steps)) {
         this.cutShort = true;
         this.options.log(`local model turn used all ${String(MAX_STEPS)} tool rounds and stopped`);
         this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: ROUNDS_DETAIL });
