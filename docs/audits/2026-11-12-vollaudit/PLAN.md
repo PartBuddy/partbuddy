@@ -95,7 +95,7 @@ Opus 5.5 · Mittel (PR #354); Claude Codes Eintrag „Default (recommended)“ i
 - [ ] Abnahme: Läufe mit dem gewählten Standard ohne neuen Befund
 
 ### Abschluss
-- [ ] Bericht `BERICHT.md`, Audit-Dokumente nach `main`
+- [x] Bericht `BERICHT.md`, Audit-Dokumente nach `main`
 
 ## Verlauf der Läufe
 
