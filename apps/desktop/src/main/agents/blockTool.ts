@@ -1,12 +1,12 @@
 import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 
-import { BLOCK_SIZES, DEFAULT_PRINTER, nutCorners, nutFlatsOfFit, ENTRY_CHAMFER, INSERT, ON_FACE, blockLimit, bossFillet, limitSaid, raisedBlock, SNAP_STRAIN_LIMIT, TEXT_STROKE, cutsThrough, strokesKnown, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, tapDrill, textDepth, textStroke, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { BLOCK_SIZES, DEFAULT_PRINTER, nutCorners, nutFlatsOfFit, ENTRY_CHAMFER, INSERT, ON_FACE, blockLimit, bossFillet, limitSaid, raisedBlock, snapRoot, TEXT_STROKE, cutsThrough, strokesKnown, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, tapDrill, textDepth, textStroke, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
 import type { FitPrinter } from '../../shared/designFit';
 import { CLEARANCE, NUT, NUT_DIN_FLATS, THREAD_ALLOWANCE, headRoom, pilotHole, printedThread, screwDiameter } from '../../shared/screwSizes';
 import { drawnHole, fitClearance, heldSaid, holeRoom, unmeasuredSaid, type ToolPrinter } from '../../shared/toolFit';
 import { KNOB, knobClearance, KNOB_CLEARANCE_MOST, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
-import { TAPPED_FROM } from '../../shared/mechanisms';
+import { SNAP_OFTEN, TAPPED_FROM, limitWords, snapLimit, standsUpright, uprightSaid } from '../../shared/mechanisms';
 import { MAGNET, MAGNET_HOLDS, MAGNET_MORE, PRESS_INTERFERENCE, PRESS_RANGE, magnetPocket, magnetRoom, magnetProblem, magnetSteps, magnetStock, type MagnetHold } from '../../shared/magnet';
 import { KEYHOLE, WALL, WALL_MORE, WOOD_SCREWS, WOOD_SCREW_UNDER, countersinkDepth, keyholeDepth, keyholeProblem, keyholeRoof, ROOF_LEAN, keyholeSteps, keyholeStock, wallSizes, woodScrewSteps, woodScrewStock, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
@@ -83,7 +83,7 @@ const blockTool: UpstreamTool = {
       },
       diameter: { type: 'number', description: 'insertSeat: the hole for the insert, the maker\'s size for printed parts (drawn as given); boss: its outer diameter; knob: its outer diameter, default 25; magnet: the diameter of the magnet, needed. Default from the table.' },
       height: { type: 'number', description: 'boss: its height; text: the height of its capitals, default 7; lip: its height; knob: its height, default 16; magnet: the height of the magnet, needed. Default by the block.' },
-      length: { type: 'number', description: 'slot: the distance between the centres of its round ends, which is how far the screw can travel; the slot is its width longer. snapFit: the length of the arm. Default 10 and 12 mm.' },
+      length: { type: 'number', description: 'slot: the distance between the centres of its round ends, which is how far the screw can travel; the slot is its width longer; default 10. snapFit: the length of the arm, default 12 mm, longer where the nozzle and the material in use need it; an arm that bends more at its root than the material takes is refused, with the length it needs.' },
       width: { type: 'number', description: 'slot, lip, snapFit: width in mm. Default by the block.' },
       along: { type: 'string', enum: ['x', 'y'], description: "slot: along the face's first or second direction." },
       text: { type: 'string', maxLength: 80, description: 'text: the words.' },
@@ -149,14 +149,15 @@ export const printLimit = (block: FeatureBlock, printer: FitPrinter): string | n
 };
 
 /**
- * What the model is told of a snap fit's strain: the block does not know the material for sure, so above what printed
- * PLA takes it warns and builds (as the form does, BlockPanel.tsx).
+ * What the model is told of a snap fit's strain, against what the profile's material takes (audit T18, R56, R41): over it the
+ * block is refused (blockLimit), as in the form; the root's radius, and which way the arm bends in the layers.
  */
-const strainSaid = (block: Extract<FeatureBlock, { block: 'snapFit' }>) => {
+const strainSaid = (block: Extract<FeatureBlock, { block: 'snapFit' }>, printer: ToolPrinter) => {
   const strain = snapStrain(block);
-  return strain > SNAP_STRAIN_LIMIT
-    ? ` Warning: the arm bends ${mm(strain)} % at its root as the catch snaps in; printed PLA cracks above ${String(SNAP_STRAIN_LIMIT)} % and PETG takes about 3 %. Tell the user, or make the arm longer or thinner, or the catch shallower.`
-    : ` The arm bends ${mm(strain)} % at its root as the catch snaps in; printed PLA takes ${String(SNAP_STRAIN_LIMIT)} %.`;
+  const limit = snapLimit(printer.material);
+  const often = strain > limit.often ? ` For a part taken apart often keep under ${String(limit.often)} % (${String(Math.round(SNAP_OFTEN * 100))} % of that, Bayer): make the arm longer or thinner, or the catch shallower.` : '';
+  const upright = standsUpright(block.normal) ? 'As designed it stands upright: where the part allows, lay the part so that the arm lies flat.' : 'Keep the part lying as designed, with the arm flat.';
+  return ` The arm bends ${mm(strain)} % at its root as the catch snaps in, within the ${limitWords(limit)}.${often} It meets the face in a radius of up to ${mm(snapRoot(block))} mm on both sides, smaller where the face ends closer to it. ${uprightSaid('the arm', upright)}`;
 };
 
 /** The fields each block takes besides block, body and point (the blocks of the interface: the fields of their standard). */
@@ -890,7 +891,7 @@ function holeSaid(block: FeatureBlock, printer: ToolPrinter): string {
  * What a block says of what it measured and of what it did not (audit W31, N-bloecke-5, N-bloecke-6, T30): `wall` is how
  * thick the part is at its point as the trial measured it, `rim` the width of a lip's rim; undefined or null when unmeasured.
  */
-function measuredSaid(block: FeatureBlock, wall: number | null | undefined, rim: number | undefined, printer: FitPrinter): string {
+function measuredSaid(block: FeatureBlock, wall: number | null | undefined, rim: number | undefined, printer: ToolPrinter): string {
   const unmeasured = wall === null ? `no plastic of ${block.body} lies within ${String(ON_FACE)} mm of the point` : 'SolidCraft could not run the trial that measures it';
   switch (block.block) {
     case 'text': {
@@ -916,7 +917,7 @@ function measuredSaid(block: FeatureBlock, wall: number | null | undefined, rim:
         ? ` The rim is ${mm(rim)} mm wide at its narrowest (measured on its edges)${block.type === 'groove' ? `: ${mm(rim - block.width - block.gap)} mm of wall stay beside the groove there` : ''}.`
         : ` PartBuddy could not measure the rim: check ${block.type === 'groove' ? 'the wall beside the groove' : 'that the lip stands on the rim'} yourself.`;
     case 'snapFit':
-      return strainSaid(block);
+      return strainSaid(block, printer);
     default:
       return '';
   }

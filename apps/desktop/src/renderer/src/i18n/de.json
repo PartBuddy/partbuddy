@@ -1513,8 +1513,8 @@
       "down": "Nach unten (−Z)",
       "other": "Richtung {n}"
     },
-    "strain": "Etwa {strain} % Dehnung beim Einrasten",
-    "strainHigh": "Etwa {strain} % Dehnung beim Einrasten – mehr, als gedrucktes PLA verträgt (etwa 2 %, PETG etwa 3 %): Arm länger oder dünner machen oder die Nase flacher",
+    "strain": "Etwa {strain} % Dehnung beim Einrasten; gedrucktes {material} verträgt einmal {most, number} %, bei häufigem Einrasten etwa {often, number} %",
+    "strainUnknown": "Etwa {strain} % Dehnung beim Einrasten; für {material} ist kein Wert bekannt, deshalb gelten die {most, number} % von {fallback} (bei häufigem Einrasten etwa {often, number} %)",
     "logoChoose": "SVG-Datei wählen …",
     "logoOther": "Andere Datei …",
     "logoWaiting": "Wähle eine SVG-Datei für das Logo",
@@ -1590,7 +1590,8 @@
       "screw": "Ein Langloch mit {value, number} mm Breite lässt keine {size}-Schraube ({thread, number} mm) durch: Standard sind {standard, number} mm.",
       "nutFlats": "Eine {size}-Mutter ist {least, number} mm breit über die Flächen und passt nicht in {value, number} mm: die Standardtasche hat {standard, number} mm.",
       "nutCorners": "Eine {size}-Mutter ist {most, number} mm breit über die Ecken und würde sich in einer Tasche mit {value, number} mm drehen: weniger angeben.",
-      "nutHeight": "Eine {size}-Mutter ist {least, number} mm hoch und stünde aus einer Tasche mit {value, number} mm Tiefe heraus: Standard sind {standard, number} mm."
+      "nutHeight": "Eine {size}-Mutter ist {least, number} mm hoch und stünde aus einer Tasche mit {value, number} mm Tiefe heraus: Standard sind {standard, number} mm.",
+      "strain": "Der Arm dehnt sich beim Einrasten an der Wurzel um {strain, number} %, mehr als die {most, number} %, die gedrucktes {material} verträgt: mindestens {least, number} mm lang machen, dünner oder die Nase flacher."
     },
     "strokeUnchecked": "Die Striche dieser Schrift sind nicht geprüft: PartBuddy kennt sie nur für Arial und die eingebaute Schrift."
   },

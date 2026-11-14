@@ -9,7 +9,7 @@ import { CLEARANCE_NOZZLE, scaleClearance, type FitPrinter } from './designFit';
 import { holeAllowance } from './holePlate';
 import { MATERIAL_CATALOG } from './materialCatalog';
 
-export type ToolMaterial = Pick<MaterialProfile, 'holeShrink' | 'clearance'> & { measuredNozzle?: number | undefined; fitsAfterPrint?: true | undefined; overhang?: number | undefined };
+export type ToolMaterial = Pick<MaterialProfile, 'holeShrink' | 'clearance'> & { measuredNozzle?: number | undefined; fitsAfterPrint?: true | undefined; overhang?: number | undefined; /** The profile's name: the snap hooks read their allowed strain from it (mechanisms.ts snapLimit). */ name?: string | undefined };
 
 /** The printer in use with the part's material; a tool given none reckons with {@link DEFAULT_MATERIAL}. */
 export interface ToolPrinter extends FitPrinter {

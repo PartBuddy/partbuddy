@@ -1513,8 +1513,8 @@
       "down": "Down (−Z)",
       "other": "Direction {n}"
     },
-    "strain": "About {strain} % strain when it snaps in",
-    "strainHigh": "About {strain} % strain when it snaps in – more than printed PLA takes (about 2 %, PETG about 3 %): make the arm longer or thinner, or the catch shallower",
+    "strain": "About {strain} % strain when it snaps in; printed {material} takes {most, number} % once, about {often, number} % when it snaps often",
+    "strainUnknown": "About {strain} % strain when it snaps in; no value is known for {material}, so {fallback}'s {most, number} % applies (about {often, number} % when it snaps often)",
     "logoChoose": "Choose SVG file …",
     "logoOther": "Other file …",
     "logoWaiting": "Choose an SVG file for the logo",
@@ -1590,7 +1590,8 @@
       "screw": "A slot {value, number} mm wide does not let an {size} screw ({thread, number} mm) pass: the standard is {standard, number} mm.",
       "nutFlats": "An {size} nut is {least, number} mm across its flats and does not go into {value, number} mm: the standard pocket is {standard, number} mm.",
       "nutCorners": "An {size} nut is {most, number} mm across its corners and would turn in a pocket {value, number} mm wide: give less than that.",
-      "nutHeight": "An {size} nut is {least, number} mm high and would stand out of a pocket {value, number} mm deep: the standard is {standard, number} mm."
+      "nutHeight": "An {size} nut is {least, number} mm high and would stand out of a pocket {value, number} mm deep: the standard is {standard, number} mm.",
+      "strain": "The arm bends {strain, number} % at its root as the catch snaps in, more than the {most, number} % printed {material} takes: make it at least {least, number} mm long, or thinner, or the catch shallower."
     },
     "strokeUnchecked": "The strokes of this font were not checked: PartBuddy knows them for Arial and its built-in font alone."
   },

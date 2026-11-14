@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { BLOCK_KINDS, blockBodies, blockLimit, cutsThrough, defaultBlock, DEFAULT_PRINTER, hasSize, hookVector, limitSaid, logoFrom, needsNormal, planeAt, raisedBlock, sizesOf, snapStrain, stepsOf, textDepth, textStroke, throughReach, throughTrial, throughWall, type FeatureBlock } from '../src/shared/blocks';
+import { SNAP } from '../src/shared/mechanisms';
 import { CLEARANCE, CLEARANCE_NORMAL, headRoom, pilotHole, printedThread } from '../src/shared/screwSizes';
 import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
 import { DEFAULT_MATERIAL, drawnHole, fitClearance, type ToolMaterial } from '../src/shared/toolFit';
@@ -270,7 +271,12 @@ describe('function blocks (F1)', () => {
         command: 'plastic.snap_fit',
         params: { position: at, hook: [0, 1, 0], length: '12 mm', thickness: '1.5 mm', width: '5 mm', catch_depth: '0.8 mm', catch_length: '1.5 mm', body: 'Body1' },
       },
+      // Audit MV-10: both root edges rounded at 0.6 of the thickness; the arm stands from the point against the catch
+      // (SolidCraft 0.40.1: edges at y 10 and 8.5 for a hook along +y, +0.869 mm³ each for 0.9 mm over 5 mm).
+      { command: 'solid.fillet', params: { edges: [at, [10, 8.5, 10]], radius: '0.9 mm', tangent_chain: false, fit: 'reduce', body: 'Body1' } },
     ]);
+    // Sideways, the second edge lies one thickness against the catch.
+    expect(stepsOf({ ...block, normal: [1, 0, 0], hook: 'x-', thickness: 2 } as FeatureBlock)[1]?.params).toMatchObject({ edges: [at, [10, 12, 10]], radius: '1.2 mm' });
     // On a side face the catch can point up or down, or level along the face.
     expect(hookVector(at, [1, 0, 0], 'y+')).toEqual([0, 0, 1]);
     expect(hookVector(at, [1, 0, 0], 'y-')).toEqual([0, 0, -1]);
@@ -281,6 +287,41 @@ describe('function blocks (F1)', () => {
         expect(vector[0] * normal[0] + vector[1] * normal[1] + vector[2] * normal[2]).toBe(0);
       }
     }
+  });
+
+  it('sizes the snap fit from the mechanism\'s hook, to the nozzle and to what the material takes (audit G9, T18, W15)', () => {
+    const block = defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1]) as Extract<FeatureBlock, { block: 'snapFit' }>;
+    expect([block.length, block.thickness, block.width, block.catchDepth, block.catchLength]).toEqual([SNAP.length, SNAP.thickness, SNAP.width, SNAP.catch, SNAP.catchLength]);
+    // 0.8 mm: two lines 1.8, the narrowest line 0.82; 150 · 1.8 · 0.82 / 11.25² = 1.75 %, within PLA's 2 %, so no longer.
+    const coarse = raisedBlock(defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1], { nozzle: 0.8, layer: 0.2 }), { nozzle: 0.8, layer: 0.2 }).block as typeof block;
+    expect([coarse.length, coarse.thickness, coarse.catchDepth]).toEqual([12, 1.8, 0.82]);
+    expect(blockLimit(coarse, { nozzle: 0.8, layer: 0.2 })).toBeNull();
+    // 1.2 mm: 2.7 thick and a catch of 1.22 bend 3.9 % on 12 mm; lengthened to 16.5 mm it is 1.99 %.
+    const coarser = raisedBlock(defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1], { nozzle: 1.2, layer: 0.3 }), { nozzle: 1.2, layer: 0.3 }).block as typeof block;
+    expect([coarse.width, coarser.length, coarser.thickness, coarser.catchDepth]).toEqual([5, 16.5, 2.7, 1.22]);
+    expect(snapStrain(coarser)).toBeLessThanOrEqual(2);
+    expect(snapStrain({ ...coarser, length: 16.4 })).toBeGreaterThan(2);
+    expect(blockLimit(coarser, { nozzle: 1.2, layer: 0.3 })).toBeNull();
+  });
+
+  it('refuses a snap arm that bends more than its material takes, on both sides of the limit (audit T18, R56, MV-12)', () => {
+    const block = defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1]) as Extract<FeatureBlock, { block: 'snapFit' }>;
+    // PLA 2 %: 150 · 1.5 · 0.8 / (L − 0.75)² = 2 at L = 10.237; 10.24 holds, 10.23 not.
+    expect(blockLimit({ ...block, length: 10.24 }, DEFAULT_PRINTER)).toBeNull();
+    const refused = blockLimit({ ...block, length: 10.23 }, DEFAULT_PRINTER);
+    expect(refused).toEqual({ key: 'length', value: 10.23, nozzle: 0.4, reason: 'strain', strain: 2, most: 2, least: 10.3, material: 'PLA', known: true, name: 'PLA' });
+    expect(limitSaid(refused as NonNullable<typeof refused>)).toBe('length 10.23: the arm bends 2 % at its root as the catch snaps in, more than the 2 % printed PLA takes; make it at least 10.3 mm long, or thinner, or the catch shallower');
+    // Audit T18: thickness 3, length 5, catch 2 bent 49 % and was built.
+    expect(blockLimit({ ...block, length: 5, thickness: 3, catchDepth: 2 }, DEFAULT_PRINTER)).toMatchObject({ reason: 'strain', strain: 49.83 });
+    // PETG takes 3.5 %: the arm of 8 mm (3.42 %) holds there, not in PLA; a material without sources is held to PLA's.
+    const petg = { ...DEFAULT_PRINTER, material: { ...DEFAULT_MATERIAL, name: 'Prusament PETG' } };
+    expect(blockLimit({ ...block, length: 8 }, petg)).toBeNull();
+    expect(blockLimit({ ...block, length: 8 }, DEFAULT_PRINTER)).toMatchObject({ reason: 'strain', most: 2 });
+    const abs = blockLimit({ ...block, length: 8 }, { ...DEFAULT_PRINTER, material: { ...DEFAULT_MATERIAL, name: 'ABS' } });
+    expect(abs).toMatchObject({ reason: 'strain', most: 2, material: 'PLA', known: false, name: 'ABS' });
+    expect(limitSaid(abs as NonNullable<typeof abs>)).toContain("(no allowed strain is known for ABS: PLA's, the lowest PartBuddy knows, applies)");
+    // A size under what prints is said first.
+    expect(blockLimit({ ...block, length: 5, catchDepth: 0.3 }, DEFAULT_PRINTER)).toMatchObject({ reason: 'catch' });
   });
 
   it('works out the snap fit\'s strain at the root of the arm', () => {

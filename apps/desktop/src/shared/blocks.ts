@@ -12,11 +12,11 @@ import { drawingColours, drawingPieces, drawingSize, drawingSvg, naturalWidth, p
 import { minimumWall, thinnestLine } from '@partbuddy/geometry';
 
 import { snapSize, type FitPrinter } from './designFit';
-import { LIP, TAPPED_FROM } from './mechanisms';
+import { LIP, SNAP, SNAP_ROOT, TAPPED_FROM, snapHook, snapLength, snapLimit, snapStrain } from './mechanisms';
 import { CLEARANCE, CLEARANCE_NORMAL, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, INSERT, NUT, NUT_ALLOWANCE, BLOCK_SIZES, TAP_DRILL, headRoom, printedThread, screwDiameter, type BlockSize } from './screwSizes';
 import { DEFAULT_PRINTER, drawnHole, fitClearance, type ToolPrinter } from './toolFit';
 
-export { BLOCK_SIZES, HEAD_ALLOWANCE, INSERT, NUT_ALLOWANCE, type BlockSize };
+export { BLOCK_SIZES, HEAD_ALLOWANCE, INSERT, NUT_ALLOWANCE, snapStrain, type BlockSize };
 
 type Point = [number, number, number];
 
@@ -122,9 +122,14 @@ export function defaultBlock(kind: BlockKind, body: string, point: [number, numb
     case 'logo':
       // No file yet: the form asks for one before anything is built.
       return { block: kind, body, point, normal, size, name: '', svg: '', width: 20, depth: textDepth(printer), mode: 'deboss' };
-    case 'snapFit':
-      // About 1.4 % strain when it snaps in: within what printed PLA takes.
-      return { block: kind, body, point, normal, size, length: 12, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5, hook: 'y+' };
+    case 'snapFit': {
+      // The mechanism's hook (SNAP, audit G9). Free, it bends by its whole catch: as long as the material needs for that with arm
+      // and catch as the nozzle prints them (1.42 % in PLA on 0.4 mm, within its 2 %; audit T18, MV-12, W15). Arm and catch
+      // themselves are raised to the nozzle by raisedBlock, which says so.
+      const { thickness, catch: depth } = snapHook(printer, printer.material);
+      const length = Math.max(SNAP.length, snapLength(thickness, depth, SNAP.catchLength, snapLimit(printer.material).strain));
+      return { block: kind, body, point, normal, size, length, thickness: SNAP.thickness, width: SNAP.width, catchDepth: SNAP.catch, catchLength: SNAP.catchLength, hook: 'y+' };
+    }
   }
 }
 
@@ -149,9 +154,6 @@ export const nutCorners = (size: BlockSize) => round((NUT[size][0] * 2) / Math.s
 /** A {@link BlockLimit} as the form's refusal: the panel reads it back and says it in the interface language (refusal.ts). */
 export const limitRefusal = (limit: BlockLimit) => `${PRINT_LIMIT}${JSON.stringify(limit)}`;
 
-/** Above this strain at the arm's root, printed PLA tends to crack (PETG takes about 3 %). */
-export const SNAP_STRAIN_LIMIT = 2;
-
 /**
  * The stroke of a capital I as a share of the capital height, measured on SolidCraft 0.40.1 (2026-11-13, 10 mm capitals:
  * 2.019 mm in Arial bold, 1.356 mm in the built-in Liberation Sans): the thinnest stroke of a text of that height.
@@ -159,14 +161,11 @@ export const SNAP_STRAIN_LIMIT = 2;
 export const TEXT_STROKE = { bold: 0.2019, regular: 0.1356 };
 
 /**
- * The bending strain at the arm's root when the catch is pushed aside by its depth, for a
- * cantilever of constant section: 1.5 · thickness · deflection / lever², in per cent. SolidCraft's
- * length includes the catch, so the lever runs to the catch's middle.
+ * The radius at a snap arm's root: {@link SNAP_ROOT} of its thickness.
+ * shortcut: no taper (Bayer: to half the thickness at the tip, over 60 % more deflection), as plastic.snap_fit takes none;
+ * build the arm as a profile of its own if hooks on short arms are needed.
  */
-export function snapStrain(block: { length: number; thickness: number; catchDepth: number; catchLength: number }): number {
-  const lever = Math.max(block.length - block.catchLength / 2, block.length / 4);
-  return (150 * block.thickness * block.catchDepth) / lever ** 2;
-}
+export const snapRoot = (block: { thickness: number }) => round(SNAP_ROOT * block.thickness);
 
 /** The catch's direction in world coordinates. */
 export function hookVector(point: Point, normal: Point, hook: HookDirection): Point {
@@ -243,13 +242,14 @@ export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly
         // an extrusion keeps a loop inside a hole as material again, as the drawing shows it.
         { command: 'solid.extrude', params: { distance: mm(block.mode === 'deboss' ? -block.depth : block.depth), operation: block.mode === 'deboss' ? 'cut' : 'join' } },
       ];
-    case 'snapFit':
+    case 'snapFit': {
+      const hook = hookVector(block.point, block.normal, block.hook);
       return [
         {
           command: 'plastic.snap_fit',
           params: {
             position: block.point,
-            hook: hookVector(block.point, block.normal, block.hook),
+            hook,
             length: mm(block.length),
             thickness: mm(block.thickness),
             width: mm(block.width),
@@ -258,7 +258,12 @@ export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly
             body: block.body,
           },
         },
+        // SolidCraft's hook meets the face in sharp edges (measured, 0.40.1: 13 plane faces). Its arm stands from the point
+        // against the catch, so its two long root edges run through the point and one thickness behind it (audit MV-10). Where the
+        // face ends closer than the radius SolidCraft makes it smaller and warns (reduce: 0.23 mm flush with an edge), rather than fail.
+        { command: 'solid.fillet', params: { edges: [block.point, block.point.map((value, i) => round6(value - (hook[i] ?? 0) * block.thickness))], radius: mm(snapRoot(block)), tangent_chain: false, fit: 'reduce', body: block.body } },
       ];
+    }
     case 'lip':
       return [{ command: 'plastic.lip', params: { face: block.point, type: block.type, width: mm(block.width), height: mm(block.height), ...(block.type === 'groove' ? { gap: mm(block.gap) } : {}), body: block.body } }];
     default:
@@ -535,6 +540,7 @@ export type BlockLimit = { key: string; value: number; nozzle: number } & (
   | { reason: 'nutFlats' | 'nutHeight'; size: string; least: number; standard: number }
   | { reason: 'nutCorners'; size: string; most: number }
   | { reason: 'printedThread'; size: string; from: number }
+  | { reason: 'strain'; strain: number; most: number; least: number; material: string; known: boolean; name: string }
 );
 
 /** Whether the strokes of a text's font are known: measured for Arial bold and the built-in Liberation Sans alone (TEXT_STROKE). */
@@ -575,8 +581,8 @@ export function raisedBlock(block: FeatureBlock, printer: FitPrinter, kept: read
   return { block: { ...block, ...Object.fromEntries(raised.map(({ key, least }) => [key, least])) }, raised: raised.map(({ key }) => key) };
 }
 
-/** The first size of a block that does not print or does not do its work on the printer; null when all do. */
-export function blockLimit(block: FeatureBlock, printer: FitPrinter): BlockLimit | null {
+/** The first size of a block that does not print or does not do its work on the printer and in its material; null when all do. */
+export function blockLimit(block: FeatureBlock, printer: ToolPrinter): BlockLimit | null {
   const sizes = block as unknown as Record<string, unknown>;
   const { nozzle } = printer;
   for (const { key, least, reason } of leastOf(block, printer)) {
@@ -584,6 +590,13 @@ export function blockLimit(block: FeatureBlock, printer: FitPrinter): BlockLimit
     if (typeof value !== 'number' || value >= least - 1e-9) continue;
     if (reason === 'stroke' || reason === 'strokeBold') return { key, value, nozzle, reason, least, needed: round(2 * nozzle), stroke: round(value * (reason === 'strokeBold' ? TEXT_STROKE.bold : TEXT_STROKE.regular)) };
     return { key, value, nozzle, reason: reason as 'lipWall', least };
+  }
+  // An arm that bends further than its material takes cracks, in the form as with the assistant (audit T18, R56, S-13).
+  if (block.block === 'snapFit') {
+    const allowed = snapLimit(printer.material);
+    const strain = snapStrain(block);
+    if (strain > allowed.strain + 1e-9)
+      return { key: 'length', value: block.length, nozzle, reason: 'strain', strain: round(strain), most: allowed.strain, least: snapLength(block.thickness, block.catchDepth, block.catchLength, allowed.strain), material: allowed.type, known: allowed.known, name: allowed.name };
   }
   // A printed thread under M5 strips, in the form as with the assistant (blockTool.ts, mechanisms.ts).
   if (block.block === 'tappedHole' && block.modeled && screwDiameter(block.size) < TAPPED_FROM)
@@ -630,6 +643,8 @@ export function limitSaid(limit: BlockLimit): string {
         return `an ${limit.size} nut is ${String(limit.most)} mm across its corners and would turn in the pocket; give less than that`;
       case 'nutHeight':
         return `an ${limit.size} nut is ${String(limit.least)} mm high and would stand out of the pocket; the standard is ${String(limit.standard)}`;
+      case 'strain':
+        return `the arm bends ${String(limit.strain)} % at its root as the catch snaps in, more than the ${String(limit.most)} % printed ${limit.material} takes${limit.known ? '' : ` (no allowed strain is known for ${limit.name}: ${limit.material}'s, the lowest PartBuddy knows, applies)`}; make it at least ${String(limit.least)} mm long, or thinner, or the catch shallower`;
       case 'printedThread':
         return `modeled: a printed ${limit.size} thread strips; give modeled false to drill it for tapping after printing, use insertSeat (a heat-set insert), or a thread from M${String(limit.from)}`;
     }

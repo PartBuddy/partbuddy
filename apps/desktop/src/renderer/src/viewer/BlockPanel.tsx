@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckboxButton, CheckboxField, FileTrigger, Input, Label, NumberField, TextField, ToggleButton } from 'react-aria-components';
 
-import { BLOCK_KINDS, DEFAULT_PRINTER, blockLimit, defaultBlock, hasSize, limitRefusal, raisedBlock, strokesKnown, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, SNAP_STRAIN_LIMIT, snapStrain, textDepth, textStroke, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
+import { snapLimit } from '../../../shared/mechanisms';
+import { BLOCK_KINDS, DEFAULT_PRINTER, blockLimit, defaultBlock, hasSize, limitRefusal, raisedBlock, strokesKnown, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, snapStrain, textDepth, textStroke, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
 import { HEAD_ALLOWANCE, NUT_DIN_FLATS, THREAD_ALLOWANCE } from '../../../shared/screwSizes';
 import { fitClearance, holeRoom, type ToolPrinter } from '../../../shared/toolFit';
 import { drawingColours, drawingSvg, mergedColours, naturalWidth, parseDrawing, type Drawing, type DrawingProblem } from '../../../shared/svgDrawing';
@@ -125,6 +126,8 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   // material's fits, and checks by the assistant's limits; main builds with the same (index.ts, toolPrinter).
   const print = useStudio((s) => s.print);
   const printer = useMemo<ToolPrinter>(() => (print ? { ...print.printer, material: print.material } : DEFAULT_PRINTER), [print]);
+  // What a snap arm may bend in the profile's material (mechanisms.ts snapLimit), for the strain line.
+  const strainLimit = useMemo(() => snapLimit(printer.material), [printer]);
   // SolidCraft's answer for a block; only the answer for the block as it is now counts (a moved one is tried anew).
   const [status, setStatus] = useState<{ ok: boolean; error?: string; block?: FeatureBlock; unmeasured?: boolean } | null>(null);
   const [fileProblem, setFileProblem] = useState<DrawingProblem | 'unreadable' | null>(null);
@@ -489,8 +492,9 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               />
               <Length label={t('blocks.catchDepth')} value={block.catchDepth} onChange={(catchDepth) => setBlock({ ...block, catchDepth })} testId="block-catch-depth" />
               <Length label={t('blocks.catchLength')} value={block.catchLength} onChange={(catchLength) => setBlock({ ...block, catchLength })} testId="block-catch-length" />
-              <p className={`col-span-2 text-xs ${snapStrain(block) > SNAP_STRAIN_LIMIT ? 'text-warning' : 'text-text-subtle'}`} data-testid="block-strain">
-                {t(snapStrain(block) > SNAP_STRAIN_LIMIT ? 'blocks.strainHigh' : 'blocks.strain', { strain: snapStrain(block).toLocaleString(i18n.language, { maximumFractionDigits: 1 }) })}
+              {/* Over what the material takes the block is refused (blockLimit); over what it takes when snapped often, the line warns (audit T18, MV-12). */}
+              <p className={`col-span-2 text-xs ${snapStrain(block) > strainLimit.often ? 'text-warning' : 'text-text-subtle'}`} data-testid="block-strain">
+                {t(strainLimit.known ? 'blocks.strain' : 'blocks.strainUnknown', { strain: snapStrain(block).toLocaleString(i18n.language, { maximumFractionDigits: 1 }), most: strainLimit.strain, often: strainLimit.often, material: strainLimit.known ? strainLimit.type : strainLimit.name, fallback: strainLimit.type })}
               </p>
             </div>
           ) : (
