@@ -730,6 +730,9 @@
     "resize": "Width of the structure"
   },
   "parameters": {
+    "formulaName": "In formulas: {name}",
+    "computed": "Computed",
+    "more": "Other",
     "title": "Parameters ({count})",
     "none": "No parameters yet. The assistant names the important values of a part here.",
     "change": "Change {name}",

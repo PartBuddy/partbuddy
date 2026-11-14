@@ -11,6 +11,7 @@ import { invokeChannels, eventChannels } from '../shared/channels';
 import type { AssemblyPlan } from '../shared/assembly';
 import { DESIGN_DEFAULTS, HINT_DEFAULTS, type AgentEvent, type ExportFormat, type PartPrint, type PrintCheckReport, type PrintSettings, type ViewState } from '../shared/contract';
 import { refit, withoutFitMark } from '../shared/designFit';
+import { withoutGroup } from '../shared/parameterGroup';
 import { AgentService } from './agents/agentService';
 import { AppearanceSettings } from './appearance';
 import { GeneralSettings } from './generalSettings';
@@ -938,7 +939,7 @@ if (!app.requestSingleInstanceLock()) {
             log(`no parts list in the sharing package: ${(error as Error).message}`);
             return [];
           }),
-          parameters: parameters.map((parameter) => ({ name: parameter.name, value: parameter.value, unit: parameter.unit, comment: withoutFitMark(parameter.comment.replace(/\s*\[[^\]]*\.\.[^\]]*\]\s*/, ' ')) || null })),
+          parameters: parameters.map((parameter) => ({ name: parameter.name, value: parameter.value, unit: parameter.unit, comment: withoutFitMark(withoutGroup(parameter.comment).replace(/\s*\[[^\]]*\.\.[^\]]*\]\s*/, ' ')) || null })),
           material: print.material.name,
           layer: print.printer.layer,
           nozzle: print.printer.nozzle,

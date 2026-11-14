@@ -351,25 +351,29 @@ test('the parameter panel lists the design parameters and changes a length with 
 
   const panel = page.getByTestId('parameters');
   await expect(panel.getByRole('treeitem', { name: 'Parameters (3)' })).toBeVisible();
-  // Favourites first, one row each (name, value, unit); comment, range and formula show on hover.
+  // Favourites first, one row each (label, value, unit); comment, name, range and formula show on hover.
   const rows = panel.getByTestId('parameter');
   await expect(rows.first()).toHaveAttribute('data-name', 'breite');
-  await expect(rows.first()).toHaveAccessibleName(/breite.* 40 mm$/);
-  await expect(rows.first().locator('[title]').first()).toHaveAttribute('title', 'Plate width\nRange 30 to 60 mm');
-  await expect(rows.nth(1).locator('[title]').first()).toHaveAttribute('title', /^= breite \/ 10\n/);
+  await expect(rows.first()).toHaveAccessibleName('Favourite Plate width 40 mm');
+  await expect(rows.first().locator('[title]').first()).toHaveAttribute('title', 'Plate width\nIn formulas: breite\nRange 30 to 60 mm');
+  // A formula waits folded under "Computed" (decided 2026-11-14).
+  const wandRow = panel.locator('[data-testid="parameter"][data-name="wand"]');
+  await expect(wandRow).toHaveCount(0);
+  await panel.getByRole('treeitem', { name: 'Computed (1)' }).click();
+  await expect(wandRow.locator('[title]').first()).toHaveAttribute('title', /^= breite \/ 10\n/);
   const floorRow = panel.locator('[data-testid="parameter"][data-name="boden"]');
-  await expect(floorRow.locator('[title]').first()).toHaveAttribute('title', "Floor\nChosen by the assistant, follows the printer's nozzle and layer height");
+  await expect(floorRow.locator('[title]').first()).toHaveAttribute('title', "Floor\nIn formulas: boden\nChosen by the assistant, follows the printer's nozzle and layer height");
   await expect(panel.getByRole('textbox')).toHaveCount(0);
   // A formula stays as it is: a double click opens no field.
-  await rows.nth(1).dblclick();
+  await wandRow.dblclick();
   await expect(panel.getByRole('textbox', { name: 'Change wand' })).toHaveCount(0);
 
   // A double click opens the value; a favourite with a range brings its slider while it is edited.
   await rows.first().dblclick();
-  const field = panel.getByRole('textbox', { name: 'Change breite' });
+  const field = panel.getByRole('textbox', { name: 'Change Plate width' });
   await expect(field).toHaveValue('40');
   await expect(field).toBeFocused();
-  await expect(panel.getByRole('slider', { name: 'breite, slider' })).toBeVisible();
+  await expect(panel.getByRole('slider', { name: 'Plate width, slider' })).toBeVisible();
   await field.fill('70');
   await expect(panel.getByText('Outside the intended range 30 to 60')).toBeVisible();
 
@@ -383,7 +387,7 @@ test('the parameter panel lists the design parameters and changes a length with 
 
   await field.press('Enter');
   await expect.poll(() => solidcraft.parameters.find((entry) => entry.name === 'breite')?.value).toBe(50);
-  await expect(rows.first()).toHaveAccessibleName(/breite.* 50 mm$/);
+  await expect(rows.first()).toHaveAccessibleName('Favourite Plate width 50 mm');
   await expect(rows.first()).toBeFocused();
 
   // F2 opens it again; a value SolidCraft cannot build is refused before Enter; Escape keeps the current value.
@@ -392,16 +396,110 @@ test('the parameter panel lists the design parameters and changes a length with 
   await expect(panel.getByText('SolidCraft cannot build the part with this value')).toBeVisible();
   await field.press('Escape');
   await expect(field).toHaveCount(0);
-  await expect(rows.first()).toHaveAccessibleName(/breite.* 50 mm$/);
+  await expect(rows.first()).toHaveAccessibleName('Favourite Plate width 50 mm');
 
   // The user setting a snapped size makes it theirs: the mark goes, so a printer change leaves it alone.
   await floorRow.dblclick();
-  const floor = panel.getByRole('textbox', { name: 'Change boden' });
+  const floor = panel.getByRole('textbox', { name: 'Change Floor' });
   await floor.fill('2');
   await expect(panel.getByText('Preview in the view – Enter changes it, Escape cancels')).toBeVisible();
   await floor.press('Enter');
   await expect.poll(() => solidcraft.parameters.find((entry) => entry.name === 'boden')?.comment).toBe('Floor');
-  await expect(floorRow.locator('[title]').first()).toHaveAttribute('title', 'Floor');
+  await expect(floorRow.locator('[title]').first()).toHaveAttribute('title', 'Floor\nIn formulas: boden');
+});
+
+/** A stand like Manuel's "Monitor Halter Sim-Lab" (14 November 2026): many sizes, many formulas. */
+function manyParameters(grouped: boolean) {
+  const user = { source: 'user' as const, error: null, favorite: false, used_by: [] };
+  const groups = ['Monitor', 'Kopf', 'Fuß', 'Arm'];
+  return Array.from({ length: 88 }, (_, i) => {
+    const group = groups[i % groups.length] ?? '';
+    const formula = i % 3 === 2;
+    const label = `${group}-Maß ${String(i + 1)}`;
+    return {
+      ...user,
+      name: `${group.toLowerCase().replace('ß', 'ss')}_${String(i + 1)}`,
+      expression: formula ? `p_${String(i - 1)} / 2` : `${String(10 + i)} mm`,
+      value: formula ? (9 + i) / 2 : 10 + i,
+      unit: 'mm',
+      comment: grouped ? `[${group}] ${label}` : label,
+    };
+  });
+}
+
+test('the parameter panel groups many parameters, folds formulas and keeps every section in sight', async () => {
+  const { app, fake: solidcraft } = await connectedApp();
+  const { page } = app;
+  await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 1');
+  const panel = page.getByTestId('parameters');
+  const tree = page.getByRole('tree', { name: 'Structure' });
+
+  // A design from before: no groups, the 59 values in one list, the 29 formulas folded at its end.
+  solidcraft.parameters = manyParameters(false);
+  solidcraft.change();
+  await expect(panel.getByRole('treeitem', { name: 'Parameters (88)' })).toBeVisible();
+  await expect(panel.getByTestId('parameters-group')).toHaveCount(0);
+  await expect(panel.getByTestId('parameter')).toHaveCount(59);
+  await expect(panel.getByRole('treeitem', { name: 'Computed (29)' })).toHaveAttribute('aria-expanded', 'false');
+  // The label in place of the name, which shows on hover.
+  await expect(panel.getByTestId('parameter').first()).toHaveAccessibleName('Monitor-Maß 1 10 mm');
+  // The other sections stay in sight below the list, which scrolls on its own.
+  await expect(tree.getByRole('treeitem', { name: 'Bodies (1)' })).toBeInViewport();
+  await expect(tree.getByRole('treeitem', { name: /^Notes/ })).toBeInViewport();
+  const body = page.getByTestId('parameters-body');
+  expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath('sidebar-88-ungrouped.png') });
+
+  // Grouped by the assistant's comments: one folder each, their formulas folded inside.
+  solidcraft.parameters = manyParameters(true);
+  solidcraft.change();
+  const groups = panel.getByTestId('parameters-group');
+  await expect(groups).toHaveCount(4);
+  await expect(groups.first()).toHaveAttribute('data-group', 'Monitor');
+  const monitor = panel.getByRole('treeitem', { name: 'Monitor (22)' });
+  await expect(monitor).toHaveAttribute('aria-expanded', 'true');
+  await expect(monitor).toHaveAttribute('aria-level', '2');
+  await expect(panel.getByTestId('parameter').first()).toHaveAttribute('aria-level', '3');
+  await expect(panel.getByRole('treeitem', { name: /^Computed \(\d\)$/ })).toHaveCount(4);
+  await page.screenshot({ path: test.info().outputPath('sidebar-88-grouped.png') });
+
+  // Keyboard: Left folds a group, Right opens it and goes to its first row, Left goes back to the group.
+  await monitor.focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(monitor).toHaveAttribute('aria-expanded', 'false');
+  await expect(panel.getByTestId('parameter').first()).toHaveAttribute('data-name', 'kopf_2');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await expect(panel.locator('[data-testid="parameter"][data-name="monitor_1"]')).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(monitor).toBeFocused();
+  // Fold the other three, open Monitor's formulas: a short list.
+  for (const name of ['Kopf (22)', 'Fuß (22)', 'Arm (22)']) await panel.getByRole('treeitem', { name }).click();
+  await groups.first().getByRole('treeitem', { name: 'Computed (7)' }).click();
+  await expect(panel.getByTestId('parameter')).toHaveCount(22);
+  await page.screenshot({ path: test.info().outputPath('sidebar-groups-folded.png') });
+
+  // A section folds and its divider sets its height, both kept for the next start.
+  await tree.getByRole('treeitem', { name: 'Sketches (0)' }).click();
+  await expect(tree.getByRole('treeitem', { name: 'Sketches (0)' })).toHaveAttribute('aria-expanded', 'false');
+  const resizer = page.getByTestId('parameters-resizer');
+  await resizer.focus();
+  await page.keyboard.press('Home');
+  const before = (await panel.boundingBox())?.height ?? 0;
+  await page.keyboard.press('Shift+ArrowUp');
+  await expect.poll(async () => (await panel.boundingBox())?.height ?? 0).toBeLessThan(before - 40);
+  const kept = Math.round((await panel.boundingBox())?.height ?? 0);
+  await page.reload();
+  await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision/);
+  await expect(panel.getByRole('treeitem', { name: 'Parameters (88)' })).toBeVisible();
+  await expect(tree.getByRole('treeitem', { name: 'Sketches (0)' })).toHaveAttribute('aria-expanded', 'false');
+  await expect(panel.getByRole('treeitem', { name: 'Kopf (22)' })).toHaveAttribute('aria-expanded', 'false');
+  await expect(panel.getByRole('treeitem', { name: 'Monitor (22)' })).toHaveAttribute('aria-expanded', 'true');
+  await expect.poll(async () => Math.round((await panel.boundingBox())?.height ?? 0)).toBe(kept);
+  // A double click on the divider goes back to as high as its rows.
+  await resizer.dblclick();
+  await expect.poll(async () => Math.round((await panel.boundingBox())?.height ?? 0)).not.toBe(kept);
+  expect(await axeAtRest(page, '[data-testid="structure"]')).toEqual([]);
 });
 
 test('the structure tree folds, selects, frames, renames and hides by mouse and keyboard', async () => {

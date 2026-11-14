@@ -730,6 +730,9 @@
     "resize": "Breite der Struktur"
   },
   "parameters": {
+    "formulaName": "In Formeln: {name}",
+    "computed": "Berechnet",
+    "more": "Weitere",
     "title": "Parameter ({count})",
     "none": "Noch keine Parameter. Der Assistent benennt hier die wichtigen Werte eines Teils.",
     "change": "{name} ändern",
