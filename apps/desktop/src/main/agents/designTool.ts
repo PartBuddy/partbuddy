@@ -25,7 +25,7 @@ const designTool: UpstreamTool = {
       printInPlace: choice('Print-in-place hinges, joints and clips'),
       details: choice('Refined details (hole chamfers, sunk screw heads, lead-ins, even walls)'),
       snap: choice('Sizes snapped to nozzle and layer height'),
-      economy: choice('Saving material and print time (shells and ribs instead of solid blocks, low build height, no needless support)'),
+      economy: choice('Saving material and print time (leaving out volume that does nothing, never hollowing a closed body, low build height)'),
     },
     additionalProperties: false,
   },

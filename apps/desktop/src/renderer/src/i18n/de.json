@@ -1069,7 +1069,7 @@
       },
       "economy": {
         "label": "Sparsam konstruieren",
-        "hint": "Spart Material und Druckzeit: Schalen mit Rippen statt massiver Blöcke, geringe Bauhöhe, keine unnötigen Stützen. Funktion und Festigkeit gehen vor; Füllung und Geschwindigkeit bleiben Sache deines Slicers."
+        "hint": "Spart Material und Druckzeit: lässt Volumen weg, das nichts trägt (offener Boden, Rahmen statt Platte), ohne geschlossene Körper auszuhöhlen, und hält die Bauhöhe gering. Funktion und Festigkeit gehen vor; Füllung und Geschwindigkeit bleiben Sache deines Slicers."
       }
     },
     "add": "Drucker hinzufügen",

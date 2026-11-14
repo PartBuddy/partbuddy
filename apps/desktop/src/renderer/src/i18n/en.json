@@ -1069,7 +1069,7 @@
       },
       "economy": {
         "label": "Design lean",
-        "hint": "Saves material and print time: shells with ribs instead of solid blocks, low build height, no needless support. Function and strength come first; infill and speed stay with your slicer."
+        "hint": "Saves material and print time: leaves out volume that does nothing (an open bottom, a frame instead of a plate) without hollowing closed bodies, and keeps the build height low. Function and strength come first; infill and speed stay with your slicer."
       }
     },
     "add": "Add printer",
