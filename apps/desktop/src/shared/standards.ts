@@ -17,11 +17,8 @@ const mm = (value: number) => String(Math.round(value * 100) / 100);
 /** Vent bars in extrusion lines (own choice); the line is the print profile's, named here for the default nozzle (audit T24, R5). */
 const BAR_LINES = 3;
 
-/**
- * The bed chamfer in layers, as the design rules' rounding group asks (printProfiles.ts), named for the default layer (audit T50, R45).
- * shortcut: `designLines` holds the same 2 and 3 as literals; share one constant when lane L5 touches printProfiles.ts again.
- */
-const BED_CHAMFER_LAYERS = [2, 3] as const;
+/** The bed chamfer in layers, as the design rules' rounding group asks (printProfiles.ts uses this one), named here for the default layer (audit T50, R45). */
+export const BED_CHAMFER_LAYERS = [2, 3] as const;
 const BED_CHAMFER = BED_CHAMFER_LAYERS.map((layers) => mm(layers * DEFAULT_PRINTER.layer)).join(' to ');
 
 /** The snap hook partbuddy_block snapFit builds by default on the default nozzle, which holds a board (audit R46, H-33). */
@@ -74,7 +71,7 @@ export const STANDARDS: Record<StandardTopic, { title: string; rules: string[] }
       'Stick-on rubber feet hold on a table; printed feet slide. Common ones (3M Bumpon data sheet, ±0.5 mm): SJ5302 7.9 × 2.2 mm, SJ5076 8.0 × 2.8, SJ5306 9.5 × 3.8, SJ5003 11.1 × 5.0, SJ5012 12.7 × 3.5, SJ5744 19.1 × 4.1.',
       'A recess for such a foot is not needed (3M) but keeps it from being sheared off: 0.5 mm wider than the foot, 0.5 to 1 mm deep, never deeper than half the foot, so it still stands proud (own choice from that tolerance).',
       'Four feet near the corners for anything that is pressed on or may tip; three never rock on an uneven table (guides).',
-      `Unless chamfers are turned off for the part, chamfer every edge that lies on the print bed at 45°, ${String(BED_CHAMFER_LAYERS[0])} to ${String(BED_CHAMFER_LAYERS[1])} layers high (${BED_CHAMFER} mm on ${mm(DEFAULT_PRINTER.layer)} mm layers): the first layer is squeezed wider (the slicers compensate about 0.2 mm; Hubs asks for a chamfer; Gridfinity uses 0.8 mm).`,
+      `Unless chamfers are turned off for the part, chamfer every edge that lies on the print bed at 45° (steeper in a material that takes less overhang), ${String(BED_CHAMFER_LAYERS[0])} to ${String(BED_CHAMFER_LAYERS[1])} layers high (${BED_CHAMFER} mm on ${mm(DEFAULT_PRINTER.layer)} mm layers): the first layer is squeezed wider (the slicers compensate about 0.2 mm; Hubs asks for a chamfer; Gridfinity uses 0.8 mm).`,
       'Feet printed on: at least 8 mm across and 2 mm high, with a chamfered rim. Feet of TPU cushion more than they grip (guides).',
     ],
   },

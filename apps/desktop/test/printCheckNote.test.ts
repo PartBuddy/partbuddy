@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry } from 'three';
 import { describe, expect, it, vi } from 'vitest';
+import { DESIGN_HINTS } from '@partbuddy/geometry';
 
 import { printCheckNote } from '../src/main/print/printCheckNote';
 import { printNote } from '../src/main/print/printProfiles';
@@ -86,12 +87,36 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     expect(printCheckNote({ ...report, findings: [{ kind: 'smallHole', severity: 'warn', holes: 1, diameter: 1, minimum: 2, places: [] }] })).toContain('- warning: a hole under 2 mm across, the smallest 1 mm:');
   });
 
+  it('words the design hints (2026-11-14)', () => {
+    const report = reportOf({ status: 'warn', findings: [{ kind: 'sharpEdge', severity: 'warn', edges: 12, length: 500, bodies: [{ body: 'Box', size: 40, thickness: 15, radius: 2 }, { body: 'Plate', size: 100, thickness: 1, radius: 0.5 }], places: [{ body: 'Box', faces: ['F1:+z', 'F1:+x'] }], box: null }] }, 0.4, 3);
+    expect(printCheckReportSchema.safeParse(report).success).toBe(true);
+    const note = printCheckNote(report);
+    expect(note).toContain('- warning: 12 sharp edges (500 mm) on bodies with no rounded or chamfered outer edge at all (faces "F1:+z", "F1:+x" of body "Box"): the design rules round outer edges that are seen or touched by the part\'s size');
+    // Review of #413: each body its own radius, a 1 mm plate at most half of it.
+    expect(note).toContain('here 2 mm on "Box" (40 mm long, 15 mm at its thinnest there), 0.5 mm on "Plate" (100 mm long, 1 mm at its thinnest there).');
+    const radii = reportOf({ status: 'warn', findings: [{ kind: 'edgeRadii', severity: 'warn', radii: [1, 2, 4, 8], families: 4, most: 3, places: [{ body: 'Box', faces: ['F2:blend(F1:+x|F1:+y)'] }], box: null }] }, 0.4, 3);
+    expect(printCheckReportSchema.safeParse(radii).success).toBe(true);
+    expect(printCheckNote(radii)).toContain('- warning: outer edges rounded with 4 families of radii (1, 2, 4, 8 mm) (faces "F2:blend(F1:+x|F1:+y)" of body "Box"): the design rules use at most 3 radii per part');
+    const roots = reportOf({ status: 'warn', findings: [{ kind: 'rootCorner', severity: 'warn', roots: 2, thickness: 1.6, length: 14, radius: 1, places: [{ body: 'Clip', faces: ['F2:+y'] }], box: null }] }, 0.4, 3);
+    expect(printCheckReportSchema.safeParse(roots).success).toBe(true);
+    expect(printCheckNote(roots)).toContain('- warning: 2 sides of slender arms stand on a sharp inner corner, the thinnest 1.6 mm thick and 14 mm long (faces "F2:+y" of body "Clip"): an arm that bends');
+    expect(printCheckNote(roots)).toContain('Round the root with at least 1 mm');
+    const slope = reportOf({ status: 'warn', findings: [{ kind: 'shallowSlope', severity: 'warn', faces: 1, area: 912, angle: 9.5, step: 1.2, limit: 15, places: [{ body: 'Box', faces: ['F2:blend(F1:+x|F1:+z)'] }], box: null }] }, 0.4, 3);
+    expect(printCheckReportSchema.safeParse(slope).success).toBe(true);
+    expect(printCheckNote(slope)).toContain('- warning: a flat face facing up leans less than 15° from flat (912 mm², the shallowest 9.5°) (faces "F2:blend(F1:+x|F1:+z)" of body "Box"): the layers show on it as steps about 1.2 mm wide.');
+    const corner = reportOf({ status: 'warn', findings: [{ kind: 'shellCorner', severity: 'warn', corners: 4, thickness: 0.51, wall: 2, radius: 6, inner: 4, places: [{ body: 'Box', faces: ['F3:blend(F1:-x|F1:-y)'] }], box: null }] }, 0.4, 3);
+    expect(printCheckReportSchema.safeParse(corner).success).toBe(true);
+    expect(printCheckNote(corner)).toContain('- warning: 4 rounded outer edges of a shell thin the wall in the corner to 0.51 mm, under half the 2 mm beside it (faces "F3:blend(F1:-x|F1:-y)" of body "Box"): the outside is rounded 6 mm, the inside not to match. Round the inside to the outer radius less the wall (4 mm)');
+    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).toContain('Design hints looked for (how the part looks and holds; yellow, never a block): bodies with no rounded or chamfered edge, more than three radii on outer edges, sharp inner corners at the foot of slender arms, faces facing up that lean less than 15° from flat, shell corners rounded outside only.');
+    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1, [], { off: [...DESIGN_HINTS] }))).not.toContain('Design hints looked for');
+  });
+
   it('claims no hint the user turned off (BC-24)', () => {
     const report = reportOf({ status: 'ready', findings: [] }, 0.4, 1, [], { off: ['smallHole'] });
     expect(printCheckReportSchema.safeParse(report).success).toBe(true);
     const note = printCheckNote(report);
     expect(note).toContain('rounded edges on the bed, slots under one nozzle, area on the bed');
-    expect(note).toContain("Turned off in PartBuddy's print settings, so not looked for: holes under 2 mm.");
+    expect(note).toContain("Turned off in PartBuddy's print settings or with the design rules, so not looked for: holes under 2 mm.");
     expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).not.toContain('Turned off');
   });
 

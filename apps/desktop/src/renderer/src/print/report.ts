@@ -162,6 +162,16 @@ export function reportOf(result: PrintCheck, nozzle: number, revision: number, b
           return { kind: finding.kind, severity: finding.severity, area: finding.area, bodies: finding.bodies, places };
         case 'smallHole':
           return { kind: finding.kind, severity: finding.severity, holes: finding.holes, diameter: finding.diameter, minimum: finding.minimum, places };
+        case 'sharpEdge':
+          return { kind: finding.kind, severity: finding.severity, edges: finding.edges, length: finding.length, bodies: finding.bodies, places };
+        case 'edgeRadii':
+          return { kind: finding.kind, severity: finding.severity, radii: finding.radii, families: finding.families, most: finding.most, places };
+        case 'rootCorner':
+          return { kind: finding.kind, severity: finding.severity, roots: finding.roots, thickness: finding.thickness, length: finding.length, radius: finding.radius, places };
+        case 'shallowSlope':
+          return { kind: finding.kind, severity: finding.severity, faces: finding.faces, area: finding.area, angle: finding.angle, step: finding.step, limit: finding.limit, places };
+        case 'shellCorner':
+          return { kind: finding.kind, severity: finding.severity, corners: finding.corners, thickness: finding.thickness, wall: finding.wall, radius: finding.radius, inner: finding.inner, places };
         case 'narrowGap':
           return { kind: finding.kind, severity: finding.severity, gap: finding.gap, minimum: finding.minimum, area: finding.area, places };
       }

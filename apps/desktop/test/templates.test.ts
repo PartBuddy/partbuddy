@@ -213,6 +213,9 @@ describe('templates with moving parts', () => {
     // The closure's lip follows the nozzle as well (lipThick): 1.4 mm on 0.4, 1.85 mm on 0.8, with its 0.25 mm of clearance.
     const ring = (nozzle: number) => templateSteps('hingedBox', false, { nozzle, layer: 0.2 }).filter((step) => step.command === 'sketch.rectangle.rounded').map((step) => step.params.p0)[1];
     expect([ring(0.4), ring(0.8)]).toEqual([['(wall) + 1.65 mm', '(1 mm + wall) + 1.65 mm'], ['(wall) + 2.1 mm', '(1 mm + wall) + 2.1 mm']]);
+    // And its bead four layers high where that is more than 1 mm (audit N-nach-8: 1 < 1.2 mm on 0.6 with 0.3 mm layers).
+    const bead = (nozzle: number) => templateSteps('hingedBox', false, { nozzle, layer: nozzle / 2 }).find((step) => step.params.name === 'Closure ●')?.params.height;
+    expect([0.25, 0.4, 0.6, 0.8].map(bead)).toEqual(['1 mm', '1 mm', '1.2 mm', '1.6 mm']);
     // The guide of the stop: its gap is the nozzle's, so the stop's print face moves up with it.
     expect([0.2, 0.4, 0.8].map((nozzle) => templatePrintFaces('slideStop', false, { nozzle, layer: 0.2 })[0]?.point)).toEqual([[60, 8, 26.3], [60, 8, 26.4], [60, 8, 26.8]]);
   });

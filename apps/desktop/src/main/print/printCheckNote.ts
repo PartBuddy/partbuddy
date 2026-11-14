@@ -59,6 +59,22 @@ function line(finding: Finding, nozzle: number): string {
     case 'narrowGap':
       // BC-24: two walls of one body closer than the print-in-place gap; the slot prints closed, the part prints.
       return `- ${tag}: slots between walls of one body down to ${mm(finding.gap)} wide, under the ${mm(finding.minimum)} that stay open with this nozzle (one nozzle, at least 0.3 mm)${where(finding.places)}: the lines on both sides squeeze into them and the slot prints closed (an engraved stroke, a kerf, a slit between letters). Widen them to at least ${mm(finding.minimum)} where they must stay open.`;
+    case 'sharpEdge':
+      // Design hint (research O14, H9): a body with no rounded or chamfered edge at all; per body the radius by the rules'
+      // sizes, at most half its thinnest wall or plate at those edges.
+      return `- ${tag}: ${String(finding.edges)} sharp ${finding.edges === 1 ? 'edge' : 'edges'} (${String(finding.length)} mm) on bodies with no rounded or chamfered outer edge at all${where(finding.places)}: the design rules round outer edges that are seen or touched by the part's size (1 mm under 30 mm, 2 mm up to 100 mm, 3 mm above), plate and rib edges at most half their thickness, and chamfer the edges on the bed: here ${finding.bodies.map((body) => `${mm(body.radius)} on ${JSON.stringify(body.body)} (${mm(body.size)} long, ${mm(body.thickness)} at its thinnest there)`).join(', ')}. Round them, unless the edge must fit flat against another part or the user wants it sharp; then say so.`;
+    case 'edgeRadii':
+      // Design hint (research O1, H6): outer fillets of more radius families than the rules use.
+      return `- ${tag}: outer edges rounded with ${String(finding.families)} families of radii (${finding.radii.map(String).join(', ')} mm)${where(finding.places)}: the design rules use at most ${String(finding.most)} radii per part, so the rounds match (radii less than a quarter apart count as one). Bring them to two or three, e.g. one for the outer corners and one for the edges; keep a radius the user named.`;
+    case 'rootCorner':
+      // Design hint (research F2, F6, F7, H1): a slender free arm bends at its foot, where a sharp inner corner concentrates the stress.
+      return `- ${tag}: ${finding.roots === 1 ? 'a slender arm stands' : `${String(finding.roots)} sides of slender arms stand`} on a sharp inner corner, the thinnest ${mm(finding.thickness)} thick and ${mm(finding.length)} long${where(finding.places)}: an arm that bends (a snap arm, a hook, a thin post) cracks first at a sharp root. Round the root with at least ${mm(finding.radius)} (half the arm's thickness, at least 1 mm and two nozzles; on a snap arm 0.5 to 0.6 of its thickness), unless it carries nothing.`;
+    case 'shallowSlope':
+      // Design hint (research O4, H4): a face sloped just off flat shows its layers as wide steps.
+      return `- ${tag}: ${finding.faces === 1 ? 'a flat face facing up leans' : `${String(finding.faces)} flat faces facing up lean`} less than ${String(finding.limit)}° from flat (${String(finding.area)} mm², the shallowest ${String(finding.angle)}°)${where(finding.places)}: the layers show on it as steps about ${mm(finding.step)} wide. Where it is seen, make it flat or lean it at least ${String(finding.limit)}°; where the slope is its job (a drain, a ramp), leave it and tell the user the steps will show.`;
+    case 'shellCorner':
+      // Design hint (research O1, H7): a shell rounded outside but not inside thins in the corner.
+      return `- ${tag}: ${finding.corners === 1 ? 'a rounded outer edge of a shell thins' : `${String(finding.corners)} rounded outer edges of a shell thin`} the wall in the corner to ${mm(finding.thickness)}, under half the ${mm(finding.wall)} beside it${where(finding.places)}: the outside is rounded ${mm(finding.radius)}, the inside not to match. Round the inside to the outer radius less the wall (${mm(finding.inner)}), concentric, or round the outside before shelling (solid.shell keeps the wall even); else make the outer radius at most the wall.`;
     case 'contact':
       return finding.bodies > 1
         ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed for their height, the least ${String(finding.area)} mm²; they may come loose or tip over, a brim holds them${where(finding.places, finding.bodies)}.`
@@ -100,12 +116,22 @@ function line(finding: Finding, nozzle: number): string {
   }
 }
 
+type Hint = NonNullable<PrintCheckReport['off']>[number];
 /** The hints of BC-24 as the note names them; the user may turn each off in the print settings. */
-const HINTS: Record<NonNullable<PrintCheckReport['off']>[number], string> = { smallHole: 'holes under 2 mm', narrowGap: 'slots under one nozzle' };
+const PRINT_HINT_NAMES = { smallHole: 'holes under 2 mm', narrowGap: 'slots under one nozzle' };
+/** The design hints (Manuel, 2026-11-14), off also with their design rule. */
+const DESIGN_HINT_NAMES = { sharpEdge: 'bodies with no rounded or chamfered edge', edgeRadii: 'more than three radii on outer edges', rootCorner: 'sharp inner corners at the foot of slender arms', shallowSlope: 'faces facing up that lean less than 15° from flat', shellCorner: 'shell corners rounded outside only' };
+const HINTS: Record<Hint, string> = { ...PRINT_HINT_NAMES, ...DESIGN_HINT_NAMES };
+const looked = (report: PrintCheckReport, names: Partial<Record<Hint, string>>) => (Object.keys(names) as Hint[]).filter((hint) => !report.off?.includes(hint)).map((hint) => HINTS[hint]);
 /** What the mesh check looks at at once (the finding kinds of printCheck.ts), so "nothing found" claims no more: hints turned off are left out. */
-const checkedMesh = (report: PrintCheckReport) => `build volume, wall and floor thickness, overhang angle, rounded edges on the bed, ${(Object.keys(HINTS) as (keyof typeof HINTS)[]).filter((hint) => !report.off?.includes(hint)).map((hint) => `${HINTS[hint]}, `).join('')}area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch`;
+const checkedMesh = (report: PrintCheckReport) => `build volume, wall and floor thickness, overhang angle, rounded edges on the bed, ${looked(report, PRINT_HINT_NAMES).map((name) => `${name}, `).join('')}area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch`;
+/** The design hints looked for: how the part looks and holds, said apart from what decides whether it prints. */
+const designLine = (report: PrintCheckReport) => {
+  const design = looked(report, DESIGN_HINT_NAMES);
+  return design.length > 0 ? ` Design hints looked for (how the part looks and holds; yellow, never a block): ${design.join(', ')}.` : '';
+};
 /** What the user turned off is said as not checked, so the model does not take it for checked. */
-const offLine = (report: PrintCheckReport) => (report.off && report.off.length > 0 ? ` Turned off in PartBuddy's print settings, so not looked for: ${report.off.map((hint) => HINTS[hint]).join(', ')}.` : '');
+const offLine = (report: PrintCheckReport) => (report.off && report.off.length > 0 ? ` Turned off in PartBuddy's print settings or with the design rules, so not looked for: ${report.off.map((hint) => HINTS[hint]).join(', ')}.` : '');
 /** What SolidCraft measures after it (withClearance, withMotion): it takes longer and comes with the full check. */
 const MEASURED = {
   clearance: 'bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move',
@@ -180,11 +206,11 @@ export function printCheckNote(report: PrintCheckReport, view = false): string {
   const preliminary = [...(report.measuring ? [preliminaryLine(view)] : []), ...(failed.length > 0 ? [unmeasuredLine(failed)] : []), ...((report.unchecked ?? []).length > 0 ? [uncheckedLine(report.unchecked ?? [])] : [])];
   const measured = (['clearance', 'joints'] as const).filter((what) => !failed.includes(what)).map((what) => `, ${MEASURED[what]}`).join('');
   if (report.findings.length === 0)
-    return [`${head} nothing found ${report.measuring ? `so far (${checkedMesh(report)})` : `in what it checks (${checkedMesh(report)}${measured})`}.`, ...preliminary, ...measureLines(report), `${NOT_CHECKED}${offLine(report)}]`].join('\n');
+    return [`${head} nothing found ${report.measuring ? `so far (${checkedMesh(report)})` : `in what it checks (${checkedMesh(report)}${measured})`}.`, ...preliminary, ...measureLines(report), `${NOT_CHECKED}${designLine(report)}${offLine(report)}]`].join('\n');
   // An assembly whose parts do not go together or move is no finished part, though each piece prints (audit H-12).
   const fitting = report.findings.some((finding) => FIT_KINDS.has(finding.kind));
   const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? (fitting ? 'prints, but its parts may not go together or move as designed' : 'prints, with warnings') : 'ready to print';
-  return [`${head} ${verdict}.`, ...findingLines(report), ...preliminary, ...measureLines(report), `${FIX_BEFORE_DONE} ${NOT_CHECKED}${offLine(report)}]`].join('\n');
+  return [`${head} ${verdict}.`, ...findingLines(report), ...preliminary, ...measureLines(report), `${FIX_BEFORE_DONE} ${NOT_CHECKED}${designLine(report)}${offLine(report)}]`].join('\n');
 }
 
 /**

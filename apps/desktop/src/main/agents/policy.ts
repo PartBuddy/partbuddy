@@ -7,7 +7,9 @@
 import type { JsonSchemaValidator } from '@modelcontextprotocol/server';
 import { AjvJsonSchemaValidator } from '@modelcontextprotocol/server/validators/ajv';
 
+import { fitMarkOf } from '../../shared/designFit';
 import { TAPPED_FROM } from '../../shared/mechanisms';
+import { groupOf, PRINT_GROUP } from '../../shared/parameterGroup';
 import { METADATA_PREFIX } from '../notes/noteRecord';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 import { COMMAND_GROUPS, GROUP_EXCEPTIONS, KNOWN_COMMANDS, KNOWN_COMMANDS_VERSION } from './knownCommands';
@@ -52,6 +54,8 @@ const ALLOWED = new Set([
   'partbuddy_block',
   // The rules and sizes for a kind of part (standardTool.ts), answered by PartBuddy; it builds nothing.
   'partbuddy_standard',
+  // The review before "done": view, check, pictures and checklist (review.ts), answered by PartBuddy; it changes nothing.
+  'partbuddy_review',
 ]);
 
 /**
@@ -274,6 +278,8 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
   if (!COMMAND_ID.test(command)) return refuse(`${JSON.stringify(id)} is not an engine command id; ids look like solid.extrude, as list_commands lists them.`);
   const refused = entryOf(REFUSED_COMMANDS, command);
   if (refused) return refuse(`${command} ${refused}`);
+  const made = decideNewParameters(command, params);
+  if (!made.allow) return made;
   const checked = entryOf(CHECKED_WAYS, command);
   if (checked) return refuse(`${command} ${checked} Call that instead; if it cannot build what you need, tell the user what is missing.`);
   if (command === 'timeline.edit' && Object.keys(objectOr(params.set)).some((key) => HOLE_KEYS.has(key.split('.')[0]?.trim().toLowerCase() ?? ''))) {
@@ -555,6 +561,63 @@ export async function decideParameterNames(callTool: UpstreamTools['callTool'], 
     `There is no parameter ${JSON.stringify(missing)}: setting it would make a new parameter and change nothing in the design. The parameters are: ` +
       `${list || 'none'}. Take the exact name, or add a new parameter with parameters.add.`,
   );
+}
+
+/**
+ * Name segments that mark a parameter as a clearance or an allowance (the rule "Which parameters" of toolNotes.ts): those
+ * come from the print profile, into the feature or a formula. Only the name counts, split at _, - and camel case, and
+ * only a whole segment: "lid_gap", "fitClearance", "Spiel" match, "kartenspiel", "abluft", "einpassung", "gapless" and
+ * "fitting" do not. Group and label stay free ("[Brettspiel] Tiefe", "Gap width" of a vent slot).
+ * shortcut: a run-together lower-case name ("lidgap") is not split and passes; list it with the compounds if the assistant writes such names.
+ */
+const CLEARANCE_SEGMENTS = new Set([
+  'clearance', 'allowance', 'tolerance', 'play', 'spiel', 'passung', 'zugabe', 'toleranz', 'luft', 'gap', 'fit',
+  // German compounds that are a clearance or an allowance as a whole.
+  'lochzugabe', 'steckpassung', 'presspassung', 'schiebepassung', 'axialspiel', 'radialspiel', 'restluft',
+]);
+const GROUPED_EXAMPLE = '"[Monitor] Ultrawide-Höhe"';
+const PRINT_EXAMPLE = `"[${PRINT_GROUP}] Bodenstärke [auto 5×layer]"`;
+
+/** "hole_clearance", "fitClearance", "Lid-Gap" → its lower-case segments. */
+const segmentsOf = (name: string): string[] =>
+  name
+    .replace(/([a-zäöüß])([A-ZÄÖÜ])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[^a-zäöüß]+/)
+    .filter((segment) => segment !== '');
+
+/**
+ * The parameters a command makes: `parameters.add` needs a comment that starts with its group, and no new parameter
+ * (a dimension `name = value` included) may be named as a clearance or an allowance unless it carries a fit mark. Changing,
+ * renaming and commenting a parameter that exists stays free; `set_parameter` and `parameters.change` cannot make
+ * one (decideParameterNames refuses an unknown name).
+ * shortcut: a dimension `name = value` carries no comment, so it is held to the clearance words only; refuse it
+ * without a group too once a measurement shows SolidCraft lists such a name as a user parameter in the panel.
+ */
+function decideNewParameters(command: string, params: Record<string, unknown>): ToolDecision {
+  const made: { name: string; comment: string | null }[] = dimensionNames(params).map((name) => ({ name, comment: null }));
+  if (command === 'parameters.add') made.push({ name: typeof params.name === 'string' ? params.name.trim() : '', comment: typeof params.comment === 'string' ? params.comment : '' });
+  for (const { name, comment } of made) {
+    if (comment !== null && groupOf(comment) === null) {
+      return refuse(
+        `${command} needs a comment that starts with the parameter's group, as "[Group] Label", such as ${GROUPED_EXAMPLE}: ` +
+          'the group is one or two words for a part of the design or what it holds (no digits), the label at most 24 characters in the ' +
+          `user's language. A size the print profile marks for refitting goes into the group [${PRINT_GROUP}] with its mark: ${PRINT_EXAMPLE}. ` +
+          (name === '' ? 'Add the parameter again with its name and such a comment.' : `Add ${JSON.stringify(name)} again with such a comment.`),
+      );
+    }
+    // Only the forms designFit.ts refits ("[auto 3×line]") keep a clearance a parameter.
+    if (fitMarkOf(comment ?? '') === null && segmentsOf(name).some((segment) => CLEARANCE_SEGMENTS.has(segment))) {
+      return refuse(
+        `${JSON.stringify(name)} would be a clearance or allowance parameter, and those are never parameters of their own: the hole ` +
+          'allowance and the clearances come from the print profile, and partbuddy_block and partbuddy_mechanism apply them themselves. ' +
+          "Where you model a fit yourself, write the number from the print profile's note into the feature or a formula over the nominal size. " +
+          `Only a size the print profile marks for refitting stays a parameter, in the group [${PRINT_GROUP}] with its mark: ${PRINT_EXAMPLE}. ` +
+          'If the word means something else here (a game, ventilation, a slot the user asked for), name the parameter by what it sets instead, e.g. vent_slot_width.',
+      );
+    }
+  }
+  return { allow: true };
 }
 
 const validators = new AjvJsonSchemaValidator();

@@ -39,7 +39,7 @@ export function NotesSection() {
   };
 
   return (
-    <TreeSection id="section:notes" icon={<IconNote className="size-icon-sm" aria-hidden />} title={t('notes.titleShort')} label={t('notes.title', { count: state.notes.length })} count={state.notes.length} testId="notes">
+    <TreeSection id="section:notes" icon={<IconNote className="size-icon-sm" aria-hidden />} title={t('notes.titleShort')} label={t('notes.title', { count: state.notes.length })} count={state.notes.length} empty={state.notes.length === 0 && state.restorable.length === 0} testId="notes">
       {state.restorable.length > 0 ? (
         <TreeExtra className="mr-2 mb-2 ml-5 flex flex-col gap-1 rounded-md bg-info-subtle p-2" testId="notes-restorable">
           <p className="text-xs text-text">{t('notes.removed', { count: state.restorable.length })}</p>
@@ -86,7 +86,7 @@ export function NotesSection() {
               </span>
             </TreeItem>
             {!note.own || note.status === 'orphaned' || note.status === 'ambiguous' ? (
-              <TreeExtra className="flex flex-wrap gap-1 pb-1 pl-6">
+              <TreeExtra level={3} className="flex flex-wrap gap-1 pb-1 pl-6">
                 {note.own ? null : (
                   <AriaButton className={small} isDisabled={busy} onPress={() => void run(() => platform().notes.accept(note.id))} data-testid="note-row-accept">
                     {t('notes.accept')}

@@ -25,14 +25,15 @@ function setup() {
   return { profiles: make(), make, design };
 }
 
-/** A sentence only each group's rules carry. */
-const MARKERS: Record<DesignRule, string> = {
-  rounding: 'round outer edges that are seen or touched',
-  printInPlace: 'first look for a print-in-place solution',
-  details: 'chamfer hole and screw entries',
-  snap: 'Sizes you choose yourself snap up to the printer',
-  economy: 'Material and print time, from the first shape on',
+/** Sentences only each group's rules carry, one per rule line, so every line of a group goes with it. */
+const MARKERS: Record<DesignRule, string[]> = {
+  rounding: ['round outer edges that are seen or touched', 'Top edges: a fillet of at least five layers'],
+  printInPlace: ['first look for a print-in-place solution'],
+  details: ['hole and screw entries chamfered'],
+  snap: ['Sizes you choose yourself snap up to the printer'],
+  economy: ['Material and print time, from the first shape on'],
 };
+const marks = (note: string, rule: string) => (MARKERS[rule as DesignRule]).map((marker) => note.includes(marker));
 
 const small = { nozzle: 0.4, layer: 0.2 };
 const large = { nozzle: 0.6, layer: 0.3 };
@@ -41,7 +42,7 @@ describe('design rules in the print note (decided 2026-11-07)', () => {
   it('puts every rule group, the user-size rule and the report line into the note by default', () => {
     const { profiles } = setup();
     const note = printNote(profiles.part());
-    for (const marker of Object.values(MARKERS)) expect(note).toContain(marker);
+    for (const marker of Object.values(MARKERS).flat()) expect(note).toContain(marker);
     expect(note).toContain('Sizes the user names are fixed: build them exactly');
     expect(note).toContain('name what you added on your own, what you did for material and print time and the sizes you snapped in one short line');
     expect(note).toContain('walls and ribs to whole lines of 0.45 mm (0.9, 1.35, 1.8, 2.25 mm)');
@@ -56,7 +57,7 @@ describe('design rules in the print note (decided 2026-11-07)', () => {
       const { profiles } = setup();
       profiles.save({ ...profiles.settings(), design: { ...DESIGN_DEFAULTS, [rule]: false } });
       const note = printNote(profiles.part());
-      for (const [other, marker] of Object.entries(MARKERS)) expect(note.includes(marker)).toBe(other !== rule);
+      for (const other of Object.keys(MARKERS)) expect(marks(note, other)).toEqual(MARKERS[other as DesignRule].map(() => other !== rule));
       expect(note).toContain("Turned off for this part, in PartBuddy's settings or with partbuddy_design_rules in the chat");
       rmSync(folder ?? '', { recursive: true, force: true });
     }
@@ -71,7 +72,7 @@ describe('design rules in the print note (decided 2026-11-07)', () => {
       expect(reply.isError).toBeUndefined();
       // A fresh start reads it back from the design's print file.
       const note = printNote(make().part());
-      for (const [other, marker] of Object.entries(MARKERS)) expect(note.includes(marker)).toBe(other !== rule);
+      for (const other of Object.keys(MARKERS)) expect(marks(note, other)).toEqual(MARKERS[other as DesignRule].map(() => other !== rule));
       expect(JSON.parse(readFileSync(printFileOf(design), 'utf8'))).toMatchObject({ design: { [rule]: false } });
       rmSync(folder ?? '', { recursive: true, force: true });
     }
@@ -108,21 +109,22 @@ describe('material and print time as a rule group of its own (2026-11-12)', () =
     const { profiles } = setup();
     const note = printNote(profiles.part());
     // 0.4 mm nozzle, 0.2 mm layer: lines of 0.45 mm.
-    expect(note).toContain('Slicers print two to four lines (0.9 mm to 1.8 mm) as wall and fill anything thicker with sparse infill');
-    // Ribs are no thinner than the thinnest wall that prints (review of PR 357: half a 0.9 mm wall is one line).
-    expect(note).toContain('stiffen with ribs as thick as the wall, at least two lines (0.9 mm), instead of thickening the wall');
+    // Audit 10, W4: leave out what does nothing, but a closed body is not hollowed (Stratasys: solid is often faster).
+    expect(note).toContain('leave out volume that does nothing (an open bottom, a frame instead of a plate, a shorter body), but never hollow a closed body');
+    expect(note).not.toContain('build a shell, not a block');
+    // Ribs stay as thick as the wall (review of PR 357), now a strength rule that holds with the group off too.
+    expect(note).toContain('Ribs, not thicker walls, stiffen: as thick as the wall,');
     expect(note).not.toContain('three quarters');
     expect(note).toContain('every 0.2 mm of height is one more layer');
-    expect(note).toContain('shell 1.35 mm with two ribs instead of a solid block');
+    expect(note).toContain('open frame with two 1.35 mm ribs instead of a solid plate');
     // It never outranks function, and it promises nothing the slicer decides.
-    expect(note).toContain('Loaded regions, sizes the user names and what the user wants solid stay as they are.');
+    expect(note).toContain('Loaded regions and what the user wants solid stay as they are.');
     expect(note).toContain('never promise grams or minutes');
-    expect(note).toContain('A refinement never makes function or printing worse');
+    expect(note).toContain('Goals by rank, none at the cost of an earlier one: it works, prints without support, holds, looks good, prints fast and lean.');
     const settings = profiles.settings();
     profiles.save({ ...settings, printers: settings.printers.map((printer) => ({ ...printer, nozzle: 0.6, layer: 0.3 })) });
     const wide = printNote(profiles.part());
-    expect(wide).toContain('Slicers print two to four lines (1.35 mm to 2.7 mm) as wall');
-    expect(wide).toContain('at least two lines (1.35 mm)');
+    expect(wide).toContain('walls of four lines (2.7 mm)');
     expect(wide).toContain('every 0.3 mm of height is one more layer');
   });
 
@@ -134,10 +136,97 @@ describe('material and print time as a rule group of its own (2026-11-12)', () =
     // After a restart and after another group changed, it is still off.
     make().setDesign({ rounding: false });
     const note = printNote(make().part());
-    expect(note).not.toContain(MARKERS.economy);
+    expect(marks(note, 'economy')).toEqual([false]);
     expect(note).toContain('in the chat: rounded and chamfered edges, saving material and print time. Do not add them unless the user asks for them.');
     expect(note).toContain('name what you added on your own and the sizes you snapped in one short line');
-    expect(note).not.toContain('instead of a solid block');
+    expect(note).not.toContain('instead of a solid plate');
+  });
+});
+
+describe('design rules ranked and freed of contradictions (audit 10, 2026-11-14)', () => {
+  const pla = { id: 'pla', name: 'PLA', overhang: 45, holeShrink: 0.15, clearance: { clamp: 0.05, push: 0.15, slide: 0.25, turn: 0.3 } };
+  const noteFor = (nozzle: number, layer: number, material = pla, design = DESIGN_DEFAULTS) =>
+    printNote({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material, chosen: true, design });
+  const count = (text: string, part: string) => text.split(part).length - 1;
+
+  it('states the order of the goals once, before every rule', () => {
+    const note = noteFor(0.4, 0.2);
+    expect(count(note, 'it works, prints without support, holds, looks good, prints fast and lean')).toBe(1);
+    expect(note.indexOf('Goals by rank')).toBeGreaterThan(0);
+    expect(note.indexOf('Goals by rank')).toBeLessThan(note.indexOf('- Sizes the user names'));
+    expect(note).not.toContain('Printing comes first');
+  });
+
+  it('says the overhang, the bed edge and the clearances once each (W2, W6)', () => {
+    const note = noteFor(0.4, 0.2);
+    expect(count(note, 'need support;')).toBe(1);
+    expect(note).not.toContain('nothing leans more than');
+    expect(note).not.toContain('Edges on the bed get a 45° chamfer, not a fillet');
+    expect(count(note, 'clamp 0.05 mm')).toBe(1);
+    expect(note).not.toContain('Clearance per side between mating parts');
+  });
+
+  it('rounds a shell inside to the outer radius less the wall, and names one set of least radii (W1, W8)', () => {
+    const note = noteFor(0.4, 0.2);
+    // Review of 1ee1bd76, point 4: one order, never under one nozzle, under load the largest of the three.
+    expect(note).toContain('Inner corners never under one nozzle (0.4 mm); on a shell the inside of a rounded edge is the outer radius less the wall, so the wall stays even; under load the larger of that, half the wall and 1 mm (own choice).');
+    expect(note).not.toContain('never more than the wall they cut into');
+    expect(note).not.toContain('radii at least 0.4 mm');
+    expect(noteFor(0.6, 0.3)).toContain('Top edges: a fillet of at least five layers (1.5 mm)');
+  });
+
+  it('snaps steps to layers but keeps the entry chamfer of the blocks, so the two no longer disagree (W3)', () => {
+    const note = noteFor(0.4, 0.2);
+    expect(note).toContain('floors, lids and steps to whole layers');
+    expect(note).not.toContain('chamfer heights');
+    // Point 7: the block builds the hole entries, the mechanisms the lead-ins (PEG.chamfer, LEAD_IN).
+    expect(note).toContain('hole and screw entries chamfered 0.5 mm × 45°, as partbuddy_block builds them, and mating edges a lead-in chamfer as partbuddy_mechanism builds them (0.5 mm on pegs, 0.8 mm on lid lips; own choice)');
+  });
+
+  it('adds the missing rules: load direction, ribs, bosses, springs, show face, slopes, seam and text', () => {
+    const note = noteFor(0.4, 0.2);
+    expect(note).toContain('the direction of its main load. Stand it so that load and any snap arm run along the layers');
+    // Point 6: layer direction under load is part of "it works" and wins over printing without support.
+    expect(note).toContain('this is "it works" and goes before printing without support');
+    expect(note).toContain('at most three walls high, in the plane the part bends in, both ends tied to a wall or boss');
+    expect(note).toContain('A boss taller than twice its diameter (own choice) is tied to a wall or gets three or four gussets');
+    expect(note).toContain('tapers to half its root thickness at the tip and has a root fillet of half that thickness');
+    expect(note).toContain('put the face seen most on top as one flat level or on the bed, never over support');
+    expect(note).toContain('lean at least 15° from horizontal');
+    expect(note).toContain('give it a sharp upright edge or a small groove at the back for it');
+    // Point 5: capitals from the stroke the block tool advises (textStroke / TEXT_STROKE.bold); raised text on top faces is fine.
+    expect(note).toContain('capitals at least 5 mm high');
+    expect(noteFor(0.6, 0.3)).toContain('capitals at least 6.7 mm high');
+    expect(note).toContain('raised or engraved on top faces, engraved on bed faces');
+    expect(note).toContain('Pins printed standing under 5 mm hold little across');
+    expect(note).toContain('say so when the user names a weight');
+  });
+
+  it('keeps function and strength when every group is off', () => {
+    const none = Object.fromEntries(Object.keys(DESIGN_DEFAULTS).map((rule) => [rule, false])) as typeof DESIGN_DEFAULTS;
+    const note = noteFor(0.4, 0.2, pla, none);
+    expect(note).toContain('- Function: know what the part holds');
+    expect(note).toContain('- Strength comes from the walls');
+    expect(note).toContain('- Print it without support, standing as designed');
+    // Point 8: what is seen is always on.
+    expect(note).toContain('- Looks: put the face seen most on top');
+    expect(note).toContain('- Text and logos: a bold sans-serif font');
+    // With every switch off the ranking and the report name nothing that is off.
+    expect(note).toContain('holds, looks good. ');
+    expect(note).not.toContain('fast and lean');
+    expect(note).toContain('name what you added on your own in one short line, e.g. "Lid slide fit 0.25 mm"');
+    for (const marker of Object.values(MARKERS).flat()) expect(note).not.toContain(marker);
+  });
+
+  it('builds cones and slopes to the angle of the material, and names thin layers only where they are thick', () => {
+    const petg = { ...pla, name: 'PETG', overhang: 40 };
+    // Point 2: one definition of steep with the material's angle, used by cones, slopes, roofs and chamfers.
+    expect(noteFor(0.4, 0.2, petg)).toContain('Steep here means leaning at most 40° from the vertical.');
+    expect(noteFor(0.4, 0.2, petg)).toContain('the pin lying flat with steep cones');
+    expect(noteFor(0.4, 0.2, petg)).toContain('a radius or a steep slope');
+    expect(noteFor(0.4, 0.2, petg)).not.toMatch(/\d+° (cones|slope)/);
+    expect(noteFor(0.4, 0.2)).not.toContain('This layer is more than half the nozzle');
+    expect(noteFor(0.4, 0.28)).toContain('This layer is more than half the nozzle');
   });
 });
 
@@ -245,10 +334,11 @@ describe('sizes fitted to nozzle and layer', () => {
   it('tells the assistant the fits as scaleClearance brings them to the nozzle (BC-14 review K2)', () => {
     const pla = { id: 'pla', name: 'PLA', overhang: 45, holeShrink: 0.15, clearance: { clamp: 0.05, push: 0.15, slide: 0.25, turn: 0.3 } };
     const note = (nozzle: number, layer: number) => printNote({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material: pla, chosen: true, design: DESIGN_DEFAULTS });
-    const sentence = 'they grow with a nozzle wider than 0.4 mm and never go under their 0.4 mm values on a finer one';
-    expect(note(0.2, 0.1)).toContain(`clamp 0.05 mm (tight, only with force), push 0.15 mm (in by hand), slide 0.25 mm (without force), turn 0.3 mm (turns freely); the material's values brought to this nozzle: ${sentence}`);
-    expect(note(0.6, 0.3)).toContain(`clamp 0.075 mm (tight, only with force), push 0.225 mm (in by hand), slide 0.375 mm (without force), turn 0.45 mm (turns freely); the material's values brought to this nozzle: ${sentence}`);
-    expect(note(0.4, 0.2)).not.toContain('scaled for this nozzle');
+    const sentence = 'brought to this nozzle, they grow with a nozzle wider than 0.4 mm and never go under their 0.4 mm values on a finer one';
+    expect(note(0.2, 0.1)).toContain(`clamp 0.05 mm (tight, only with force), push 0.15 mm (in by hand), slide 0.25 mm (without force), turn 0.3 mm (turns freely), the material's values (not measured with the tolerance pieces; ${sentence}).`);
+    expect(note(0.6, 0.3)).toContain(`clamp 0.075 mm (tight, only with force), push 0.225 mm (in by hand), slide 0.375 mm (without force), turn 0.45 mm (turns freely), the material's values (not measured with the tolerance pieces; ${sentence}).`);
+    // On the nozzle the values stand for they are used as read, so the sentence would only lengthen the note.
+    expect(note(0.4, 0.2)).toContain("turn 0.3 mm (turns freely), the material's values (not measured with the tolerance pieces).");
   });
 
   it('makes a size marked in nozzles that many print-in-place gaps, so a gap never narrows on a fine nozzle (BC-14 review S3)', () => {

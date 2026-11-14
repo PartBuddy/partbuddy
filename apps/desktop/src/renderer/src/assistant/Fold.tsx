@@ -25,6 +25,7 @@ export function Fold({
   summaryTestId,
   className = '',
   defaultOpen = false,
+  lazy = false,
 }: {
   summary: React.ReactNode;
   children: React.ReactNode;
@@ -32,6 +33,8 @@ export function Fold({
   summaryTestId?: string;
   className?: string;
   defaultOpen?: boolean;
+  /** Mounts the body only while open (pictures that need not decode while closed). */
+  lazy?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const body = useId();
@@ -52,7 +55,7 @@ export function Fold({
       {/* Hidden (not only clipped) once closed: visibility switches at the end of the slide. */}
       <div id={body} inert={!open} className={`grid transition-[grid-template-rows,visibility] ${open ? 'visible grid-rows-[1fr]' : 'invisible grid-rows-[0fr]'}`}>
         <div className="min-h-0 overflow-hidden">
-          <div className="ml-3 flex flex-col gap-1 border-l border-border py-1 pl-3">{children}</div>
+          <div className="ml-3 flex flex-col gap-1 border-l border-border py-1 pl-3">{lazy && !open ? null : children}</div>
         </div>
       </div>
     </section>

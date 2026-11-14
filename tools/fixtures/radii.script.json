@@ -1,0 +1,20 @@
+{
+  "commands": [
+    {"command":"solid.box","params":{"length":80,"width":50,"height":20,"corner":[0,0,0],"operation":"new","body_name":"Radii4"}},
+    {"command":"solid.fillet","params":{"edges":[[0,0,10]],"radius":"1 mm","tangent_chain":false,"body":"Radii4"}},
+    {"command":"solid.fillet","params":{"edges":[[80,0,10]],"radius":"2 mm","tangent_chain":false,"body":"Radii4"}},
+    {"command":"solid.fillet","params":{"edges":[[80,50,10]],"radius":"4 mm","tangent_chain":false,"body":"Radii4"}},
+    {"command":"solid.fillet","params":{"edges":[[0,50,10]],"radius":"8 mm","tangent_chain":false,"body":"Radii4"}},
+    {"command":"solid.box","params":{"length":80,"width":50,"height":20,"corner":[100,0,0],"operation":"new","body_name":"Radii3"}},
+    {"command":"solid.fillet","params":{"edges":[[100,0,10]],"radius":"1 mm","tangent_chain":false,"body":"Radii3"}},
+    {"command":"solid.fillet","params":{"edges":[[180,0,10]],"radius":"2 mm","tangent_chain":false,"body":"Radii3"}},
+    {"command":"solid.fillet","params":{"edges":[[180,50,10]],"radius":"4 mm","tangent_chain":false,"body":"Radii3"}},
+    {"command":"solid.fillet","params":{"edges":[[100,50,10]],"radius":"4 mm","tangent_chain":false,"body":"Radii3"}},
+    {"command":"solid.box","params":{"length":80,"width":50,"height":20,"corner":[200,0,0],"operation":"new","body_name":"RadiiNear"}},
+    {"command":"solid.fillet","params":{"edges":[[200,0,10]],"radius":"5 mm","tangent_chain":false,"body":"RadiiNear"}},
+    {"command":"solid.fillet","params":{"edges":[[280,0,10]],"radius":"5 mm","tangent_chain":false,"body":"RadiiNear"}},
+    {"command":"solid.fillet","params":{"edges":[[280,50,10]],"radius":"6 mm","tangent_chain":false,"body":"RadiiNear"}},
+    {"command":"solid.fillet","params":{"edges":[[200,50,10]],"radius":"6 mm","tangent_chain":false,"body":"RadiiNear"}},
+    {"command":"solid.fillet","params":{"edges":[[240,0,20]],"radius":"1 mm","body":"RadiiNear"}}
+  ]
+}

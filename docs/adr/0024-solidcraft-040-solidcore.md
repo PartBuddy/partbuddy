@@ -88,3 +88,11 @@ still runs the fake SolidCraft only.
 
 Findings in detail: [engineering notes, kernel change](../engineering-notes.md#kernel-change-to-solidcore-040-checked-2026-11-05).
 Plan step R0 in the [feature catalogue](../feature-catalog.md#direction-and-roadmap).
+
+### Update 2026-11-14: SolidCraft 0.41.0 is recommended
+
+0.41.0 (stable, 2026-11-13) is the recommended version and the first start links it; 0.40.1 stays the
+minimum and now reads *supported*. Checked on 0.41.0: the full contract suite (runs for BC-19, BC-24,
+BC-27) and the audit harness of phase 4 (109 cases). 0.41.0 adds three commands in allowed groups
+(`model.mesh`, `sketch.spline.handles`, `sketch.spline.reset_handles`) and the `plugin` group, which
+the policy refuses (#401).

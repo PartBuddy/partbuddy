@@ -7,6 +7,7 @@ import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelCh
 import type { UpstreamTools } from '../agents/gateProxy';
 import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
 import { sourceOfUrl } from '../agents/research';
+import type { TurnReview } from '../agents/review';
 import { composeMessage } from '../agents/viewContext';
 import type { ChatGptAccount } from './account';
 import { RESOURCE } from './oauth';
@@ -29,6 +30,8 @@ export interface ChatGptAgentOptions {
   choices: ChoiceStore;
   /** Whether ChatGPT may search the web (B7); read for every request. */
   research?: () => boolean;
+  /** The review before "done" (review.ts), asked when the model ends a turn. */
+  review?: TurnReview;
   fetch?: typeof fetch;
 }
 
@@ -170,45 +173,58 @@ export class ChatGptAgent implements AgentBackend {
     try {
       const provider = createOpenAI({ apiKey: 'replaced-per-request', baseURL: RESOURCE, fetch: this.authorizedFetch() });
       research = (this.options.research?.() ?? false) && !this.webSearchRefused;
-      const result = streamText({
-        model: provider.responses(this.choice?.model ?? ''),
-        messages: this.history,
-        tools: {
-          ...(await policyToolSet(upstream, {
-            nextId: () => `chatgpt-${String((this.sequence += 1))}`,
-            event: (event) => {
-              this.options.event(event);
-            },
-            providerOptions: { openai: { namespace: { name: 'solidcraft', description: 'SolidCraft CAD: inspect and change the open design.' } } },
-          })),
-          ...(research ? { web_search: provider.tools.webSearch({}) } : {}) },
-        stopWhen: [stepCountIs(MAX_STEPS), repeatsItself],
-        abortSignal: signal,
-        providerOptions: {
-          openai: {
-            store: false,
-            instructions: instructionsFor(upstream, research),
-            systemMessageMode: 'remove',
-            ...(this.choice?.effort ? { reasoningEffort: this.choice.effort } : {}),
+      const tools = {
+        ...(await policyToolSet(upstream, {
+          nextId: () => `chatgpt-${String((this.sequence += 1))}`,
+          event: (event) => {
+            this.options.event(event);
           },
-        },
-      });
-      for await (const part of result.stream) {
-        if (part.type === 'text-delta') this.options.event({ type: 'textDelta', text: part.text });
-        if (part.type === 'source' && part.sourceType === 'url') {
-          const source = sourceOfUrl(part.url, part.title);
-          if (source) this.options.event({ type: 'source', source });
+          providerOptions: { openai: { namespace: { name: 'solidcraft', description: 'SolidCraft CAD: inspect and change the open design.' } } },
+        })),
+        ...(research ? { web_search: provider.tools.webSearch({}) } : {}) };
+      // Both passes of a turn (the second only after a send-back for the review) share its MAX_STEPS rounds.
+      const steps: Awaited<ReturnType<typeof streamText>['steps']>[number][] = [];
+      for (;;) {
+        const result = streamText({
+          model: provider.responses(this.choice?.model ?? ''),
+          messages: this.history,
+          tools,
+          stopWhen: [stepCountIs(MAX_STEPS - steps.length), repeatsItself],
+          abortSignal: signal,
+          providerOptions: {
+            openai: {
+              store: false,
+              instructions: instructionsFor(upstream, research),
+              systemMessageMode: 'remove',
+              ...(this.choice?.effort ? { reasoningEffort: this.choice.effort } : {}),
+            },
+          },
+        });
+        for await (const part of result.stream) {
+          if (part.type === 'text-delta') {
+            this.options.event({ type: 'textDelta', text: part.text });
+          }
+          if (part.type === 'source' && part.sourceType === 'url') {
+            const source = sourceOfUrl(part.url, part.title);
+            if (source) this.options.event({ type: 'source', source });
+          }
+          if (part.type === 'error') throw part.error instanceof Error ? part.error : new Error(String(part.error));
         }
-        if (part.type === 'error') throw part.error instanceof Error ? part.error : new Error(String(part.error));
+        this.history.push(...(await result.responseMessages));
+        steps.push(...(await result.steps));
+        // A changing turn that ended without the review goes back to the model once (review.ts), with rounds left for it.
+        const back = signal.aborted || repeatsItself({ steps }) || steps.length > MAX_STEPS - 2 ? null : (this.options.review?.due() ?? null);
+        if (!back) break;
+        // The send-back line in the chat (review.ts) closes the first pass's words; the second pass gets its own bubble.
+        this.history.push({ role: 'user', content: back });
       }
-      this.history.push(...(await result.responseMessages));
-      this.context = contextAfter(await result.steps, this.models?.find((model) => model.id === this.choice?.model)?.context) ?? this.context;
-      if (repeatsItself({ steps: await result.steps })) {
+      this.context = contextAfter(steps, this.models?.find((model) => model.id === this.choice?.model)?.context) ?? this.context;
+      if (repeatsItself({ steps })) {
         this.options.event({ type: 'error', message: LOOP_NOTICE });
         this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: 'failed' });
         return;
       }
-      if (usedAllRounds(await result.steps)) {
+      if (usedAllRounds(steps)) {
         this.cutShort = true;
         this.options.log(`ChatGPT turn used all ${String(MAX_STEPS)} tool rounds and stopped`);
         this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: ROUNDS_DETAIL });

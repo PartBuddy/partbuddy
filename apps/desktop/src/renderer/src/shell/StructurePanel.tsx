@@ -87,7 +87,7 @@ function boxOf(model: Ready, item: { kind: 'body'; name: string } | { kind: 'ske
 }
 
 /**
- * The structure tree on the left (M1c, CAD-style browser): parameters, bodies, sketches and notes
+ * The structure tree on the left (M1c, CAD-style browser): bodies, parameters, notes and sketches
  * in folding sections. A row selects its body or sketch in the view and the view's selection marks
  * its body's row; a double click frames it. The eye shows or hides it; SolidCraft hides a sketch
  * once a feature uses it.
@@ -147,8 +147,8 @@ export function StructurePanel() {
 
   return (
     <div className="relative flex min-h-0 shrink-0" style={{ width }}>
-    <Tree label={t('structure.title')} first="section:parameters" testId="structure">
-      <ParametersSection />
+    {/* Bodies, parameters, notes, sketches (decided 2026-11-14): what the part is made of first, sketches last. */}
+    <Tree label={t('structure.title')} first="section:bodies" testId="structure">
       <TreeSection
         id="section:bodies"
         icon={<IconBox className="size-icon-sm" aria-hidden />}
@@ -240,7 +240,7 @@ export function StructurePanel() {
                 <EyeToggle name={body.name} visible={body.visible} onToggle={(visible) => toggle({ bodies: [body.name], sketches: [], visible })} />
               </TreeItem>
               {open ? (
-                <TreeExtra className="mr-1 mb-1 ml-5">
+                <TreeExtra level={3} className="mr-1 mb-1 ml-5">
                   <PartDetails key={`${body.name}:${model.documentId}`} body={body.name} note={note} standard={standard} onChange={keep} />
                 </TreeExtra>
               ) : null}
@@ -248,6 +248,8 @@ export function StructurePanel() {
           );
         })}
       </TreeSection>
+      <ParametersSection />
+      <NotesSection />
       <TreeSection
         id="section:sketches"
         icon={<CadIcon name="sketch" className="size-icon-sm" />}
@@ -296,7 +298,6 @@ export function StructurePanel() {
           );
         })}
       </TreeSection>
-      <NotesSection />
     </Tree>
     <ChatResizer edge="right" width={width} min={MIN_SIDE_WIDTH} max={MAX_SIDE_WIDTH} standard={DEFAULT_SIDE_WIDTH} onChange={setWidth} label={t('structure.resize')} testId="structure-resizer" />
     </div>

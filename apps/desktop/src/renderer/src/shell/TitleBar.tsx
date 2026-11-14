@@ -1,5 +1,5 @@
 import { IconAlertTriangle, IconCheck, IconLoader2 } from '@tabler/icons-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button as AriaButton } from 'react-aria-components';
 
@@ -25,6 +25,28 @@ function connectionTone(status: ConnectionStatus): Tone {
 function connectionLabelKey(status: ConnectionStatus): string {
   if (status.state === 'connected' && status.mirror === 'rebuilding') return 'solidcraft.rebuilding';
   return `solidcraft.${status.state}`;
+}
+
+/**
+ * The version of the SolidCraft PartBuddy started with, as the engine settings know it (no new
+ * process: the main process reads it once at start). Null while unknown or once another program waits
+ * for a restart. shortcut: a SolidCraft window the user opened from another install shows this
+ * version too; read the version from the connection if that ever matters.
+ */
+function useSolidCraftVersion(): string | null {
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    void platform()
+      .solidcraft.engine()
+      .then((info) => {
+        if (current) setVersion(info.restartNeeded ? null : info.version);
+      });
+    return () => {
+      current = false;
+    };
+  }, []);
+  return version;
 }
 
 /**
@@ -59,6 +81,7 @@ export function TitleBar() {
   useWindowButtonColors();
   const { t } = useTranslation();
   const connection = useStudio((s) => s.connection);
+  const version = useSolidCraftVersion();
   const model = useStudio((s) => s.model);
   const homeOpen = useStudio((s) => s.homeOpen);
   const setHomeOpen = useStudio((s) => s.setHomeOpen);
@@ -91,10 +114,17 @@ export function TitleBar() {
         {model.status === 'ready' && connection.save && !homeOpen ? <SaveState state={connection.save} /> : null}
       </nav>
       {homeOpen ? null : <DesignActions />}
-      <div className="ml-auto flex items-center gap-2" data-testid="connection-status" data-engine={connection.engine}>
+      {/* The bar names SolidCraft's version; the model's revision stays on hover (14 November 2026). */}
+      <div
+        className="ml-auto flex items-center gap-2"
+        data-testid="connection-status"
+        data-engine={connection.engine}
+        data-revision={connection.revision}
+        title={connection.revision === undefined ? undefined : t('solidcraft.revision', { revision: connection.revision })}
+      >
         <StatusDot
           tone={connectionTone(connection)}
-          label={t(connectionLabelKey(connection), { revision: connection.revision ?? 0 })}
+          label={t(connectionLabelKey(connection), { name: version ? `${t('solidcraft.label')} ${version}` : t('solidcraft.label') })}
         />
       </div>
       <SettingsMenu />

@@ -40,6 +40,16 @@ export function useFindingText(): (finding: PrintFinding) => string {
         return t('check.finding.roundBedEdge', { area: number.format(finding.area), limit: finding.limit, chamfer: Math.min(45, finding.limit) });
       case 'smallHole':
         return t('check.finding.smallHole', { count: finding.holes, diameter: number.format(finding.diameter), minimum: number.format(finding.minimum) });
+      case 'sharpEdge':
+        return t('check.finding.sharpEdge', { count: finding.edges, length: number.format(finding.length), radii: finding.bodies.map((body) => `${number.format(body.radius)} mm (${body.body})`).join(', ') });
+      case 'edgeRadii':
+        return t('check.finding.edgeRadii', { count: finding.families, radii: finding.radii.map((value) => number.format(value)).join(', '), most: finding.most });
+      case 'rootCorner':
+        return t('check.finding.rootCorner', { count: finding.roots, thickness: number.format(finding.thickness), length: number.format(finding.length), radius: number.format(finding.radius) });
+      case 'shallowSlope':
+        return t('check.finding.shallowSlope', { count: finding.faces, angle: number.format(finding.angle), step: number.format(finding.step), limit: finding.limit });
+      case 'shellCorner':
+        return t('check.finding.shellCorner', { count: finding.corners, thickness: number.format(finding.thickness), wall: number.format(finding.wall), radius: number.format(finding.radius), inner: number.format(finding.inner) });
       case 'narrowGap':
         return t('check.finding.narrowGap', { gap: gap.format(finding.gap), minimum: gap.format(finding.minimum) });
       case 'contact':

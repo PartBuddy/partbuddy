@@ -651,6 +651,19 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('source'), source: researchSourceSchema }).strict(),
   z.object({ type: z.literal('step'), step: workStepSchema }).strict(),
   z.object({ type: z.literal('question'), question: agentQuestionSchema }).strict(),
+  /**
+   * The review before "done" (main/agents/review.ts): it ran, with the pictures it rendered (PNG data URLs, 640 × 480),
+   * or the assistant was sent back for it, or the turn ended without it.
+   */
+  z
+    .object({
+      type: z.literal('review'),
+      outcome: z.enum(['reviewed', 'sentBack', 'skipped']),
+      pictures: z.array(z.object({ view: z.enum(['front', 'top', 'iso']), src: z.string().startsWith('data:image/').max(3_000_000) }).strict()).max(3),
+      /** The route shows pictures, but none could be rendered. */
+      picturesFailed: z.literal(true).optional(),
+    })
+    .strict(),
   /** The user's next message answered the question; `choice` when a button was pressed. */
   z.object({ type: z.literal('answered'), id: z.string().max(40), choice: z.string().max(10).nullable() }).strict(),
   z
@@ -1131,14 +1144,19 @@ export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true
 
 /**
  * The print check's hints of audit BC-24 (Manuel, 2026-11-13): yellow only, never a block, each turned off here on its own;
- * on unless turned off. The names are `PrintHint` of the geometry package.
+ * on unless turned off. The names are `PrintHint` of the geometry package. After them the design hints (Manuel, 2026-11-14):
+ * how the part looks and holds, each also off while the design rule it belongs to is off (`HINT_RULE`).
  */
-export const PRINT_HINTS = ['smallHole', 'narrowGap'] as const;
-const HINTS_ON = { smallHole: true, narrowGap: true };
+export const PRINT_HINTS = ['smallHole', 'narrowGap', 'sharpEdge', 'edgeRadii', 'rootCorner', 'shallowSlope', 'shellCorner'] as const;
+export type PrintHintName = (typeof PRINT_HINTS)[number];
+const HINTS_ON = { smallHole: true, narrowGap: true, sharpEdge: true, edgeRadii: true, rootCorner: true, shallowSlope: true, shellCorner: true };
+const on = () => z.boolean().catch(true).default(true);
 // Not strict, and each value falls back to on: a hint of a newer or older PartBuddy must not lose the printers and materials (BC-24 review).
-export const printHintsSchema = z.object({ smallHole: z.boolean().catch(true).default(true), narrowGap: z.boolean().catch(true).default(true) }).catch(HINTS_ON);
+export const printHintsSchema = z.object({ smallHole: on(), narrowGap: on(), sharpEdge: on(), edgeRadii: on(), rootCorner: on(), shallowSlope: on(), shellCorner: on() }).catch(HINTS_ON);
 export type PrintHints = z.infer<typeof printHintsSchema>;
 export const HINT_DEFAULTS: PrintHints = HINTS_ON;
+/** The design rule a design hint checks: turned off for the part, the hint is not looked for either (the assistant was told not to). */
+export const HINT_RULE: Partial<Record<PrintHintName, DesignRule>> = { sharpEdge: 'rounding', edgeRadii: 'rounding', rootCorner: 'rounding', shellCorner: 'rounding' };
 
 export const printSettingsSchema = z
   .object({
@@ -1211,6 +1229,11 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('roundBedEdge'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('smallHole'), severity: findingSeveritySchema, holes: z.number().int().positive().max(100_000), diameter: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('narrowGap'), severity: findingSeveritySchema, gap: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('shellCorner'), severity: findingSeveritySchema, corners: z.number().int().positive().max(100_000), thickness: mmValue, wall: mmValue, radius: mmValue, inner: finite.nonnegative(), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('shallowSlope'), severity: findingSeveritySchema, faces: z.number().int().positive().max(100_000), area: finite.nonnegative(), angle: range(0, 90), step: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('rootCorner'), severity: findingSeveritySchema, roots: z.number().int().positive().max(100_000), thickness: mmValue, length: mmValue, radius: mmValue, places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('edgeRadii'), severity: findingSeveritySchema, radii: z.array(mmValue).min(1).max(12), families: z.number().int().positive().max(1000), most: z.number().int().positive().max(100), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('sharpEdge'), severity: findingSeveritySchema, edges: z.number().int().positive().max(100_000), length: finite.nonnegative(), bodies: z.array(z.object({ body: bodyName, size: finite.nonnegative(), thickness: finite.nonnegative(), radius: finite.nonnegative() }).strict()).min(1).max(20), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), bodies: z.number().int().positive().max(100_000), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
@@ -1239,7 +1262,7 @@ export const printCheckReportSchema = z
     unmeasured: z.array(z.enum(['clearance', 'joints'])).max(2).optional(),
     /** Mesh bodies whose clearance SolidCraft does not measure: the check says nothing of them until they are converted to faces. */
     unchecked: z.array(bodyName).max(40).optional(),
-    /** The hints turned off in the print settings (BC-24): not looked for, so the note does not claim them. */
+    /** The hints turned off in the print settings (BC-24) or with their design rule: not looked for, so the note does not claim them. */
     off: z.array(z.enum(PRINT_HINTS)).max(PRINT_HINTS.length).optional(),
     /**
      * Per printed body, as it lies on the bed: solid volume and the shell estimate in mm³ (two wall lines on every

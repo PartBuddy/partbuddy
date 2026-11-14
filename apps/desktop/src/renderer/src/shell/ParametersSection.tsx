@@ -1,5 +1,5 @@
 import { IconAlertCircle, IconSparkles, IconStarFilled, IconVariable } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import i18next from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Input, Slider, TextField } from 'react-aria-components';
@@ -11,8 +11,8 @@ import { useStudio } from '../state/store';
 import { parseLength } from '../viewer/lengthInput';
 import { LooseDimensions } from '../viewer/Dimensions';
 import { fitMarkOf } from '../../../shared/designFit';
-import { commentText, rangeOf } from './parameterRange';
-import { TreeEmpty, TreeExtra, TreeItem, TreeSection } from './Tree';
+import { commentText, groupParameters, labelOf, rangeOf } from './parameterRange';
+import { TreeEmpty, TreeExtra, TreeFolder, TreeItem, TreeSection } from './Tree';
 import { fieldBox } from '../ui/Field';
 import { SliderBar } from '../ui/Choice';
 
@@ -21,8 +21,20 @@ const PREVIEW_DELAY_MS = 250;
 // Values in the interface's own decimal mark (audit B-09); parseLength takes comma and point alike.
 const format = (value: number) => new Intl.NumberFormat(i18next.language, { maximumFractionDigits: 4, useGrouping: false }).format(value);
 
+/** The design's length unit: named once in the head, so the rows leave it out and the label gets the room. */
+const LENGTH_UNIT = 'mm';
+/** What a row shows after its value: nothing for a length or a text, ° for an angle, the unit otherwise. */
+const suffixOf = (parameter: DesignParameter) => (parameter.unit === LENGTH_UNIT || parameter.unit === 'text' ? '' : parameter.unit === 'deg' ? '°' : ` ${parameter.unit}`);
+/**
+ * As wide as the widest value to set (tabular figures are 1ch each), so the labels get the rest (decided 2026-11-14):
+ * at least four figures, so the field typed into fits too and the row does not jump, at most eight; a longer computed
+ * value is cut and shows in full on hover. The field's frame and padding are the extra half rem.
+ */
+const valueWidth = (values: readonly DesignParameter[]) =>
+  `calc(${String(Math.min(8, Math.max(4, ...values.map((parameter) => format(parameter.value).length + suffixOf(parameter).length + (parameter.editable ? 0 : 1.5)))))}ch + 0.5rem)`;
+
 /** One parameter: a field for a plain length, the formula as text otherwise. */
-function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; body: string | null; busy: boolean }) {
+function ParameterRow({ parameter, body, busy, level, width }: { parameter: DesignParameter; body: string | null; busy: boolean; level: number; width: string }) {
   const { t } = useTranslation();
   const setGhost = useStudio((s) => s.setParameterGhost);
   const setNotice = useStudio((s) => s.setNotice);
@@ -84,6 +96,8 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
   };
 
   const note = commentText(parameter.comment);
+  // The plain label ("Ultrawide-Höhe"); the name formulas use shows on hover (decided 2026-11-14).
+  const label = labelOf(parameter.comment) || parameter.name;
   const invalid = editing && !valid ? t('parameters.invalid') : null;
   const hint = problem ?? invalid ?? (outside ? t('parameters.outside', { min: format(outside.min), max: format(outside.max) }) : null);
   const box = useRef<HTMLDivElement>(null);
@@ -93,8 +107,8 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
   const back = () => {
     box.current?.querySelector<HTMLElement>('[role="treeitem"]')?.focus();
   };
-  // Comment, range and formula show on hover; the row stays one line (Name · Value · Unit).
-  const title = [note, fitMarkOf(parameter.comment) ? t('parameters.fitted') : null, range ? t('parameters.range', { min: format(range.min), max: format(range.max), unit: parameter.unit }) : null, parameter.editable ? null : `= ${parameter.expression}`, parameter.editable ? null : t('parameters.formulaHint')]
+  // Comment, name, range and formula show on hover; the row stays one line (Label · Value · Unit).
+  const title = [note, label === parameter.name ? null : t('parameters.formulaName', { name: parameter.name }), fitMarkOf(parameter.comment) ? t('parameters.fitted') : null, range ? t('parameters.range', { min: format(range.min), max: format(range.max), unit: parameter.unit }) : null, parameter.editable ? null : `= ${parameter.expression}`, parameter.editable ? null : t('parameters.formulaHint')]
     .filter(Boolean)
     .join('\n');
 
@@ -108,23 +122,23 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
         onRename={start}
         testId="parameter"
         data={{ name: parameter.name }}
+        level={level}
         className="tabular-nums"
       >
         <span className="min-w-0 flex-1 truncate" title={title || undefined}>
           {parameter.favorite ? <IconStarFilled className="absolute top-1 left-1 size-icon-sm text-warning" aria-label={t('parameters.favorite')} /> : null}
-          {parameter.name}
-          {/* What it means beside the identifier, which formulas use (audit B-30, A-12). */}
-          {note ? <span className="ml-1 text-xs text-text-subtle">{note}</span> : null}
+          {label}
         </span>
         {editing ? (
           <TextField
-            aria-label={t('parameters.change', { name: parameter.name })}
+            aria-label={t('parameters.changeIn', { name: label, unit: parameter.unit })}
             value={text}
             onChange={setDraft}
             inputMode="decimal"
             isDisabled={busy}
             isInvalid={!valid || problem !== null}
-            className="w-field-value shrink-0"
+            className="shrink-0"
+            style={{ width }}
             data-testid="parameter-field"
           >
             <Input
@@ -133,7 +147,7 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
               onFocus={(event) => {
                 event.currentTarget.select();
               }}
-              className={`h-control-sm w-full min-w-0 px-1 text-right text-sm tabular-nums ${fieldBox}`}
+              className={`h-control-sm w-full min-w-0 px-0.5 text-right text-sm tabular-nums ${fieldBox}`}
               onKeyDown={(event) => {
                 event.stopPropagation();
                 if (event.key === 'Enter') {
@@ -159,17 +173,19 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
             />
           </TextField>
         ) : (
-          <span className={`w-field-value shrink-0 truncate text-right ${parameter.error ? 'text-danger' : ''}`} title={title || undefined}>
-            {parameter.editable ? null : <span className="mr-1 text-xs text-text-subtle" aria-hidden>ƒ</span>}
+          <span className={`shrink-0 truncate text-right ${parameter.error ? 'text-danger' : ''}`} style={{ width }} title={title || undefined}>
+            {parameter.editable ? null : <span className="mr-0.5 text-xs text-text-subtle" aria-hidden>ƒ</span>}
             {format(parameter.value)}
+            {suffixOf(parameter)}
+            {/* The head names the unit once; a screen reader hears it with each value. */}
+            {parameter.unit === LENGTH_UNIT ? <span className="sr-only"> {LENGTH_UNIT}</span> : null}
           </span>
         )}
-        <span className="w-5 shrink-0 text-xs text-text-subtle">{parameter.unit}</span>
       </TreeItem>
       {editing && parameter.favorite && range ? (
-        <TreeExtra>
+        <TreeExtra level={level + 1}>
         <Slider
-          aria-label={t('parameters.slider', { name: parameter.name })}
+          aria-label={t('parameters.slider', { name: label })}
           value={Math.min(range.max, Math.max(range.min, valid ? value : parameter.value))}
           minValue={range.min}
           maxValue={range.max}
@@ -190,13 +206,13 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
         </TreeExtra>
       ) : null}
       {parameter.error || hint ? (
-        <TreeExtra className={`mr-1 flex items-start gap-1 px-1 py-hairline pl-5 text-xs ${parameter.error || problem || invalid ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning'}`}>
+        <TreeExtra level={level + 1} className={`mr-1 flex items-start gap-1 px-1 py-hairline pl-5 text-xs ${parameter.error || problem || invalid ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning'}`}>
           <IconAlertCircle className="mt-hairline size-icon-sm shrink-0" aria-hidden />
           <span role="status">{hint ?? parameter.error}</span>
         </TreeExtra>
       ) : null}
       {changed && !hint ? (
-        <TreeExtra className="pl-5 text-xs text-text-subtle">
+        <TreeExtra level={level + 1} className="pl-5 text-xs text-text-subtle">
           {t('parameters.enter')}
         </TreeExtra>
       ) : null}
@@ -206,7 +222,8 @@ function ParameterRow({ parameter, body, busy }: { parameter: DesignParameter; b
 
 /**
  * The parameters of the design (UI upgrade step 6): the named values the assistant or the user
- * created, favourites first, with SolidCraft's comment. A plain length changes in place with a
+ * created, favourites first, then in the groups their comments name ("[Monitor] …", decided 2026-11-14), each
+ * with its computed values folded away; a design without groups lists them in one, its formulas folded too. A plain length changes in place with a
  * ghost preview like a dimension in the view; a formula stays the designer's intent (ADR 0017).
  */
 export function ParametersSection() {
@@ -215,11 +232,15 @@ export function ParametersSection() {
   const setGhost = useStudio((s) => s.setParameterGhost);
   const requestAssistant = useStudio((s) => s.requestAssistant);
   const busy = selectedStatus(useAssistant((s) => s.state)).state === 'busy';
+  // Dimensions without a place in the view are listed here too, so the section is not empty with them.
+  const loose = useStudio((s) => s.marks.some((mark) => mark.geometry === null));
   // The list together with the revision it was read at; another revision shows the last list until the new one arrives.
   const [loaded, setLoaded] = useState<{ documentId: string; list: DesignParameter[] } | null>(null);
   const documentId = model.status === 'ready' ? model.documentId : null;
   const revision = model.status === 'ready' ? `${model.documentId}#${String(model.revision)}` : null;
   const parameters = documentId !== null && loaded?.documentId === documentId ? loaded.list : [];
+  const { favorites, groups } = groupParameters(parameters);
+  const width = valueWidth([...favorites, ...groups.flatMap((group) => group.values)]);
   const body = model.status === 'ready' ? (model.structure.bodies.find((entry) => entry.visible)?.name ?? null) : null;
 
   useEffect(() => {
@@ -254,6 +275,7 @@ export function ParametersSection() {
       title={t('parameters.titleShort')}
       label={t('parameters.title', { count: parameters.length })}
       count={parameters.length}
+      empty={parameters.length === 0 && !loose}
       testId="parameters"
     >
       {parameters.length === 0 ? (
@@ -265,13 +287,39 @@ export function ParametersSection() {
       ) : (
         <div className="mr-1 flex h-control-sm items-center gap-2 pr-1 pl-5 text-xs font-medium text-text-subtle" aria-hidden="true">
           <span className="flex-1">{t('parameters.name')}</span>
-          <span className="w-field-value text-right">{t('parameters.value')}</span>
-          <span className="w-5" />
+          <span className="shrink-0 text-right whitespace-nowrap">{t('parameters.valueIn', { unit: LENGTH_UNIT })}</span>
         </div>
       )}
-      {parameters.map((parameter) => (
-        <ParameterRow key={parameter.name} parameter={parameter} body={body} busy={busy} />
+      {favorites.map((parameter) => (
+        <ParameterRow key={parameter.name} parameter={parameter} body={body} busy={busy} width={width} level={2} />
       ))}
+      {groups.map((group) => {
+        // Without any group the rows stand in the section itself, as before (designs from before 2026-11-14).
+        const flat = group.name === null && groups.length === 1;
+        const level = flat ? 2 : 3;
+        const key = `parameters:${group.name ?? ''}`;
+        const rows = (
+          <>
+            {group.values.map((parameter) => (
+              <ParameterRow key={parameter.name} parameter={parameter} body={body} busy={busy} width={width} level={level} />
+            ))}
+            {group.computed.length > 0 ? (
+              <TreeFolder id={`${key}:computed`} title={t('parameters.computed')} count={group.computed.length} level={level} initiallyOpen={false} testId="parameters-computed">
+                {group.computed.map((parameter) => (
+                  <ParameterRow key={parameter.name} parameter={parameter} body={body} busy={busy} width={width} level={level + 1} />
+                ))}
+              </TreeFolder>
+            ) : null}
+          </>
+        );
+        return flat ? (
+          <Fragment key={key}>{rows}</Fragment>
+        ) : (
+          <TreeFolder key={key} id={key} title={group.name ?? t('parameters.more')} count={group.values.length + group.computed.length} testId="parameters-group">
+            {rows}
+          </TreeFolder>
+        );
+      })}
       <LooseDimensions />
     </TreeSection>
   );

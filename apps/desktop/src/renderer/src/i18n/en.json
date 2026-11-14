@@ -28,12 +28,13 @@
     "searching": "Looking for SolidCraft",
     "notInstalled": "SolidCraft not installed",
     "notRunning": "SolidCraft not running",
-    "starting": "Starting SolidCraft",
-    "connecting": "Connecting to SolidCraft",
-    "connected": "SolidCraft · Revision {revision}",
-    "rebuilding": "SolidCraft · rebuilding",
-    "lost": "Connection to SolidCraft lost",
-    "failed": "SolidCraft could not be reached"
+    "starting": "Starting {name}",
+    "connecting": "Connecting to {name}",
+    "connected": "{name}",
+    "revision": "Model revision {revision}",
+    "rebuilding": "{name} · rebuilding",
+    "lost": "Connection to {name} lost",
+    "failed": "{name} could not be reached"
   },
   "connection": {
     "notInstalledTitle": "SolidCraft is not installed",
@@ -263,6 +264,23 @@
     "selectionsGoWith": "{count} elements go with the message:",
     "removeSelection": "Remove {name} from the selection",
     "queries": "{count, plural, one {# query to SolidCraft} other {# queries to SolidCraft}}",
+    "review": {
+      "sentBack": "Sent back once for the final review",
+      "skipped": "Ended without the final review",
+      "views": "Checked: {views}",
+      "text": "Checked: view, print check and checklist",
+      "noPictures": "Checked without pictures (the views could not be rendered)",
+      "view": {
+        "front": "front",
+        "top": "top",
+        "iso": "angled"
+      },
+      "picture": {
+        "front": "View from the front",
+        "top": "View from above",
+        "iso": "View at an angle"
+      }
+    },
     "queriesRunning": "{count, plural, one {# query to SolidCraft} other {# queries to SolidCraft}} · running",
     "step": {
       "label": "Step: {text}",
@@ -699,6 +717,8 @@
     }
   },
   "structure": {
+    "sectionHeight": "Height of {name}",
+    "sectionHeightHint": "Drag to change the height · double-click: as high as its rows",
     "title": "Structure",
     "bodies": "Bodies ({count})",
     "sketches": "Sketches ({count})",
@@ -727,9 +747,13 @@
     "resize": "Width of the structure"
   },
   "parameters": {
+    "changeIn": "Change {name} in {unit}",
+    "valueIn": "Value ({unit})",
+    "formulaName": "In formulas: {name}",
+    "computed": "Computed",
+    "more": "Other",
     "title": "Parameters ({count})",
     "none": "No parameters yet. The assistant names the important values of a part here.",
-    "change": "Change {name}",
     "favorite": "Favourite",
     "outside": "Outside the intended range {min} to {max}",
     "enter": "Preview in the view – Enter changes it, Escape cancels",
@@ -741,7 +765,6 @@
     "ask": "Ask the assistant",
     "askDraft": "Make parameters for the important sizes of this part.",
     "name": "Name",
-    "value": "Value",
     "invalid": "Type a length greater than 0",
     "discarded": "“{{value}}” discarded, {{kept}} stays",
     "fitted": "Chosen by the assistant, follows the printer's nozzle and layer height"
@@ -1063,7 +1086,7 @@
       },
       "economy": {
         "label": "Design lean",
-        "hint": "Saves material and print time: shells with ribs instead of solid blocks, low build height, no needless support. Function and strength come first; infill and speed stay with your slicer."
+        "hint": "Saves material and print time: leaves out volume that does nothing (an open bottom, a frame instead of a plate) without hollowing closed bodies, and keeps the build height low. Function and strength come first; infill and speed stay with your slicer."
       }
     },
     "add": "Add printer",
@@ -1146,6 +1169,26 @@
       "narrowGap": {
         "label": "Slots that print closed",
         "hint": "Says where two walls of one part come closer than one nozzle (at least 0.3 mm): an engraved stroke, a kerf or a slit between letters prints closed there. A hint, never a block."
+      },
+      "sharpEdge": {
+        "label": "Bodies with no rounding at all",
+        "hint": "Says where a body has no rounded or chamfered edge at all and its outer edges are sharp: the design rules round seen edges by 1, 2 or 3 mm, by the size of the part. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
+      },
+      "edgeRadii": {
+        "label": "Too many radii",
+        "hint": "Says where the outer edges of a body are rounded with more than three different radii (radii less than a quarter apart count as one): the design rules use two or three per part. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
+      },
+      "rootCorner": {
+        "label": "Sharp roots of thin arms",
+        "hint": "Says where a slender free arm, hook or thin post (at least three times as long as it is thick) stands on a face with a sharp inner corner: an arm under load breaks there first, a round of half its thickness holds it. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
+      },
+      "shallowSlope": {
+        "label": "Shallow slopes",
+        "hint": "Says where a flat face facing up leans less than 15° from flat: the layers show on it as wide steps (over 0.75 mm at 0.2 mm layers). A hint, never a block."
+      },
+      "shellCorner": {
+        "label": "Uneven shell corners",
+        "hint": "Says where a shell is rounded outside and its wall thins in the corner under half, as the inside is not rounded to match: the inside wants the outer radius less the wall. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
       }
     }
   },
@@ -1199,7 +1242,12 @@
       "blockedFree": "{joint}: {a} and {b} touch at {at} – the joint has no limit that way and stops there",
       "posed": "{joint} stands at {value}, not as designed – the part is exported and checked the way it stands",
       "smallHole": "{count, plural, one {A hole under {minimum} mm across ({diameter} mm)} other {# holes under {minimum} mm across, the smallest {diameter} mm}}: holes that small close up or come out under size – drill them out after printing",
-      "narrowGap": "Slots down to {gap} mm, under the {minimum} mm that stay open with this nozzle: the walls beside them squeeze together and close them"
+      "narrowGap": "Slots down to {gap} mm, under the {minimum} mm that stay open with this nozzle: the walls beside them squeeze together and close them",
+      "sharpEdge": "{count, plural, one {A sharp edge} other {# sharp edges}} ({length} mm) on bodies with no rounded or chamfered outer edge at all: the design rules round seen outer edges by the size of the part, on a plate at most half its thickness – here {radii}",
+      "edgeRadii": "Outer edges rounded with {count} different radii ({radii} mm): the design rules use at most {most} per part, so the rounds match",
+      "rootCorner": "{count, plural, one {A slender arm stands} other {# sides of slender arms stand}} on a sharp inner corner, the thinnest {thickness} mm thick and {length} mm long: it breaks there first under load – round the root at least {radius} mm",
+      "shallowSlope": "{count, plural, one {A face facing up leans} other {# faces facing up lean}} less than {limit}° from flat, the shallowest {angle}°: the layers show there as steps about {step} mm wide",
+      "shellCorner": "{count, plural, one {At a rounded outer edge} other {At # rounded outer edges}} the shell thins to {thickness} mm in the corner, under half its {wall} mm wall: rounded {radius} mm outside, not inside to match – round the inside {inner} mm"
     },
     "confirm": {
       "title": "Export anyway?",

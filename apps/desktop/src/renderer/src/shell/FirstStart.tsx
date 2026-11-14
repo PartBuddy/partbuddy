@@ -20,7 +20,7 @@ type Step = (typeof STEPS)[number];
  * PartBuddy recommends (RECOMMENDED_VERSION), not the list, so a newer SolidCraft the app was not
  * checked on is not what a new user installs.
  */
-const SOLIDCRAFT_DOWNLOAD = 'https://github.com/tangency-labs/solidcraft/releases/tag/v0.40.1';
+const SOLIDCRAFT_DOWNLOAD = 'https://github.com/tangency-labs/solidcraft/releases/tag/v0.41.0';
 
 /**
  * The first start (plan step B9): a short setup in four steps that can be skipped at any point,

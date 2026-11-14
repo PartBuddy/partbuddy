@@ -1,0 +1,15 @@
+{
+  "commands": [
+    {"command":"solid.box","params":{"length":60,"width":40,"height":30,"corner":[0,0,0],"operation":"new","body_name":"ShellAfter"}},
+    {"command":"solid.shell","params":{"faces":[[30,20,30]],"thickness":"2 mm","body":"ShellAfter"}},
+    {"command":"solid.fillet","params":{"edges":[[0,0,15],[60,0,15],[60,40,15],[0,40,15]],"radius":"6 mm","tangent_chain":false,"body":"ShellAfter"}},
+    {"command":"solid.box","params":{"length":60,"width":40,"height":30,"corner":[80,0,0],"operation":"new","body_name":"ShellBefore"}},
+    {"command":"solid.fillet","params":{"edges":[[80,0,15],[140,0,15],[140,40,15],[80,40,15]],"radius":"6 mm","tangent_chain":false,"body":"ShellBefore"}},
+    {"command":"solid.shell","params":{"faces":[[110,20,30]],"thickness":"2 mm","body":"ShellBefore"}},
+    {"command":"solid.box","params":{"length":60,"width":40,"height":30,"corner":[160,0,0],"operation":"new","body_name":"ShellAfterSmall"}},
+    {"command":"solid.shell","params":{"faces":[[190,20,30]],"thickness":"2 mm","body":"ShellAfterSmall"}},
+    {"command":"solid.fillet","params":{"edges":[[160,0,15],[220,0,15],[220,40,15],[160,40,15]],"radius":"1 mm","tangent_chain":false,"body":"ShellAfterSmall"}},
+    {"command":"solid.box","params":{"length":60,"width":40,"height":30,"corner":[240,0,0],"operation":"new","body_name":"SolidRound"}},
+    {"command":"solid.fillet","params":{"edges":[[240,0,15],[300,0,15],[300,40,15],[240,40,15]],"radius":"6 mm","tangent_chain":false,"body":"SolidRound"}}
+  ]
+}

@@ -7,6 +7,7 @@ import { ClaudeSession, findClaudeCode, listModels, readAuth, readVersion, start
 import { userEvent, type AgentBackend, type PictureKind } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
 import { allowedChoice, choiceStatus, CLAUDE_STANDARD, withoutChoice, type ChoiceStore } from './modelChoice';
+import type { TurnReview } from './review';
 import { composeMessage } from './viewContext';
 
 /**
@@ -34,6 +35,8 @@ export interface AgentServiceOptions {
   research?: () => boolean;
   /** Lists the models of the plan; Claude Code's own `initialize` answer by default (tests replace it). */
   listModels?: (claude: ClaudeCommand) => Promise<ModelOption[]>;
+  /** The review before "done" (review.ts), asked when Claude Code ends a turn. */
+  review?: TurnReview;
   log(message: string): void;
 }
 
@@ -62,6 +65,10 @@ export class AgentService implements AgentBackend {
   private choice: ModelChoice | null = null;
   /** Claude Code compacted the session since the last message: the next one counts as fresh (audit H-11). */
   private compacted = false;
+  /** The user pressed Stop or started a new conversation in this turn: no send-back for the review. */
+  private stopping = false;
+  /** How long the turn took before it was sent back for the review. */
+  private reviewMs = 0;
 
   constructor(
     private readonly options: AgentServiceOptions,
@@ -122,6 +129,8 @@ export class AgentService implements AgentBackend {
       return;
     }
     await this.ensureSession(tools);
+    this.stopping = false;
+    this.reviewMs = 0;
     // The notes for a fresh conversation (print profile, check) were read before this call and go with this message.
     this.compacted = false;
     const message = composeMessage(text, selections, note);
@@ -155,11 +164,14 @@ export class AgentService implements AgentBackend {
   }
 
   async stop(): Promise<void> {
+    // A turn ending after Stop is not sent back for the review.
+    this.stopping = true;
     await this.session?.stop();
   }
 
   /** Ends the session; Claude Code keeps nothing of it (`--no-session-persistence`). */
   async newConversation(): Promise<void> {
+    this.stopping = true;
     await this.session?.stop();
     this.session = null;
     this.context = { used: 0, size: 0 };
@@ -175,6 +187,7 @@ export class AgentService implements AgentBackend {
   }
 
   async dispose(): Promise<void> {
+    this.stopping = true;
     await this.session?.stop();
     this.session = null;
     await this.proxy?.stop();
@@ -223,7 +236,19 @@ export class AgentService implements AgentBackend {
           this.listeners.event(event);
           break;
         case 'done': {
+          // A changing turn that ended without the review goes back to the model once (review.ts); the user sees no end yet.
+          // The gate proxy's repeat count is not reset: the send-back is the same user turn, and the review call differs
+          // from any call before it, so it never counts as a repeat.
+          const back = event.ok && !this.stopping && session.running ? (this.options.review?.due() ?? null) : null;
+          if (back) {
+            this.reviewMs += event.durationMs ?? 0;
+            session.send(back);
+            break;
+          }
           const { reason, ...done } = event;
+          // The whole turn, the review pass included.
+          if (done.durationMs !== null) done.durationMs += this.reviewMs;
+          this.reviewMs = 0;
           if (reason) this.options.log(`Claude Code ended the turn with: ${reason}`);
           this.listeners.event(done);
           // The chat says to sign in again; the chip and the panel show it as well.
