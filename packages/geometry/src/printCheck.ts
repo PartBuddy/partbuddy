@@ -79,8 +79,6 @@ export type PrintFinding =
   | ({ kind: 'overhang'; severity: FindingSeverity; area: number; limit: number } & Located)
   /** Rounded edges on the bed (a fillet on a bottom edge): `area` leans past `limit`° from the bed up (BC-27). */
   | ({ kind: 'roundBedEdge'; severity: FindingSeverity; area: number; limit: number } & Located)
-  /** Walls of `thickness` that are no whole number of lines (`onLineGrid`); `better`: the grid's sizes below and above (BC-27). */
-  | ({ kind: 'wallLines'; severity: FindingSeverity; thickness: number; line: number; better: [number, number]; area: number } & Located)
   /** The bodies with too little on the bed: how many, and the area of the one with the least. */
   | ({ kind: 'contact'; severity: FindingSeverity; area: number; bodies: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
@@ -141,48 +139,6 @@ export function minimumWall(nozzle: number): number {
   return Math.round(nozzle * 2 * 1.125 * 100) / 100;
 }
 
-/**
- * The width of one extrusion line on PartBuddy's grid: half the two-line wall (`minimumWall`, 112.5 % of the nozzle), so
- * two lines here are the minimum at every nozzle (audit MG-17, D37: 1.126 against 1.13 at 0.5 mm). 112.5 % is the widest
- * of the slicers' defaults, not the line each of them lays: PrusaSlicer 0.45 mm at 0.4 (112.5 %), Bambu Studio 0.42 mm
- * outer and 0.45 mm inner wall at 0.4 and 0.62 mm at 0.6 (fdm_process_common.json, fdm_process_single_0.30_nozzle_0.6.json),
- * OrcaSlicer 105–120 % for the outer wall (wiki, Line Width). Overlapping lines make n lines a little narrower than n
- * widths (two 0.4 mm lines at 0.2 mm layers: 0.714 mm, OrcaSlicer wiki, Precision), so a wall of n of these widths is
- * the upper bound: it holds n lines in every one of these slicers (audit T19, MG-09, MG-10). A guide value for the grid,
- * PartBuddy's own choice.
- */
-export function lineWidth(nozzle: number): number {
-  return Math.round((minimumWall(nozzle) / 2) * 1000) / 1000;
-}
-
-/**
- * The default line widths of the slicers, as parts of the nozzle: Cura 100 %, PrusaSlicer 112.5 %, Bambu Studio 105 to
- * 112.5 %, OrcaSlicer up to 120 % (see `lineWidth`).
- */
-const LINE_SPAN = [1, 1.2] as const;
-
-/**
- * Whether a wall is a whole number of lines in some slicer's default: n lines of 100 to 120 % of the nozzle fill it side
- * by side (BC-27). PartBuddy's own grid (`lineWidth`, the assistant's and the shell action's sizes) lies inside that span,
- * so its sizes are never told off; a wall between the spans (1.0 mm at 0.4: over two lines of 0.48, under three of 0.4)
- * leaves a gap the slicer fills with a thin line or a gap fill, or widens the lines past their default. From five lines
- * the spans overlap (5 × 1.2 ≥ 6 × 1), so every thicker wall is on it: the check looks no further (`gridReach`).
- * The span is the tolerance: the check reads a flat wall to 0.001 mm, a curved one a little under its size (`coaxial`).
- */
-export function onLineGrid(thickness: number, nozzle: number): boolean {
-  const lines = Math.ceil(thickness / (LINE_SPAN[1] * nozzle) - 1e-9);
-  return lines * LINE_SPAN[0] * nozzle <= thickness + EPSILON;
-}
-
-/** Up to here a wall can be off the line grid (`onLineGrid`): five of the narrowest default lines. */
-const gridReach = (nozzle: number) => 5 * LINE_SPAN[0] * nozzle;
-
-/** The nearest sizes on PartBuddy's grid of lines below and above a wall, at least two lines. */
-export function nearestLines(thickness: number, nozzle: number): [number, number] {
-  const line = lineWidth(nozzle);
-  const at = (lines: number) => Math.round(Math.max(2, lines) * line * 1000) / 1000;
-  return [at(Math.floor(thickness / line + 1e-9)), at(Math.ceil(thickness / line - 1e-9))];
-}
 
 /**
  * Four layers, and at least 0.8 mm: the thinnest floor or lid that prints closed (Stratasys Direct,
@@ -325,26 +281,6 @@ interface Thin {
 }
 
 /**
- * Walls off the line grid in one body: per face their area and thinnest reading (`faces`), and the range of all its wall
- * readings from the minimum on (`low`, `high`).
- */
-interface OffGrid {
-  faces: FaceTally;
-  low: Float64Array;
-  high: Float64Array;
-}
-
-/**
- * A face whose wall readings differ by more than this (mm) is tapered (a draft, a wedge, the flat of a hex socket in a
- * round head): it runs through the grid, and no one size of it is to change (BC-27). A flat wall reads to 0.001 mm, a
- * curved one on SolidCraft's mesh within a few hundredths; 0.05 mm is under the narrowest stretch off the grid (1.92 to
- * 2 mm at 0.4).
- * shortcut: so a tapered wall is never told, nor a face with walls of two sizes (a stepped wall behind one face); tell
- * them by size if such walls turn up off the grid.
- */
-const EVEN = 0.05;
-
-/**
  * Wall thickness under each triangle: rays straight into the material, spread a nozzle width apart
  * over the triangle, and at its corners (between two flat faces a wall is thinnest at one of them).
  * Walls stand against two lines and the nozzle; floors and lids, as the body lies, against four
@@ -354,17 +290,16 @@ const EVEN = 0.05;
  * shortcut: a body with more surface than MAX_RAYS nozzle widths squared has its large triangles sampled more coarsely;
  * raise MAX_RAYS (or check in a worker) if thin spots in the middle of large faces of large parts are missed.
  */
-function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new Vector3(0, 0, -1)): { walls: Thin; floors: Thin; grid: OffGrid } {
+function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new Vector3(0, 0, -1)): { walls: Thin; floors: Thin } {
   const { model } = body;
   const geometry = model.geometry;
   // computeBoundsTree builds a MeshBVH (viewerModel.ts); the augmented type only names its base.
   const bvh = geometry.boundsTree as unknown as MeshBVH | undefined;
   const walls: Thin = { faces: new FaceTally(model.table.faces.length), unprintable: 0 };
   const floors: Thin = { faces: new FaceTally(model.table.faces.length), unprintable: 0 };
-  const grid: OffGrid = { faces: new FaceTally(model.table.faces.length), low: new Float64Array(model.table.faces.length).fill(Infinity), high: new Float64Array(model.table.faces.length) };
   const index = geometry.index?.array;
   const positions = geometry.getAttribute('position').array;
-  if (!bvh || !index) return { walls, floors, grid };
+  if (!bvh || !index) return { walls, floors };
   const triangles = index.length / 3;
   let surface = 0;
   for (let t = 0; t < triangles; t += 1) surface += triangle(positions, index, t).area;
@@ -385,41 +320,28 @@ function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new 
     const thin = flat ? floors : walls;
     const minimum = flat ? minimumFloor(profile.layer) : minimumWall(profile.nozzle);
     const printable = flat ? layerOf(profile.layer) : thinnestLine(profile.nozzle);
-    // Walls are looked through further, for walls off the line grid; floors only to their minimum.
-    const reach = flat ? minimum : Math.max(minimum, gridReach(profile.nozzle));
     const count = Math.ceil(area / cell);
     ray.direction.copy(normal).negate();
     const along = (axis: number, [a, b, c]: [number, number, number]) => a * (corners[axis] ?? 0) + b * (corners[axis + 3] ?? 0) + c * (corners[axis + 6] ?? 0);
     [...spread(count), ...(count > 1 ? CORNERS : [])].forEach((weights, p) => {
       ray.origin.set(along(0, weights), along(1, weights), along(2, weights)).addScaledVector(normal, -EPSILON);
-      const hit = bvh.raycastFirst(ray, DoubleSide, 0, reach);
+      const hit = bvh.raycastFirst(ray, DoubleSide, 0, minimum);
       if (!hit || hit.faceIndex === t || hit.faceIndex === undefined || hit.faceIndex === null) return;
       // Between two faces round one axis the wall is the difference of their radii, however coarse their meshes are: a tube
       // of 0.45 mm meshed 24 round outside and 48 inside read 0.41 mm and blocked (review of PR #371, B1).
       const thickness = coaxial(face, model.table.faces[model.triangleFaces[hit.faceIndex] ?? 0]) ?? hit.distance + EPSILON;
       // A wall of just the minimum is not under it.
-      const under = thickness <= minimum - EPSILON;
-      if (!under && (flat || thickness > reach)) return;
+      if (thickness > minimum - EPSILON) return;
       const met = triangle(positions, index, hit.faceIndex);
       const opposite = met.normal;
-      const facing = !!opposite && opposite.dot(normal) <= OPPOSITE;
+      if (!opposite || (opposite.dot(normal) > OPPOSITE && !(bore && Math.abs(opposite.dot(bore)) < ALONG && !hollowAt(model, hit.faceIndex, opposite, met.centroid)))) return;
       // The corners only say how thin the face gets; its area is shared out among the spread points.
       const share = p < count ? area / count : 0;
-      if (!under) {
-        // A wall the minimum or thicker, faced straight back: on the line grid or not (BC-27).
-        if (!facing) return;
-        const at = model.triangleFaces[t] ?? 0;
-        grid.low[at] = Math.min(grid.low[at] ?? Infinity, thickness);
-        grid.high[at] = Math.max(grid.high[at] ?? 0, thickness);
-        if (!onLineGrid(thickness, profile.nozzle)) grid.faces.add(at, share, thickness, corners);
-        return;
-      }
-      if (!opposite || (!facing && !(bore && Math.abs(opposite.dot(bore)) < ALONG && !hollowAt(model, hit.faceIndex, opposite, met.centroid)))) return;
       thin.faces.add(model.triangleFaces[t] ?? 0, share, thickness, corners);
       if (thickness < printable - EPSILON) thin.unprintable += share;
     });
   }
-  return { walls, floors, grid };
+  return { walls, floors };
 }
 
 /**
@@ -814,18 +736,6 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       const minimum = floor ? minimumFloor(profile.layer) : minimumWall(profile.nozzle);
       const layers = floor ? { layers: round(minimum / layerOf(profile.layer), 1) } : {};
       findings.push({ kind: 'thinWall', severity: unprintable >= BLOCK_THIN_AREA ? 'block' : 'warn', floor, ...layers, thickness: round(found.extreme), minimum, area: round(found.area, 0), places: found.places, box: found.box });
-    }
-    // Walls off the line grid (BC-27): a hint, never a block. Faces already told as thin, and tapered ones, are left out.
-    const grid = thin.map(({ walls, grid: { faces, low, high } }) => {
-      faces.area.forEach((_, face) => {
-        if ((walls.faces.area[face] ?? 0) > 0 || (high[face] ?? 0) - (low[face] ?? 0) > EVEN) faces.area[face] = 0;
-      });
-      return faces;
-    });
-    const off = locate(parts, grid, MIN_AREA, true);
-    if (off.places.length > 0) {
-      const thickness = round(off.extreme);
-      findings.push({ kind: 'wallLines', severity: 'warn', thickness, line: lineWidth(profile.nozzle), better: nearestLines(thickness, profile.nozzle), area: round(off.area, 0), places: off.places, box: off.box });
     }
 
     // Bodies that touch fall apart in the slicer, each laid onto the bed by itself. Bodies printed as one piece stay

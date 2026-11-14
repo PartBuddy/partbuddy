@@ -38,8 +38,6 @@ export function useFindingText(): (finding: PrintFinding) => string {
         return t('check.finding.overhang', { area: number.format(finding.area), limit: finding.limit });
       case 'roundBedEdge':
         return t('check.finding.roundBedEdge', { area: number.format(finding.area), limit: finding.limit, chamfer: Math.min(45, finding.limit) });
-      case 'wallLines':
-        return t('check.finding.wallLines', { thickness: number.format(finding.thickness), line: number.format(finding.line), low: number.format(finding.better[0]), high: number.format(finding.better[1]) });
       case 'contact':
       {
         // Three names, and how many more: fifty pins do not fit a line.

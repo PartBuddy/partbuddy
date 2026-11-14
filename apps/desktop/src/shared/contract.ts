@@ -1194,7 +1194,6 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('thinWall'), severity: findingSeveritySchema, floor: z.boolean(), layers: finite.positive().max(1000).optional(), thickness: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('overhang'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('roundBedEdge'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
-  z.object({ kind: z.literal('wallLines'), severity: findingSeveritySchema, thickness: mmValue, line: mmValue, better: z.tuple([mmValue, mmValue]), area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), bodies: z.number().int().positive().max(100_000), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),

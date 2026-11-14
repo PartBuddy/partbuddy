@@ -1173,7 +1173,6 @@
       "floorThin": "Böden oder Deckel nur {thickness} mm, mindestens {minimum} mm{layers, select, none {} other { ({layers} Schichten)}}",
       "overhang": "{area} mm² neigen sich über {limit}°: Sie brauchen Stützen",
       "roundBedEdge": "{area} mm² gerundete Bettkanten neigen sich über {limit}°: Ihr Fuß wölbt sich auf – eine Fase mit höchstens {chamfer}° druckt sauber",
-      "wallLines": "Wände von {thickness} mm sind keine ganze Zahl an Linien von {line} mm: {low} oder {high} mm drucken massiv",
       "contact": "{count, plural, one {Nur {area} mm² von {bodies} liegen auf dem Druckbett, zu wenig für die Höhe: kann sich lösen oder kippen – ein Brim hält es} other {# Körper liegen für ihre Höhe kaum auf dem Druckbett ({bodies}), am wenigsten {area} mm²: können sich lösen oder kippen – ein Brim hält sie}}",
       "suppressed": "{count, plural, one {{features} ist unterdrückt} other {{features}{more, plural, =0 {} one { und eins mehr} other { und # weitere}} sind unterdrückt}}: nicht im geprüften und exportierten Teil",
       "rolledBack": "Der Verlauf ist zurückgesetzt: {features}{more, plural, =0 {} one { und eins mehr} other { und # weitere}} {count, plural, one {fehlt} other {fehlen}} im geprüften und exportierten Teil",

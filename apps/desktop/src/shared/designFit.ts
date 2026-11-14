@@ -6,7 +6,7 @@
  * (`thinnestLine`, `minimumWall`, the push fit and the print-in-place gap), and the rule text tells
  * the assistant to name the better value (printProfiles.ts).
  */
-import { lineWidth as lineOf, minimumWall } from '@partbuddy/geometry';
+import { minimumWall } from '@partbuddy/geometry';
 
 export interface FitPrinter {
   nozzle: number;
@@ -20,9 +20,18 @@ export type FitUnit = 'line' | 'layer' | 'nozzle';
 const round = (value: number) => Math.round(value * 1000) / 1000;
 const EPSILON = 1e-6;
 
-/** The width of one extrusion line on PartBuddy's grid for the printer (the print check's `lineWidth`, which says why). */
+/**
+ * The width of one extrusion line: half the print check's two-line wall (`minimumWall`, 112.5 % of the nozzle), so two
+ * lines here are the check's minimum at every nozzle (audit MG-17, D37: 1.126 against 1.13 at 0.5 mm). 112.5 % is
+ * the widest of the slicers' defaults, not the line each of them lays: PrusaSlicer 0.45 mm at 0.4 (112.5 %), Bambu
+ * Studio 0.42 mm outer and 0.45 mm inner wall at 0.4 and 0.62 mm at 0.6 (fdm_process_common.json,
+ * fdm_process_single_0.30_nozzle_0.6.json), OrcaSlicer 105–120 % for the outer wall (wiki, Line Width). Overlapping
+ * lines make n lines a little narrower than n widths (two 0.4 mm lines at 0.2 mm layers: 0.714 mm, OrcaSlicer wiki,
+ * Precision), so a wall of n of these widths is the upper bound: it holds n lines in every one of these slicers
+ * (audit T19, MG-09, MG-10). A guide value for the grid, PartBuddy's own choice.
+ */
 export function lineWidth(printer: FitPrinter): number {
-  return lineOf(printer.nozzle);
+  return round(minimumWall(printer.nozzle) / 2);
 }
 
 /** The most a first layer is squeezed wider, which a bed chamfer takes up: 0.1 to 0.25 mm (Prusa about 0.2, Bambu Lab 0.1 to 0.2, OrcaSlicer up to 0.25). */

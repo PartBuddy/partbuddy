@@ -10,7 +10,7 @@ import { DESIGN_DEFAULTS, printCheckReportSchema, type PartPrint } from '../src/
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
   it('says what it looked at when nothing was found, and what it did not (audit R3)', () => {
     const clean = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 1 });
-    expect(clean).toContain('nothing found in what it checks (build volume, wall and floor thickness, walls off the line grid, overhang angle, rounded edges on the bed, area on the bed for the height,');
+    expect(clean).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, rounded edges on the bed, area on the bed for the height,');
     expect(clean).toContain('Not checked: strength and layer direction under load, the fits and hole allowances you chose,');
     // No verdict the model could hand on as "ready to print".
     expect(clean).not.toMatch(/ready to print[,.]/);
@@ -44,13 +44,12 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     expect(note).toContain('feature "Shell1" reports "thin result"');
   });
 
-  it('words a rounded bed edge and a wall off the line grid as hints with what to build instead (BC-27)', () => {
+  it('words a rounded bed edge as a hint to chamfer it (BC-27)', () => {
     const report = reportOf(
       {
         status: 'warn',
         findings: [
           { kind: 'roundBedEdge', severity: 'warn', area: 31, limit: 40, places: [{ body: 'Cube', faces: ['F6:blend(F5:+x|F5:-z)'] }], box: null },
-          { kind: 'wallLines', severity: 'warn', thickness: 1, line: 0.45, better: [0.9, 1.35], area: 2735, places: [{ body: 'Box', faces: ['F19:+y'] }], box: null },
         ],
       },
       0.4,
@@ -63,7 +62,6 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     // The chamfer leans at most the material's angle where it is under 45° (BC-19).
     expect(note).toContain('warning: 31 mm² of rounded edges on the bed lean more than 40° from the vertical just above it (faces "F6:blend(F5:+x|F5:-z)" of body "Cube"): the foot of a fillet there ends flat on the bed and curls up. Chamfer those edges instead, leaning at most 40° from the vertical');
     expect(printCheckNote({ ...report, findings: [{ kind: 'roundBedEdge', severity: 'warn', area: 31, limit: 50, places: [] }] })).toContain('leaning at most 45° from the vertical');
-    expect(note).toContain('warning: walls of 1 mm are no whole number of 0.45 mm lines (faces "F19:+y" of body "Box"), so the slicer leaves a gap or a thin line in them; 0.9 mm or 1.35 mm print solid. Use one of those where the size is yours; a size the user named stays');
   });
 
   it('tells a thin floor from a thin wall: layers, not lines', () => {

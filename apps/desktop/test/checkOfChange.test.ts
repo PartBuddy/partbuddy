@@ -177,7 +177,7 @@ describe('designs of several bodies: the mesh check goes ahead of the measures (
 
   it('says what SolidCraft could not measure instead of counting it as checked', () => {
     const failed = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 2, unmeasured: ['clearance'] });
-    expect(failed).toContain('nothing found in what it checks (build volume, wall and floor thickness, walls off the line grid, overhang angle, rounded edges on the bed, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch, joints that stop before a limit, or within a turn or as far as the parts reach where they have none).');
+    expect(failed).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, rounded edges on the bed, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch, joints that stop before a limit, or within a turn or as far as the parts reach where they have none).');
     expect(failed).toContain("NOT measured, or not all of it (SolidCraft's measure failed or did not finish every pair in its time, or there were more than 200 joint runs): bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move. Measure it yourself (inspect.clearance) before you call the part done.");
     const both = printCheckNote({ status: 'warn', findings: [{ kind: 'open', severity: 'warn', bodies: ['A'] }], nozzle: 0.4, revision: 2, unmeasured: ['clearance', 'joints'] });
     expect(both).toContain('Measure it yourself (inspect.clearance, joint.sweep)');
@@ -189,7 +189,7 @@ describe('designs of several bodies: the mesh check goes ahead of the measures (
 
   it('does not call a preliminary clean check clean of what is still measured', () => {
     const note = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 1, measuring: true });
-    expect(note).toContain('nothing found so far (build volume, wall and floor thickness, walls off the line grid, overhang angle, rounded edges on the bed, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch).');
+    expect(note).toContain('nothing found so far (build volume, wall and floor thickness, overhang angle, rounded edges on the bed, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch).');
     expect(note).not.toContain('in what it checks');
   });
 });

@@ -1173,7 +1173,6 @@
       "floorThin": "Floors or lids only {thickness} mm, at least {minimum} mm{layers, select, none {} other { ({layers} layers)}}",
       "overhang": "{area} mm² lean beyond {limit}°: they need support",
       "roundBedEdge": "{area} mm² of rounded bed edges lean beyond {limit}°: their foot curls up – a chamfer of at most {chamfer}° prints clean",
-      "wallLines": "Walls of {thickness} mm are no whole number of {line} mm lines: {low} or {high} mm print solid",
       "contact": "{count, plural, one {Only {area} mm² of {bodies} lie on the bed for its height: it may come loose or tip over – a brim holds it} other {# bodies have little on the bed for their height ({bodies}), the least {area} mm²: they may come loose or tip over – a brim holds them}}",
       "suppressed": "{count, plural, one {{features} is suppressed} other {{features}{more, plural, =0 {} one { and one more} other { and # more}} are suppressed}}: not in the part as checked and exported",
       "rolledBack": "The timeline is rolled back: {features}{more, plural, =0 {} one { and one more} other { and # more}} {count, plural, one {is} other {are}} not in the part as checked and exported",
