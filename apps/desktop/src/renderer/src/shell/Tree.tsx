@@ -85,7 +85,8 @@ const toParent = (row: HTMLElement) => row.parentElement?.closest('[role="group"
  * A folding section: chevron, type icon, name and a count badge; Left and Right fold it. Open or closed and a height
  * dragged at its lower edge are remembered (decided 2026-11-14); without a dragged height it is as high as its rows
  * and gives way with a scrollbar of its own when the sections do not fit, the more the more rows it has, keeping up
- * to five rows in sight; an empty one does not give way.
+ * to five rows in sight; an empty one does not give way. An empty section starts folded, its head and its 0 only,
+ * and opens once it has rows, unless the user opened or closed it: that choice is kept (decided 2026-11-14).
  */
 export function TreeSection({
   id,
@@ -93,6 +94,7 @@ export function TreeSection({
   title,
   label,
   count,
+  empty = count === 0,
   meta,
   children,
   testId,
@@ -103,17 +105,25 @@ export function TreeSection({
   /** What a screen reader says for the head, the title with the count ("Bodies (3)"). */
   label: string;
   count: number;
+  /** Nothing to show but its hint (default: a count of 0). */
+  empty?: boolean;
   meta?: ReactNode;
   children: ReactNode;
   testId?: string;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useStored(`partbuddy.tree.${id}.open`, true);
+  // null: the user has not chosen, so it is open when it has something to show.
+  const [chosen, choose] = useStored<boolean | null>(`partbuddy.tree.${id}.open`, null);
+  const open = chosen ?? !empty;
+  // A choice the default makes anyway is not kept, so a section closed while empty opens with its first row.
+  const setOpen = (next: boolean) => {
+    choose(next === !empty ? null : next);
+  };
   const [height, setHeight] = useStored<number | null>(`partbuddy.tree.${id}.height`, null);
   const box = useRef<HTMLDivElement>(null);
   const row = useRow(id);
   const room = () => box.current?.parentElement?.clientHeight ?? 2000;
-  const shown = Math.min(Math.max(count, 2), 5);
+  const shown = Math.min(Math.max(count, 1), 5);
   return (
     <div
       ref={box}

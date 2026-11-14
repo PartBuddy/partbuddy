@@ -443,7 +443,12 @@ test('the parameter panel groups many parameters, folds formulas and keeps every
   await expect(panel.getByRole('treeitem', { name: 'Computed (29)' })).toHaveAttribute('aria-expanded', 'false');
   // The label in place of the name, which shows on hover.
   await expect(panel.getByTestId('parameter').first()).toHaveAccessibleName('Monitor-Maß 1 10 mm');
-  // The other sections stay in sight below the list, which scrolls on its own.
+  // Bodies, parameters, notes, sketches; the empty ones show their head and 0 only.
+  await expect(tree.locator('[role="treeitem"][aria-level="1"]')).toHaveText([/^Bodies/, /^Parameters/, /^Notes/, /^Sketches/]);
+  await expect(tree.getByRole('treeitem', { name: 'Notes (0)' })).toHaveAttribute('aria-expanded', 'false');
+  await expect(tree.getByRole('treeitem', { name: 'Sketches (0)' })).toHaveAttribute('aria-expanded', 'false');
+  await expect(tree.getByTestId('structure-empty-sketch')).toHaveCount(0);
+  // The other sections stay in sight beside the list, which scrolls on its own.
   await expect(tree.getByRole('treeitem', { name: 'Bodies (1)' })).toBeInViewport();
   await expect(tree.getByRole('treeitem', { name: /^Notes/ })).toBeInViewport();
   const body = page.getByTestId('parameters-body');
@@ -479,9 +484,10 @@ test('the parameter panel groups many parameters, folds formulas and keeps every
   await expect(panel.getByTestId('parameter')).toHaveCount(22);
   await page.screenshot({ path: test.info().outputPath('sidebar-groups-folded.png') });
 
-  // A section folds and its divider sets its height, both kept for the next start.
+  // An empty section opened by the user shows its hint, a section's divider sets its height, both kept for the next start.
   await tree.getByRole('treeitem', { name: 'Sketches (0)' }).click();
-  await expect(tree.getByRole('treeitem', { name: 'Sketches (0)' })).toHaveAttribute('aria-expanded', 'false');
+  await expect(tree.getByRole('treeitem', { name: 'Sketches (0)' })).toHaveAttribute('aria-expanded', 'true');
+  await expect(tree.getByTestId('structure-empty-sketch')).toBeVisible();
   const resizer = page.getByTestId('parameters-resizer');
   await resizer.focus();
   await page.keyboard.press('Home');
@@ -492,7 +498,8 @@ test('the parameter panel groups many parameters, folds formulas and keeps every
   await page.reload();
   await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision/);
   await expect(panel.getByRole('treeitem', { name: 'Parameters (88)' })).toBeVisible();
-  await expect(tree.getByRole('treeitem', { name: 'Sketches (0)' })).toHaveAttribute('aria-expanded', 'false');
+  await expect(tree.getByRole('treeitem', { name: 'Sketches (0)' })).toHaveAttribute('aria-expanded', 'true');
+  await expect(tree.getByRole('treeitem', { name: 'Notes (0)' })).toHaveAttribute('aria-expanded', 'false');
   await expect(panel.getByRole('treeitem', { name: 'Kopf (22)' })).toHaveAttribute('aria-expanded', 'false');
   await expect(panel.getByRole('treeitem', { name: 'Monitor (22)' })).toHaveAttribute('aria-expanded', 'true');
   await expect.poll(async () => Math.round((await panel.boundingBox())?.height ?? 0)).toBe(kept);
@@ -536,10 +543,18 @@ test('the structure tree folds, selects, frames, renames and hides by mouse and 
   // The change is mirrored first (exports and all), which takes longer on a busy runner.
   await expect(sketch).toHaveCount(1, { timeout: 15_000 });
   await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
-  // Empty sections say so in a line and offer one action.
-  await expect(tree.getByTestId('parameters-ask')).toBeVisible();
+  // Empty sections start folded, their head and 0 only; opened, they say so in a line and offer one action.
+  const parameters = tree.getByRole('treeitem', { name: 'Parameters (0)' });
+  await expect(parameters).toHaveAttribute('aria-expanded', 'false');
+  await expect(tree.getByTestId('parameters-ask')).toHaveCount(0);
   await expect(tree.getByRole('treeitem', { name: 'Bodies (1)' })).toHaveAttribute('aria-expanded', 'true');
+  // A section that gets its first row opens.
+  await expect(tree.getByRole('treeitem', { name: 'Sketches (1)' })).toHaveAttribute('aria-expanded', 'true');
   await page.screenshot({ path: test.info().outputPath('structure-tree.png') });
+  await parameters.click();
+  await expect(tree.getByTestId('parameters-ask')).toBeVisible();
+  await parameters.click();
+  await expect(tree.getByTestId('parameters-ask')).toHaveCount(0);
 
   // A click selects the body, a face picked in the view marks its row; a double click frames it.
   const before = await cameraOf(page);
@@ -548,8 +563,12 @@ test('the structure tree folds, selects, frames, renames and hides by mouse and 
   await body.dblclick();
   await expect.poll(async () => JSON.stringify(await cameraOf(page))).not.toBe(JSON.stringify(before));
 
-  // Arrows move between rows, Left and Right fold a section, Space hides.
+  // Arrows move between rows (bodies, parameters, notes, sketches), Left and Right fold a section, Space hides.
   await body.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(parameters).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(tree.getByRole('treeitem', { name: 'Notes (0)' })).toBeFocused();
   await page.keyboard.press('ArrowDown');
   const sketches = tree.getByRole('treeitem', { name: 'Sketches (1)' });
   await expect(sketches).toBeFocused();

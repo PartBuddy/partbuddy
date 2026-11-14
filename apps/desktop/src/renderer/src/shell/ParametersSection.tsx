@@ -227,6 +227,8 @@ export function ParametersSection() {
   const setGhost = useStudio((s) => s.setParameterGhost);
   const requestAssistant = useStudio((s) => s.requestAssistant);
   const busy = selectedStatus(useAssistant((s) => s.state)).state === 'busy';
+  // Dimensions without a place in the view are listed here too, so the section is not empty with them.
+  const loose = useStudio((s) => s.marks.some((mark) => mark.geometry === null));
   // The list together with the revision it was read at; another revision shows the last list until the new one arrives.
   const [loaded, setLoaded] = useState<{ documentId: string; list: DesignParameter[] } | null>(null);
   const documentId = model.status === 'ready' ? model.documentId : null;
@@ -268,6 +270,7 @@ export function ParametersSection() {
       title={t('parameters.titleShort')}
       label={t('parameters.title', { count: parameters.length })}
       count={parameters.length}
+      empty={parameters.length === 0 && !loose}
       testId="parameters"
     >
       {parameters.length === 0 ? (
