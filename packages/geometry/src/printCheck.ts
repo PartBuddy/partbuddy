@@ -296,11 +296,12 @@ const HOLE_GAP = Math.PI / 2;
  * The holes of one body under SMALLEST_HOLE across (BC-24, S12), by SolidCraft's exact cylinders (`model.faces`), so the
  * coarse mesh of a small hole does not decide its size: a cylinder the material lies round (`hollowAt`), the faces of one
  * cylinder together, going all the way round. A groove, a fillet in an inner corner or a hole breaking out of a side
- * leaves more than a quarter turn without a corner and is no hole here. Per face: its area, and the hole's diameter.
- * Returns the tally and the number of holes. Linear in the triangles; the angles are sorted per hole.
+ * leaves more than a quarter turn without a corner and is no hole here, nor is a pocket shallower than it is wide. Per
+ * face: its area, and the hole's diameter. Returns the tally and the number of holes. Linear in the triangles; the angles
+ * are sorted per hole. Exported for its speed test.
  * shortcut: only exact cylinders: a hole drawn as a polygon, or in a mesh imported as such, is not found.
  */
-function smallHoles({ model }: PrintCheckBody): { tally: FaceTally; holes: number } {
+export function smallHoles({ model }: PrintCheckBody): { tally: FaceTally; holes: number } {
   const faces = model.table.faces;
   const tally = new FaceTally(faces.length);
   const index = model.geometry.index?.array;
@@ -320,14 +321,25 @@ function smallHoles({ model }: PrintCheckBody): { tally: FaceTally; holes: numbe
     own.push(t);
     triangles.set(face, own);
   }
-  const groups: number[][] = [];
+  // One cylinder per radius, axis (either way) and axis line (its point nearest the origin), to 0.001 mm: a map, as a
+  // perforated plate of 4000 holes took 370 ms comparing every face with every group (BC-24 review).
+  // shortcut: a value lying on a rounding step splits one hole in two groups, each less than round; key with a tolerance if one turns up.
+  const groups = new Map<string, number[]>();
+  const key = (n: number) => String(Math.round(n * 1000) || 0);
   for (const face of hollow) {
-    const group = groups.find((members) => sameCylinder(faces[members[0] ?? 0] as FaceInfo, faces[face] as FaceInfo));
+    const cylinder = faces[face]?.cylinder;
+    if (!cylinder) continue;
+    const axis = new Vector3(...cylinder.axis).normalize();
+    if (axis.x < -EPSILON || (Math.abs(axis.x) <= EPSILON && (axis.y < -EPSILON || (Math.abs(axis.y) <= EPSILON && axis.z < 0)))) axis.negate();
+    const origin = new Vector3(...cylinder.origin);
+    const foot = origin.sub(axis.clone().multiplyScalar(origin.dot(axis)));
+    const id = [cylinder.radius, axis.x, axis.y, axis.z, foot.x, foot.y, foot.z].map(key).join('|');
+    const group = groups.get(id);
     if (group) group.push(face);
-    else groups.push([face]);
+    else groups.set(id, [face]);
   }
   let holes = 0;
-  for (const group of groups) {
+  for (const group of groups.values()) {
     const cylinder = faces[group[0] ?? 0]?.cylinder;
     if (!cylinder) continue;
     const axis = new Vector3(...cylinder.axis).normalize();
@@ -335,15 +347,20 @@ function smallHoles({ model }: PrintCheckBody): { tally: FaceTally; holes: numbe
     const v = new Vector3().crossVectors(axis, u);
     const off = new Vector3();
     const angles: number[] = [];
+    let [low, high] = [Infinity, -Infinity];
     for (const face of group) {
       for (const t of triangles.get(face) ?? []) {
         for (let k = 0; k < 3; k += 1) {
           const p = (index[t * 3 + k] ?? 0) * 3;
           off.set((positions[p] ?? 0) - cylinder.origin[0], (positions[p + 1] ?? 0) - cylinder.origin[1], (positions[p + 2] ?? 0) - cylinder.origin[2]);
           angles.push(Math.atan2(off.dot(v), off.dot(u)));
+          low = Math.min(low, off.dot(axis));
+          high = Math.max(high, off.dot(axis));
         }
       }
     }
+    // A pocket shallower than it is wide (a dice pip 1.5 × 0.4 mm) prints as a dimple and needs no drill (BC-24 review).
+    if (high - low < cylinder.radius * 2 - EPSILON) continue;
     angles.sort((a, b) => a - b);
     let gap = (angles[0] ?? 0) + 2 * Math.PI - (angles[angles.length - 1] ?? 0);
     for (let i = 1; i < angles.length; i += 1) gap = Math.max(gap, (angles[i] ?? 0) - (angles[i - 1] ?? 0));
@@ -374,6 +391,29 @@ export function narrowestGap(nozzle: number): number {
   return Math.round(Math.max(0.3, nozzle) * 1000) / 1000;
 }
 
+/** Per triangle, the shell of the body it belongs to: triangles that share a corner (by position) are one shell. */
+function shellsOf(model: PrintCheckBody['model']): Uint32Array {
+  const index = model.geometry.index?.array ?? [];
+  const positions = model.geometry.getAttribute('position').array;
+  const parent = Array.from({ length: index.length / 3 }, (_, t) => t);
+  const root = (t: number): number => {
+    let r = t;
+    while (parent[r] !== r) r = parent[r] ?? r;
+    while (parent[t] !== r) [parent[t], t] = [r, parent[t] ?? r];
+    return r;
+  };
+  const corner = new Map<string, number>();
+  for (let i = 0; i < index.length; i += 1) {
+    const p = (index[i] ?? 0) * 3;
+    const at = `${String(positions[p])},${String(positions[p + 1])},${String(positions[p + 2])}`;
+    const t = Math.floor(i / 3);
+    const seen = corner.get(at);
+    if (seen === undefined) corner.set(at, t);
+    else parent[root(t)] = root(seen);
+  }
+  return Uint32Array.from(parent, (_, t) => root(t));
+}
+
 /**
  * Wall thickness under each triangle: rays straight into the material, spread a nozzle width apart
  * over the triangle, and at its corners (between two flat faces a wall is thinnest at one of them).
@@ -384,7 +424,7 @@ export function narrowestGap(nozzle: number): number {
  * shortcut: a body with more surface than MAX_RAYS nozzle widths squared has its large triangles sampled more coarsely;
  * raise MAX_RAYS (or check in a worker) if thin spots in the middle of large faces of large parts are missed.
  */
-function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new Vector3(0, 0, -1)): { walls: Thin; floors: Thin; gaps: FaceTally } {
+function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new Vector3(0, 0, -1), filled: readonly PrintCheckBody[] = []): { walls: Thin; floors: Thin; gaps: FaceTally } {
   const { model } = body;
   const geometry = model.geometry;
   // computeBoundsTree builds a MeshBVH (viewerModel.ts); the augmented type only names its base.
@@ -393,6 +433,7 @@ function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new 
   const floors: Thin = { faces: new FaceTally(model.table.faces.length), unprintable: 0 };
   const gaps = new FaceTally(model.table.faces.length);
   const gapMinimum = profile.off?.includes('narrowGap') ? 0 : narrowestGap(profile.nozzle);
+  let shells: Uint32Array | undefined;
   const index = geometry.index?.array;
   const positions = geometry.getAttribute('position').array;
   if (!bvh || !index) return { walls, floors, gaps };
@@ -444,13 +485,24 @@ function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new 
     spread(count).forEach((weights) => {
       ray.origin.set(along(0, weights), along(1, weights), along(2, weights)).addScaledVector(normal, EPSILON);
       const hit = bvh.raycastFirst(ray, DoubleSide, 0, gapMinimum);
-      if (!hit || hit.faceIndex === undefined || hit.faceIndex === null || hit.distance + EPSILON > gapMinimum - EPSILON) return;
+      if (!hit || hit.faceIndex === undefined || hit.faceIndex === null) return;
       const other = model.table.faces[model.triangleFaces[hit.faceIndex] ?? 0];
       // Across a hole: the small-hole hint says it.
       if (face && other && sameCylinder(face, other)) return;
+      // Between two faces round one axis (a peg in a cup) the gap is the difference of their radii: the facets lie
+      // cos(π/n) inside them, and 0.4 mm meshed 24 round read 0.398 (BC-24 review), as walls did in #371 B1.
+      const gap = coaxial(face, other) ?? hit.distance + EPSILON;
+      if (gap > gapMinimum - EPSILON) return;
       const opposite = triangle(positions, index, hit.faceIndex).normal;
       if (!opposite || opposite.dot(normal) > OPPOSITE) return;
-      gaps.add(model.triangleFaces[t] ?? 0, area / count, hit.distance + EPSILON, corners);
+      // Two shells of one body that do not touch (an imported print-in-place mesh) are no slot (BC-24 review): left out.
+      // shortcut: such a gap is not told at all; say it as parts of one mesh coming close if print-in-place meshes need it.
+      shells ??= shellsOf(model);
+      if (shells[t] !== shells[hit.faceIndex]) return;
+      // Air filled by another body of the part is no slot: a debossed logo's colour body fills its pocket (BC-24 review).
+      const middle = ray.origin.clone().addScaledVector(normal, hit.distance / 2);
+      if (filled.some((other) => { const tree = other.model.geometry.boundsTree as unknown as MeshBVH | undefined; return !!tree && boundsOf(other).containsPoint(middle) && within(middle, tree); })) return;
+      gaps.add(model.triangleFaces[t] ?? 0, area / count, gap, corners);
     });
   }
   return { walls, floors, gaps };
@@ -849,7 +901,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
 
     // Walls: under two lines they print poorly, under the nozzle width not at all. Floors and lids:
     // under four layers they do not close, under one layer nothing is laid.
-    const thin = parts.map((body, b) => thinWalls(body, profile, meshes[b]?.down));
+    const thin = parts.map((body, b) => thinWalls(body, profile, meshes[b]?.down, parts.filter((other) => other !== body)));
     for (const floor of [false, true]) {
       const kind = thin.map((body) => (floor ? body.floors : body.walls));
       const found = locate(parts, kind.map((body) => body.faces), MIN_AREA, true);
@@ -861,7 +913,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
     }
     // Slots that print closed (BC-24): a hint, as the part prints, only the slot not.
     const slots = locate(parts, thin.map((body) => body.gaps), MIN_AREA, true);
-    if (slots.places.length > 0) findings.push({ kind: 'narrowGap', severity: 'warn', gap: round(slots.extreme), minimum: narrowestGap(profile.nozzle), area: round(slots.area, 0), places: slots.places, box: slots.box });
+    if (slots.places.length > 0) findings.push({ kind: 'narrowGap', severity: 'warn', gap: round(slots.extreme, 3), minimum: narrowestGap(profile.nozzle), area: round(slots.area, 0), places: slots.places, box: slots.box });
 
     // Holes under 2 mm (BC-24): a hint, as they print, only not open or to size.
     if (!profile.off?.includes('smallHole')) {

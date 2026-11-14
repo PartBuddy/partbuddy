@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import type { FaceTable } from './faceTable';
-import { checkPrint, type PrintCheckBody, type PrintCheckProfile, type PrintFinding } from './printCheck';
+import type { FaceInfo, FaceTable } from './faceTable';
+import { checkPrint, smallHoles, type PrintCheckBody, type PrintCheckProfile, type PrintFinding } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
-import { parseTagged3mf } from './tagged3mf';
-import { lathe, lyingTube, posed, rawBody } from './testShapes';
+import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
+import { boxesBody, lathe, lyingTube, posed, rawBody } from './testShapes';
 import { growth } from './testTiming';
 import { buildViewerModel } from './viewerModel';
 
@@ -23,6 +23,67 @@ function solidcraft(set: string, name: string): PrintCheckBody {
   const table = (JSON.parse(readFileSync(new URL(`${set}.faces.json`, fixture), 'utf8')) as Record<string, FaceTable>)[name];
   if (!table) throw new Error(`no fixture ${set} ${name}`);
   const mesh = parseTagged3mf(new Uint8Array(readFileSync(new URL(`${set}-${name}.3mf`, fixture))));
+  return { name, model: buildViewerModel(buildRenderMesh(mesh, table), table) };
+}
+
+/**
+ * A body of revolution round Z (`lathe`) whose upright faces are SolidCraft-like cylinders, one face per radius; the
+ * rest flat faces by height. For gaps between two faces round one axis (BC-24 review).
+ */
+function turned(name: string, profile: readonly (readonly [number, number])[], n: number): PrintCheckBody {
+  // Welded to 1e-6 mm like rawBody, so the seam where the turn closes is no open edge.
+  const raw = { ...lathe(profile, n) };
+  const welded = new Map<string, number>();
+  const points: number[] = [];
+  raw.index = Uint32Array.from(raw.index, (v) => {
+    const point = [0, 1, 2].map((k) => Math.round((raw.positions[v * 3 + k] ?? 0) * 1e6) / 1e6);
+    const key = point.join(',');
+    let at = welded.get(key);
+    if (at === undefined) {
+      at = points.length / 3;
+      welded.set(key, at);
+      points.push(...point);
+    }
+    return at;
+  });
+  raw.positions = Float32Array.from(points);
+  const names: string[] = [];
+  const cylinders: (FaceInfo['cylinder'] | undefined)[] = [];
+  const faceOf = (label: string, cylinder?: FaceInfo['cylinder']) => {
+    const at = names.indexOf(label);
+    if (at >= 0) return at;
+    names.push(label);
+    cylinders.push(cylinder);
+    return names.length - 1;
+  };
+  const triangleFaces: number[] = [];
+  for (let t = 0; t < raw.index.length; t += 3) {
+    const corners = [0, 1, 2].map((k) => (raw.index[t + k] ?? 0) * 3);
+    const radii = corners.map((p) => Math.round(Math.hypot(raw.positions[p] ?? 0, raw.positions[p + 1] ?? 0) * 1e4) / 1e4);
+    const heights = corners.map((p) => raw.positions[p + 2] ?? 0);
+    const upright = radii.every((r) => r === radii[0]) && !heights.every((z) => z === heights[0]);
+    triangleFaces.push(upright ? faceOf(`F1:r${String(radii[0])}`, { origin: [0, 0, 0], axis: [0, 0, 1], radius: radii[0] ?? 0 }) : faceOf(`F1:z${String(heights[0])}`));
+  }
+  const table: FaceTable = { model: 'test', body: name, units: 'mm', faces: names.map((label, index) => ({ index, name: label, exact: true, area: 0, centroid: [0, 0, 0], point: [0, 0, 0], ...(cylinders[index] ? { cylinder: cylinders[index] } : {}) })) };
+  const mesh: TaggedMesh = { name, faceCount: names.length, positions: Float64Array.from(raw.positions), indices: Uint32Array.from(raw.index), triangleFaces: Uint32Array.from(triangleFaces) };
+  return { name, model: buildViewerModel(buildRenderMesh(mesh, table), table) };
+}
+
+/** Several bodies' meshes as one body of many shells, faces numbered on. */
+function merged(name: string, bodies: readonly PrintCheckBody[]): PrintCheckBody {
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const triangleFaces: number[] = [];
+  const faces: FaceInfo[] = [];
+  for (const body of bodies) {
+    const [base, first] = [positions.length / 3, faces.length];
+    positions.push(...body.model.geometry.getAttribute('position').array);
+    indices.push(...Array.from(body.model.geometry.index?.array ?? [], (v) => v + base));
+    triangleFaces.push(...Array.from(body.model.triangleFaces, (f) => f + first));
+    faces.push(...body.model.table.faces.map((face, i) => ({ ...face, index: first + i, name: `${face.name}#${String(first + i)}` })));
+  }
+  const table: FaceTable = { model: 'test', body: name, units: 'mm', faces };
+  const mesh: TaggedMesh = { name, faceCount: faces.length, positions: Float64Array.from(positions), indices: Uint32Array.from(indices), triangleFaces: Uint32Array.from(triangleFaces) };
   return { name, model: buildViewerModel(buildRenderMesh(mesh, table), table) };
 }
 
@@ -151,6 +212,19 @@ describe('small holes (BC-24, S12)', () => {
     }
   });
 
+  it('takes no pocket shallower than it is wide for a hole: a dice pip is a dimple (BC-24 review)', () => {
+    // A lying tube of 1.5 mm bore, 0.4, 1.4 and 1.5 mm long: the first two shallower than wide.
+    for (const [length, want] of [[0.4, undefined], [1.4, undefined], [1.5, 1]] as const) expect(one(checkPrint([lyingTube('Pip', 3, 0.75, length)], PLA).findings, 'smallHole')?.holes, String(length)).toBe(want);
+  });
+
+  it('groups the holes of a perforated plate in linear time (BC-24 review)', () => {
+    // 1000 and 4000 holes of 1.5 mm, each a tube of its own shell: comparing every face with every hole took 370 ms at 4000.
+    const plate = (holes: number) => merged('Grille', Array.from({ length: holes }, (_, i) => posed(lyingTube(`T${String(i)}`, 1.2, 0.75, 2, 6, 8), 0, false, i * 3)));
+    const [small, large] = [plate(1000), plate(4000)];
+    expect(smallHoles(large).holes).toBe(4000);
+    expect(growth((body) => smallHoles(body), small, large)).toBeLessThan(8);
+  }, 120_000);
+
   it('takes no groove along the bed for a hole', () => {
     for (const name of ['GrooveBed08', 'GrooveBed10']) expect(one(checkPrint([solidcraft('edges', name)], PLA).findings, 'smallHole'), name).toBeUndefined();
   });
@@ -210,6 +284,30 @@ describe('slots that print closed (BC-24)', () => {
 
   it('is not looked for when the user turned it off', () => {
     expect(one(checkPrint([solidcraft('detail', 'Slot02')], { ...PLA, off: ['narrowGap'] }).findings, 'narrowGap')).toBeUndefined();
+  });
+
+  it('measures a ring gap round one axis by the radii, however coarse the mesh (BC-24 review)', () => {
+    // A cup with a peg standing in it, one body: peg r 3, cup wall r 3 + gap. Its facets lie cos(π/n) inside the circle,
+    // so 0.4 mm meshed 24 round read 0.398 and warned "0.4 under 0.4".
+    const cup = (gap: number, n: number) => turned('Cup', [[0, 0], [6, 0], [6, 10], [3 + gap, 10], [3 + gap, 2], [3, 2], [3, 10], [0, 10]], n);
+    for (const n of [24, 32, 48]) {
+      expect(kinds(checkPrint([cup(0.4, n)], PLA).findings), `0.4 at ${String(n)}`).toEqual([]);
+      expect(one(checkPrint([cup(0.3, n)], PLA).findings, 'narrowGap'), `0.3 at ${String(n)}`).toMatchObject({ gap: 0.3, minimum: 0.4 });
+    }
+  });
+
+  it('takes no gap between two shells of one body for a slot (BC-24 review)', () => {
+    // Two blocks 0.2 mm apart in one mesh body (an imported print-in-place part) do not touch: no slot of one part.
+    const two = boxesBody('Pair', [[[0, 0, 0], [10, 10, 10]], [[10.2, 0, 0], [20, 10, 10]]]);
+    expect(one(checkPrint([two], PLA).findings, 'narrowGap')).toBeUndefined();
+  });
+
+  it('takes a slot another body of the part fills for no slot: a debossed logo (BC-24 review)', () => {
+    // The 0.2 mm slot of Slot02 filled by a colour body of its size: the colour body is the thin wall, the slot no slot.
+    const filler = boxesBody('Colour', [[[89.9, 44, 0], [90.1, 56, 10]]]);
+    const { findings } = checkPrint([solidcraft('detail', 'Slot02'), filler], PLA);
+    expect(one(findings, 'narrowGap')).toBeUndefined();
+    expect(one(findings, 'thinWall')?.places.map((place) => place.body)).toEqual(['Colour']);
   });
 
   it('grows linearly with the triangles', () => {
