@@ -694,6 +694,19 @@ test('a round of questions comes with the recommendation picked and answers in o
     await expect(card.getByRole('radio', { name: /Clamp/ })).not.toBeChecked();
     await mounting.fill('');
     await expect(card.getByRole('button', { name: 'Answer' })).toBeDisabled();
+    // A real click on a row focuses its hidden input: no clipped box may scroll for it, or the window goes blank (#326).
+    await card.getByRole('radio', { name: /Clamp/ }).locator('xpath=ancestor::label[1]').click();
+    await expect(card.getByRole('radio', { name: /Clamp/ })).toBeChecked();
+    const scrolled = await page.evaluate(() => {
+      const browser = globalThis as unknown as {
+        document: { querySelectorAll(selector: string): ArrayLike<{ scrollTop: number }> };
+        getComputedStyle(element: unknown): { overflowY: string };
+      };
+      return Array.from(browser.document.querySelectorAll('#root, #root *')).filter(
+        (element) => element.scrollTop > 0 && ['hidden', 'clip'].includes(browser.getComputedStyle(element).overflowY),
+      ).length;
+    });
+    expect(scrolled).toBe(0);
     await card.getByRole('radio', { name: /Screws/ }).check({ force: true });
     const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('aside').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
