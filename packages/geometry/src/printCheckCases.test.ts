@@ -9,8 +9,8 @@ import { gridBody, posed, prismBody } from './testShapes';
 import { buildViewerModel } from './viewerModel';
 
 /**
- * The cases of BC-27 (raw `solid.fillet`, `solid.chamfer`, `solid.shell` and what reaches the same shapes): walls off
- * the line grid, a yellow hint, never a block. SolidCraft's own meshes come from
+ * The cases of BC-27 (raw `solid.fillet`, `solid.chamfer`, `solid.shell` and what reaches the same shapes): rounded bed
+ * edges and walls off the line grid, each a yellow hint, never a block. SolidCraft's own meshes come from
  * tools/fixtures/edges.script.json (20 mm cubes, SolidCraft 0.40.1); each is also checked turned, mirrored and lifted.
  */
 
@@ -101,5 +101,51 @@ describe('walls off the line grid (BC-27)', () => {
     // shortcut: the hinge's own sizes (knuckle 6 mm, pin hole 3.8 mm) leave 2.4 lines; size them to the grid (mechanisms.ts) to clear it.
     expect(one(checkPrint([solidcraft('hinge', 'Lid')], PLA).findings, 'wallLines')).toMatchObject({ thickness: 1.1, better: [0.9, 1.35] });
     expect(one(checkPrint([solidcraft('hinge', 'Box')], PLA).findings, 'wallLines')).toBeUndefined();
+  }, 60_000);
+});
+
+describe('rounded bed edges (BC-27)', () => {
+  // [body, material's overhang angle, what it should give: the round bed edge's area (within 10 %), 'overhang' (told as an overhang instead), or 'none']
+  const cases: [string, number, number | 'overhang' | 'none'][] = [
+    // Under the first layer: the slicer's first layer is all there is of it.
+    ['FilletBed05', 45, 'none'],
+    ['FilletBed1', 45, 59],
+    ['FilletBed1', 40, 59],
+    // PR #390: one 2 mm fillet on a bed edge read ready.
+    ['FilletEdge2', 45, 31],
+    ['FilletEdge2', 40, 36],
+    // All four bed edges round: the ring needs support and is told as an overhang, not twice.
+    ['FilletBed2', 45, 'overhang'],
+    ['FilletBed3', 45, 'overhang'],
+    ['FilletBed5', 45, 'overhang'],
+    ['ChamferBed2', 45, 'none'],
+    ['FilletTop2', 45, 'none'],
+    ['FilletTop2', 40, 'none'],
+  ];
+
+  it.each(cases)('%s at %i°', (name, overhang, want) => {
+    const body = solidcraft('edges', name);
+    for (const place of PLACES) {
+      const { status, findings } = checkPrint([posed(body, place.turn, place.mirrored, place.lift)], { ...PLA, overhang });
+      const round = one(findings, 'roundBedEdge');
+      const what = JSON.stringify(place);
+      expect(status, what).not.toBe('block');
+      if (want === 'none') expect(round, what).toBeUndefined();
+      else if (want === 'overhang') {
+        expect(round, what).toBeUndefined();
+        expect(one(findings, 'overhang'), what).toBeDefined();
+      } else {
+        expect(round, what).toMatchObject({ severity: 'warn', limit: overhang });
+        expect(Math.abs((round?.area ?? 0) - want), `${what}: ${String(round?.area)} mm²`).toBeLessThanOrEqual(want * 0.1);
+        expect(round?.places[0]?.faces.every((face) => face.includes('blend')), what).toBe(true);
+      }
+    }
+  }, 60_000);
+
+  it('takes no hole\'s roof nor a lying rod for a rounded bed edge', () => {
+    // A hole drilled square into a 45° chamfer comes out through the bed; at 40° its slanted roof leans past the limit.
+    for (const name of ['Chamfer', 'Rod8M5', 'Rod20M8']) {
+      for (const overhang of [45, 40]) expect(one(checkPrint([solidcraft('holes', name)], { ...PLA, overhang }).findings, 'roundBedEdge'), `${name} at ${String(overhang)}°`).toBeUndefined();
+    }
   }, 60_000);
 });

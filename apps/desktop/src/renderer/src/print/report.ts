@@ -155,6 +155,7 @@ export function reportOf(result: PrintCheck, nozzle: number, revision: number, b
         case 'thinWall':
           return { kind: finding.kind, severity: finding.severity, floor: finding.floor, ...(finding.layers === undefined ? {} : { layers: finding.layers }), thickness: finding.thickness, minimum: finding.minimum, area: finding.area, places };
         case 'overhang':
+        case 'roundBedEdge':
           return { kind: finding.kind, severity: finding.severity, area: finding.area, limit: finding.limit, places };
         case 'wallLines':
           return { kind: finding.kind, severity: finding.severity, thickness: finding.thickness, line: finding.line, better: finding.better, area: finding.area, places };

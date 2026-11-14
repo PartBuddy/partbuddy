@@ -50,6 +50,9 @@ function line(finding: Finding, nozzle: number): string {
     case 'overhang':
       // Designed away where it can be, said where not (audit R55; a warning, never a block: Manuel 2026-11-14).
       return `- ${tag}: ${String(finding.area)} mm² lean more than ${String(finding.limit)}° from the vertical${where(finding.places)}, so they need support: reshape them where you can (a slope within that angle, a teardrop roof, a chamfer, or another print face); where you cannot, tell the user which support they need there and why.`;
+    case 'roundBedEdge':
+      // BC-27: a raw fillet on a bed edge; the rules' chamfer leans at most 45°, or the material's angle where it is less (BC-19).
+      return `- ${tag}: ${String(finding.area)} mm² of rounded edges on the bed lean more than ${String(finding.limit)}° from the vertical just above it${where(finding.places)}: the foot of a fillet there ends flat on the bed and curls up. Chamfer those edges instead, leaning at most ${String(Math.min(45, finding.limit))}° from the vertical; fillets that face up or sideways are fine.`;
     case 'wallLines':
       // BC-27: a wall the user named stays as named (printProfiles.ts: "Sizes the user names are fixed").
       return `- ${tag}: walls of ${mm(finding.thickness)} are no whole number of ${mm(finding.line)} lines${where(finding.places)}, so the slicer leaves a gap or a thin line in them; ${mm(finding.better[0])} or ${mm(finding.better[1])} print solid. Use one of those where the size is yours; a size the user named stays, with one sentence on the better value.`;
@@ -95,7 +98,7 @@ function line(finding: Finding, nozzle: number): string {
 }
 
 /** What the mesh check looks at at once (the finding kinds of printCheck.ts), so "nothing found" claims no more. */
-const CHECKED_MESH = 'build volume, wall and floor thickness, walls off the line grid, overhang angle, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch';
+const CHECKED_MESH = 'build volume, wall and floor thickness, walls off the line grid, overhang angle, rounded edges on the bed, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch';
 /** What SolidCraft measures after it (withClearance, withMotion): it takes longer and comes with the full check. */
 const MEASURED = {
   clearance: 'bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move',
@@ -112,7 +115,7 @@ const unmeasuredLine = (failed: readonly ('clearance' | 'joints')[]) =>
 const uncheckedLine = (bodies: readonly string[]) =>
   `NOT measured for overlaps and gaps: ${bodies.map((name) => `"${name}"`).join(', ')}, mesh bod${bodies.length === 1 ? 'y' : 'ies'} SolidCraft does not measure. Convert ${bodies.length === 1 ? 'it' : 'them'} to faces (mesh.convert, closed meshes only) to have ${bodies.length === 1 ? 'it' : 'them'} measured; until then judge ${bodies.length === 1 ? 'its' : 'their'} fit yourself.`;
 /** What a clean check says nothing about (audit R3); the model must not pass the verdict on as more. */
-const NOT_CHECKED = 'Not checked: strength and layer direction under load, the fits and hole allowances you chose, details and text too fine to print, bed-edge chamfers. Judge those yourself.';
+const NOT_CHECKED = 'Not checked: strength and layer direction under load, the fits and hole allowances you chose, details and text too fine to print, the size of bed-edge chamfers. Judge those yourself.';
 
 /** Findings about parts that overlap, fit too tight, fuse or stop a joint: each piece prints, the whole may not work. */
 const FIT_KINDS = new Set<Finding['kind']>(['overlap', 'tight', 'fused', 'blocked']);

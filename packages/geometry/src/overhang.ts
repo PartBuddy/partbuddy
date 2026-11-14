@@ -84,6 +84,8 @@ export interface OverhangMap {
    * small steps pass.
    */
   layered: boolean;
+  /** Per B-rep face: 1 when its facets turn away from each other (a curved face), from the mesh, not the face table. */
+  curved: Uint8Array;
 }
 
 export interface OverhangInput {
@@ -835,5 +837,5 @@ export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLi
     area[Overhang.Support] += free;
     supportByFace[face] = (supportByFace[face] ?? 0) + free + (counted === Overhang.Support ? size - free : 0);
   });
-  return { vertices, area, supportByFace, layered };
+  return { vertices, area, supportByFace, layered, curved };
 }
