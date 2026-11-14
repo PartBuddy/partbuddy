@@ -153,7 +153,7 @@ export function TreeSection({
         </span>
       </div>
       {open ? (
-        <div role="group" className="min-h-0 animate-fade-in overflow-y-auto" data-testid={testId ? `${testId}-body` : undefined}>
+        <div role="group" className="min-h-0 animate-fade-in overflow-y-auto" style={{ scrollbarWidth: 'thin' }} data-testid={testId ? `${testId}-body` : undefined}>
           <div className="relative pb-1 before:absolute before:top-0 before:bottom-1 before:left-3 before:border-l before:border-border">{children}</div>
         </div>
       ) : null}
@@ -241,7 +241,7 @@ export function TreeFolder({
         </span>
       </div>
       {open ? (
-        <div role="group" className="relative pl-3">
+        <div role="group" className="relative pl-2">
           {children}
         </div>
       ) : null}

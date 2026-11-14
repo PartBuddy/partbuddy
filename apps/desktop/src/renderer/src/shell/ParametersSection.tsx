@@ -21,8 +21,16 @@ const PREVIEW_DELAY_MS = 250;
 // Values in the interface's own decimal mark (audit B-09); parseLength takes comma and point alike.
 const format = (value: number) => new Intl.NumberFormat(i18next.language, { maximumFractionDigits: 4, useGrouping: false }).format(value);
 
+/** The design's length unit: named once in the head, so the rows leave it out and the label gets the room. */
+const LENGTH_UNIT = 'mm';
+/** What a row shows after its value: nothing for a length or a text, ° for an angle, the unit otherwise. */
+const suffixOf = (parameter: DesignParameter) => (parameter.unit === LENGTH_UNIT || parameter.unit === 'text' ? '' : parameter.unit === 'deg' ? '°' : ` ${parameter.unit}`);
+/** As wide as the widest value shown (tabular figures are 1ch each), so the labels get the rest (decided 2026-11-14). */
+const valueWidth = (parameters: readonly DesignParameter[]) =>
+  `${String(Math.max(2, ...parameters.map((parameter) => format(parameter.value).length + suffixOf(parameter).length + (parameter.editable ? 0 : 1.5))))}ch`;
+
 /** One parameter: a field for a plain length, the formula as text otherwise. */
-function ParameterRow({ parameter, body, busy, level }: { parameter: DesignParameter; body: string | null; busy: boolean; level: number }) {
+function ParameterRow({ parameter, body, busy, level, width }: { parameter: DesignParameter; body: string | null; busy: boolean; level: number; width: string }) {
   const { t } = useTranslation();
   const setGhost = useStudio((s) => s.setParameterGhost);
   const setNotice = useStudio((s) => s.setNotice);
@@ -160,12 +168,14 @@ function ParameterRow({ parameter, body, busy, level }: { parameter: DesignParam
             />
           </TextField>
         ) : (
-          <span className={`w-field-value shrink-0 truncate text-right ${parameter.error ? 'text-danger' : ''}`} title={title || undefined}>
-            {parameter.editable ? null : <span className="mr-1 text-xs text-text-subtle" aria-hidden>ƒ</span>}
+          <span className={`shrink-0 truncate text-right ${parameter.error ? 'text-danger' : ''}`} style={{ width }} title={title || undefined}>
+            {parameter.editable ? null : <span className="mr-0.5 text-xs text-text-subtle" aria-hidden>ƒ</span>}
             {format(parameter.value)}
+            {suffixOf(parameter)}
+            {/* The head names the unit once; a screen reader hears it with each value. */}
+            {parameter.unit === LENGTH_UNIT ? <span className="sr-only"> {LENGTH_UNIT}</span> : null}
           </span>
         )}
-        <span className="w-5 shrink-0 text-xs text-text-subtle">{parameter.unit}</span>
       </TreeItem>
       {editing && parameter.favorite && range ? (
         <TreeExtra>
@@ -223,6 +233,7 @@ export function ParametersSection() {
   const revision = model.status === 'ready' ? `${model.documentId}#${String(model.revision)}` : null;
   const parameters = documentId !== null && loaded?.documentId === documentId ? loaded.list : [];
   const { favorites, groups } = groupParameters(parameters);
+  const width = valueWidth(parameters);
   const body = model.status === 'ready' ? (model.structure.bodies.find((entry) => entry.visible)?.name ?? null) : null;
 
   useEffect(() => {
@@ -268,12 +279,11 @@ export function ParametersSection() {
       ) : (
         <div className="mr-1 flex h-control-sm items-center gap-2 pr-1 pl-5 text-xs font-medium text-text-subtle" aria-hidden="true">
           <span className="flex-1">{t('parameters.name')}</span>
-          <span className="w-field-value text-right">{t('parameters.value')}</span>
-          <span className="w-5" />
+          <span className="shrink-0 text-right whitespace-nowrap">{t('parameters.valueIn', { unit: LENGTH_UNIT })}</span>
         </div>
       )}
       {favorites.map((parameter) => (
-        <ParameterRow key={parameter.name} parameter={parameter} body={body} busy={busy} level={2} />
+        <ParameterRow key={parameter.name} parameter={parameter} body={body} busy={busy} width={width} level={2} />
       ))}
       {groups.map((group) => {
         // Without any group the rows stand in the section itself, as before (designs from before 2026-11-14).
@@ -283,12 +293,12 @@ export function ParametersSection() {
         const rows = (
           <>
             {group.values.map((parameter) => (
-              <ParameterRow key={parameter.name} parameter={parameter} body={body} busy={busy} level={level} />
+              <ParameterRow key={parameter.name} parameter={parameter} body={body} busy={busy} width={width} level={level} />
             ))}
             {group.computed.length > 0 ? (
               <TreeFolder id={`${key}:computed`} title={t('parameters.computed')} count={group.computed.length} level={level} initiallyOpen={false} testId="parameters-computed">
                 {group.computed.map((parameter) => (
-                  <ParameterRow key={parameter.name} parameter={parameter} body={body} busy={busy} level={level + 1} />
+                  <ParameterRow key={parameter.name} parameter={parameter} body={body} busy={busy} width={width} level={level + 1} />
                 ))}
               </TreeFolder>
             ) : null}

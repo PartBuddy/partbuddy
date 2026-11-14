@@ -447,7 +447,7 @@ test('the parameter panel groups many parameters, folds formulas and keeps every
   await expect(tree.getByRole('treeitem', { name: 'Bodies (1)' })).toBeInViewport();
   await expect(tree.getByRole('treeitem', { name: /^Notes/ })).toBeInViewport();
   const body = page.getByTestId('parameters-body');
-  expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  expect(await body.evaluate((element: { scrollHeight: number; clientHeight: number; scrollWidth: number; clientWidth: number }) => element.scrollHeight > element.clientHeight)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('sidebar-88-ungrouped.png') });
 
   // Grouped by the assistant's comments: one folder each, their formulas folded inside.
@@ -500,6 +500,29 @@ test('the parameter panel groups many parameters, folds formulas and keeps every
   await resizer.dblclick();
   await expect.poll(async () => Math.round((await panel.boundingBox())?.height ?? 0)).not.toBe(kept);
   expect(await axeAtRest(page, '[data-testid="structure"]')).toEqual([]);
+
+  // Real labels: a 20-character label fits beside a value of four digits and a decimal at the standard width (240 px).
+  const user = { source: 'user' as const, error: null, favorite: false, used_by: [], unit: 'mm' };
+  solidcraft.parameters = [
+    { ...user, name: 'uw_h', expression: '370 mm', value: 370, comment: '[Monitor] Ultrawide-Höhe [300..400]' },
+    { ...user, name: 'uw_w', expression: '1229.5 mm', value: 1229.5, comment: '[Monitor] Ultrawide-Breite' },
+    { ...user, name: 'vesa_w', expression: '100 mm', value: 100, comment: '[Monitor] VESA-Plattenbreite' },
+    { ...user, name: 'vesa_mid', expression: 'vesa_w / 2', value: 50, comment: '[Monitor] VESA-Mitte' },
+    { ...user, name: 'pin_gap', expression: '42.5 mm', value: 42.5, comment: '[Gelenk] Gelenkbolzen-Abstand' },
+    { ...user, name: 'tilt', expression: '12 deg', value: 12, unit: 'deg', comment: '[Gelenk] Neigung' },
+    { ...user, name: 'strut_d', expression: '16 mm', value: 16, comment: '[Basis] Querstrebe Ø' },
+    { ...user, name: 'wall', expression: '3.2 mm', value: 3.2, comment: '[Basis] Wandstärke [auto 7×line]' },
+  ];
+  solidcraft.change();
+  await expect(panel.getByRole('treeitem', { name: 'Parameters (8)' })).toBeVisible();
+  // The head names the length unit once; an angle keeps its own.
+  await expect(panel.getByText('Value (mm)')).toBeVisible();
+  await expect(panel.locator('[data-testid="parameter"][data-name="tilt"]')).toHaveAccessibleName('Neigung 12°');
+  await expect(panel.locator('[data-testid="parameter"][data-name="uw_w"]')).toHaveAccessibleName('Ultrawide-Breite 1229.5 mm');
+  const label = panel.locator('[data-testid="parameter"][data-name="pin_gap"] span').first();
+  await expect(label).toHaveText('Gelenkbolzen-Abstand');
+  expect(await label.evaluate((element: { scrollHeight: number; clientHeight: number; scrollWidth: number; clientWidth: number }) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath('sidebar-real-labels.png') });
 });
 
 test('the structure tree folds, selects, frames, renames and hides by mouse and keyboard', async () => {

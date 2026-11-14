@@ -730,6 +730,7 @@
     "resize": "Breite der Struktur"
   },
   "parameters": {
+    "valueIn": "Wert ({unit})",
     "formulaName": "In Formeln: {name}",
     "computed": "Berechnet",
     "more": "Weitere",
@@ -747,7 +748,6 @@
     "ask": "Assistent fragen",
     "askDraft": "Lege Parameter für die wichtigen Maße dieses Teils an.",
     "name": "Name",
-    "value": "Wert",
     "invalid": "Eine Länge größer als 0 eingeben",
     "discarded": "„{{value}}“ verworfen, {{kept}} bleibt",
     "fitted": "Vom Assistenten gewählt, folgt Düse und Schichthöhe des Druckers"

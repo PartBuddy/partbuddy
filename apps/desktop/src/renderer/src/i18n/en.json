@@ -730,6 +730,7 @@
     "resize": "Width of the structure"
   },
   "parameters": {
+    "valueIn": "Value ({unit})",
     "formulaName": "In formulas: {name}",
     "computed": "Computed",
     "more": "Other",
@@ -747,7 +748,6 @@
     "ask": "Ask the assistant",
     "askDraft": "Make parameters for the important sizes of this part.",
     "name": "Name",
-    "value": "Value",
     "invalid": "Type a length greater than 0",
     "discarded": "“{{value}}” discarded, {{kept}} stays",
     "fitted": "Chosen by the assistant, follows the printer's nozzle and layer height"
