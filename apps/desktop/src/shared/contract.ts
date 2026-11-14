@@ -651,6 +651,19 @@ export const agentEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('source'), source: researchSourceSchema }).strict(),
   z.object({ type: z.literal('step'), step: workStepSchema }).strict(),
   z.object({ type: z.literal('question'), question: agentQuestionSchema }).strict(),
+  /**
+   * The review before "done" (main/agents/review.ts): it ran, with the pictures it rendered (PNG data URLs, 640 × 480),
+   * or the assistant was sent back for it, or the turn ended without it.
+   */
+  z
+    .object({
+      type: z.literal('review'),
+      outcome: z.enum(['reviewed', 'sentBack', 'skipped']),
+      pictures: z.array(z.object({ view: z.enum(['front', 'top', 'iso']), src: z.string().startsWith('data:image/').max(3_000_000) }).strict()).max(3),
+      /** The route shows pictures, but none could be rendered. */
+      picturesFailed: z.literal(true).optional(),
+    })
+    .strict(),
   /** The user's next message answered the question; `choice` when a button was pressed. */
   z.object({ type: z.literal('answered'), id: z.string().max(40), choice: z.string().max(10).nullable() }).strict(),
   z

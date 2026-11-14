@@ -52,6 +52,7 @@ import { drawingFacts, type DrawingProblem } from '../../../shared/svgDrawing';
 import { useChatScroll } from './useChatScroll';
 import { card } from './Fold';
 import { SourceCard } from './SourceCard';
+import { ReviewLine } from './ReviewLine';
 import { ToolCall } from './ToolCall';
 import { MessageActions } from './MessageActions';
 
@@ -210,6 +211,7 @@ function Item({
   retry = null,
   open,
   resend = null,
+  show,
 }: {
   item: ConversationItem;
   quiet: boolean;
@@ -217,6 +219,8 @@ function Item({
   open?: (attachment: Attachment) => void;
   /** Sends a message of the user once more; null while the assistant cannot take one. */
   resend?: ((text: string) => void) | null;
+  /** Shows a picture large (the review's views). */
+  show?: (src: string, label: string) => void;
 }) {
   const { t } = useTranslation();
   switch (item.kind) {
@@ -362,6 +366,8 @@ function Item({
       );
     case 'source':
       return <SourceCard source={item.source} />;
+    case 'review':
+      return <ReviewLine item={item} show={show} />;
   }
 }
 
@@ -561,15 +567,18 @@ export function AssistantPanel() {
   };
   // A sent sketch opens again as the start of a new one; a sent photo shows large.
   const [padStart, setPadStart] = useState<SketchState | null>(null);
-  const [shownPhoto, setShownPhoto] = useState<string | null>(null);
+  const [shownPhoto, setShownPhoto] = useState<{ src: string; label: string } | null>(null);
   const openAttachment = useCallback((attachment: Attachment) => {
     if (attachment.sketch) {
       setPadStart(attachment.sketch);
       setSketching(true);
     } else if (attachment.photo) {
-      setShownPhoto(URL.createObjectURL(new Blob([new Uint8Array(attachment.photo)], { type: 'image/png' })));
+      setShownPhoto({ src: URL.createObjectURL(new Blob([new Uint8Array(attachment.photo)], { type: 'image/png' })), label: t('assistant.photo.show') });
     }
-  }, [setPadStart, setSketching, setShownPhoto]);
+  }, [setPadStart, setSketching, setShownPhoto, t]);
+  const showPicture = useCallback((src: string, label: string) => {
+    setShownPhoto({ src, label });
+  }, [setShownPhoto]);
   // After a failed turn: the last message once more, as text (shortcut: a sketch or photo that went with it does not go again).
   const lastUser = items.findLast((item) => item.kind === 'user');
   const retryLast = ready && lastUser?.kind === 'user' ? () => void sendToAssistant(retryMessage(items.at(-1), lastUser.text, t('assistant.failed.continue'))) : null;
@@ -674,7 +683,7 @@ export function AssistantPanel() {
           ) : row.kind === 'work' ? (
             <WorkRow key={row.key} entries={row.entries} live={row.live} disabled={busy || !connected} />
           ) : (
-            <ItemRow key={row.item.key} item={row.item} quiet={row.quiet} retry={row.item === items.at(-1) ? retryLast : null} open={openAttachment} resend={resend} />
+            <ItemRow key={row.item.key} item={row.item} quiet={row.quiet} retry={row.item === items.at(-1) ? retryLast : null} open={openAttachment} resend={resend} show={showPicture} />
           ),
         )}
         {queued ? (
@@ -1066,15 +1075,16 @@ ${t('assistant.photo.goesWith')}`}>
           isDismissable
           onOpenChange={(next) => {
             if (next) return;
-            URL.revokeObjectURL(shownPhoto);
+            // A data URL (a review picture) has nothing to revoke.
+            if (shownPhoto.src.startsWith('blob:')) URL.revokeObjectURL(shownPhoto.src);
             setShownPhoto(null);
           }}
           // A darker backdrop than a dialog's: the picture is the only thing to look at (audit C-13).
           className="fixed inset-0 z-10 flex items-center justify-center bg-black/60 p-6 entering:animate-fade-in"
         >
           <Modal className="relative max-h-full max-w-full overflow-hidden rounded-lg border border-border bg-surface-raised shadow-3 entering:animate-dialog-in">
-            <Dialog aria-label={t('assistant.photo.show')} className="outline-none" data-testid="photo-large">
-              <img src={shownPhoto} alt="" className="block max-h-[90vh] min-h-[min(60vh,30rem)] max-w-[90vw] object-contain" />
+            <Dialog aria-label={shownPhoto.label} className="outline-none" data-testid="photo-large">
+              <img src={shownPhoto.src} alt="" className="block max-h-[90vh] min-h-[min(60vh,30rem)] max-w-[90vw] object-contain" />
               <span className="absolute top-2 right-2 rounded-md bg-surface-raised/90 shadow-1">
                 <DialogClose />
               </span>

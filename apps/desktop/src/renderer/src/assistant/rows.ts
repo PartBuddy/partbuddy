@@ -63,8 +63,8 @@ export function rowsOf(items: readonly ConversationItem[], busy = false): Row[] 
         entry = { kind: 'step', item, tools };
       } else if (item.kind === 'tool' && item.step) {
         continue;
-      } else if (item.kind === 'tool' && (item.name === 'partbuddy_ask' || item.name === 'partbuddy_plan') && item.ok !== false) {
-        // A question or plan shows as its own card; its tool call adds nothing unless it failed.
+      } else if (item.kind === 'tool' && (item.name === 'partbuddy_ask' || item.name === 'partbuddy_plan' || item.name === 'partbuddy_review') && item.ok !== false) {
+        // A question, plan or review shows as its own card or line; its tool call adds nothing unless it failed.
         continue;
       } else if (item.kind === 'tool' && item.decision === 'allowed') {
         const last = entries.at(-1);

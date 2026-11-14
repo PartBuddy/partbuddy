@@ -264,6 +264,23 @@
     "selectionsGoWith": "{count} Elemente gehen mit:",
     "removeSelection": "{name} aus der Auswahl nehmen",
     "queries": "{count, plural, one {# Abfrage an SolidCraft} other {# Abfragen an SolidCraft}}",
+    "review": {
+      "sentBack": "Einmal zur Abschlussprüfung zurückgeschickt",
+      "skipped": "Ohne Abschlussprüfung beendet",
+      "views": "Geprüft: {views}",
+      "text": "Geprüft: Ansicht, Druckprüfung und Checkliste",
+      "noPictures": "Geprüft ohne Bilder (Ansichten nicht gerendert)",
+      "view": {
+        "front": "vorn",
+        "top": "oben",
+        "iso": "schräg"
+      },
+      "picture": {
+        "front": "Ansicht von vorn",
+        "top": "Ansicht von oben",
+        "iso": "Schräge Ansicht"
+      }
+    },
     "queriesRunning": "{count, plural, one {# Abfrage an SolidCraft} other {# Abfragen an SolidCraft}} · läuft",
     "step": {
       "label": "Schritt: {text}",

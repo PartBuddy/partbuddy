@@ -215,8 +215,8 @@ describe('LM Studio, llama.cpp and vLLM (F8)', () => {
     expect(JSON.stringify(server.bodies[3])).toContain('Review checklist');
     expect(events.filter((e) => e.type === 'tool' && e.ok === true).map((e) => (e as { name: string }).name)).toEqual(['execute', REVIEW_TOOL]);
     expect(events.filter((e) => e.type === 'done')).toEqual([expect.objectContaining({ ok: true })]);
-    // The second pass's words are a paragraph of their own.
-    expect(events.filter((e) => e.type === 'textDelta').map((e) => (e as { text: string }).text).join('')).toBe('Built it.\n\nReviewed, nothing to fix.');
+    // No separator in the text: the send-back line of the review (store.ts) closes the first bubble.
+    expect(events.filter((e) => e.type === 'textDelta').map((e) => (e as { text: string }).text).join('')).toBe('Built it.Reviewed, nothing to fix.');
     expect(lines).toEqual(['the assistant ended a changing turn without partbuddy_review; it is sent back once']);
   });
 

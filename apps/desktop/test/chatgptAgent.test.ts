@@ -222,8 +222,8 @@ describe('ChatGPT agent', () => {
     expect(asked).toHaveLength(2);
     expect(events.filter((e) => e.type === 'done')).toEqual([expect.objectContaining({ ok: true })]);
     expect(events.filter((e) => e.type === 'user')).toHaveLength(1);
-    // The second pass's words are a paragraph of their own.
-    expect(events.filter((e) => e.type === 'textDelta').map((e) => (e as { text: string }).text).join('')).toBe('Volume: 4000 mm³\n\nVolume: 4000 mm³');
+    // No separator in the text: the send-back line of the review (store.ts) closes the first bubble.
+    expect(events.filter((e) => e.type === 'textDelta').map((e) => (e as { text: string }).text).join('')).toBe('Volume: 4000 mm³Volume: 4000 mm³');
   });
 
   it('does not offer gated tools, and a call of one never reaches SolidCraft (audit S-04)', async () => {

@@ -567,7 +567,7 @@ if (!app.requestSingleInstanceLock()) {
     };
     // The review before "done": pictures only where the route shows them (Claude Code; the own loops drop them) and only
     // headless, since `screenshot {view}` would turn the camera of a connected SolidCraft window.
-    const review = new Review(log, () => assistant?.conversation().route === 'claude-code' && supervisor.headlessTools() !== null);
+    const review = new Review(log, () => assistant?.conversation().route === 'claude-code' && supervisor.headlessTools() !== null, undefined, emitEvent);
     const steps = new WorkLog({
       history: () => supervisor.history(),
       travel: (command, count) => supervisor.travel(command, count),

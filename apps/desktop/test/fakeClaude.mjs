@@ -224,7 +224,8 @@ if (args[0] === '--version') {
     // "plan" shows a plan (M2a) and then tries to build anyway, which PartBuddy must refuse;
     // the Go note builds the box.
     const box = { command: 'solid.box', params: { length: 20, width: 20, height: 10 } };
-    const planned = content.includes('plan') && !content.includes('pressed Go');
+    // Only the user's words, the last line: the print note's design rules say "round in plan" (#412).
+    const planned = content.slice(content.lastIndexOf('\n') + 1).includes('plan') && !content.includes('pressed Go');
     const tool = content.includes('export')
       ? 'export'
       : planned

@@ -264,6 +264,23 @@
     "selectionsGoWith": "{count} elements go with the message:",
     "removeSelection": "Remove {name} from the selection",
     "queries": "{count, plural, one {# query to SolidCraft} other {# queries to SolidCraft}}",
+    "review": {
+      "sentBack": "Sent back once for the final review",
+      "skipped": "Ended without the final review",
+      "views": "Checked: {views}",
+      "text": "Checked: view, print check and checklist",
+      "noPictures": "Checked without pictures (the views could not be rendered)",
+      "view": {
+        "front": "front",
+        "top": "top",
+        "iso": "angled"
+      },
+      "picture": {
+        "front": "View from the front",
+        "top": "View from above",
+        "iso": "View at an angle"
+      }
+    },
     "queriesRunning": "{count, plural, one {# query to SolidCraft} other {# queries to SolidCraft}} · running",
     "step": {
       "label": "Step: {text}",
