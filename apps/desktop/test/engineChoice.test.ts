@@ -39,8 +39,10 @@ describe('SolidCraft versions', () => {
   });
 
   it('rates a version against what PartBuddy is developed with', () => {
-    expect(supportOf('0.40.1')).toBe('recommended');
-    expect(supportOf('0.41.0-rc.1')).toBe('recommended');
+    expect(supportOf('0.40.1')).toBe('supported');
+    expect(supportOf('0.41.0-rc.1')).toBe('supported');
+    expect(supportOf('0.41.0')).toBe('recommended');
+    expect(supportOf('0.42.0')).toBe('recommended');
     expect(supportOf('0.40.0')).toBe('tooOld');
     expect(supportOf('0.40.0-rc.4')).toBe('tooOld');
     expect(supportOf('0.30.1')).toBe('tooOld');
@@ -76,7 +78,7 @@ describe('Choosing the SolidCraft program', () => {
     const { choice, settings } = setup({ [join(exe, '..', 'solidcraft-cli.exe')]: '0.40.1' });
     const result = await choice.choose(exe);
     expect(result.error).toBeNull();
-    expect(result.info).toMatchObject({ path: exe, source: 'setting', version: '0.40.1', support: 'recommended', restartNeeded: true });
+    expect(result.info).toMatchObject({ path: exe, source: 'setting', version: '0.40.1', support: 'supported', restartNeeded: true });
     expect(JSON.parse(readFileSync(settings, 'utf8'))).toEqual({ path: exe });
     // The supervisor's environment follows the choice.
     expect(locateExecutable(choice.environment())).toEqual({ path: exe, source: 'setting' });
