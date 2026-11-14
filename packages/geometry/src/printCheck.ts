@@ -37,7 +37,7 @@ export interface PrintCheckProfile {
  * hints (`withDesign`, Manuel 2026-11-14) say how the part looks and holds, not whether it prints.
  */
 export type PrintHint = 'smallHole' | 'narrowGap' | DesignHint;
-export type DesignHint = 'sharpEdge' | 'edgeRadii' | 'rootCorner' | 'shallowSlope';
+export type DesignHint = 'sharpEdge' | 'edgeRadii' | 'rootCorner' | 'shallowSlope' | 'shellCorner';
 
 export interface PrintCheckBody {
   name: string;
@@ -106,6 +106,11 @@ export type PrintFinding =
   | ({ kind: 'rootCorner'; severity: FindingSeverity; roots: number; thickness: number; length: number; radius: number } & Located)
   /** Flat faces facing up that lean under `limit`° from flat (design hint): `faces` of them over `area` mm², the shallowest at `angle`°, its layer steps `step` mm wide. */
   | ({ kind: 'shallowSlope'; severity: FindingSeverity; faces: number; area: number; angle: number; step: number; limit: number } & Located)
+  /**
+   * A shell's rounded outer edges where the wall thins under half (design hint): `corners` such fillets; the thinnest
+   * `thickness` against the `wall` beside it, its outer `radius` and the `inner` radius that keeps the wall even.
+   */
+  | ({ kind: 'shellCorner'; severity: FindingSeverity; corners: number; thickness: number; wall: number; radius: number; inner: number } & Located)
   /** The bodies with too little on the bed: how many, and the area of the one with the least. */
   | ({ kind: 'contact'; severity: FindingSeverity; area: number; bodies: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
@@ -1159,7 +1164,7 @@ export function withMotion(check: PrintCheck, measured: MeasuredMotion): PrintCh
 }
 
 /** The design hints, in the order the note names them. */
-export const DESIGN_HINTS: readonly DesignHint[] = ['sharpEdge', 'edgeRadii', 'rootCorner', 'shallowSlope'];
+export const DESIGN_HINTS: readonly DesignHint[] = ['sharpEdge', 'edgeRadii', 'rootCorner', 'shallowSlope', 'shellCorner'];
 
 /** Within 10° two faces run on smoothly: a fillet into its faces, the facets of one curved face. */
 const SMOOTH = Math.cos((10 * Math.PI) / 180);
@@ -1585,6 +1590,74 @@ function shallowSlopes(bodies: readonly DesignBody[], layer: number): PrintFindi
   return { kind: 'shallowSlope', severity: 'warn', faces: count, area: round(area, 0), angle: round(angle, 1), step: round(step / Math.tan((angle * Math.PI) / 180), 1), limit: SHALLOW_SLOPE, places: found.places, box: found.box };
 }
 
+/** A wall up to this thick is a shell's wall (mm, own choice): thicker, a rounded edge cuts into solid material. */
+const SHELL_WALL = 5;
+/** A shell's wall round a rounded corner may thin to half the wall (research O1, H7: D18 asks the inside at least half the wall). */
+const CORNER_SHARE = 0.5;
+
+/**
+ * `shellCorner` (research O1, H7): a shell's outer edge rounded (a convex fillet between two of its walls) while its inside
+ * stays sharp or rounds otherwise, so the wall thins in the corner under half of what it is beside it. Concentric, the
+ * inside rounds to the outer radius less the wall (fillet before shelling, D19) and the wall stays even. The wall beside the
+ * fillet: from the walls it runs into, straight in, at most 5 mm (else no shell); in the corner: from every facet of the
+ * fillet towards its axis. The finding names the thinnest corner, the wall beside it and the radius the inside wants.
+ * shortcut: fillets along straight edges only (cylinders); a corner patch where three fillets meet is not looked at.
+ */
+function shellCorners(bodies: readonly DesignBody[]): PrintFinding | null {
+  let [corners, thinnest, wall, radius] = [0, Infinity, 0, 0];
+  const tallies = bodies.map(({ body, pairs, hollow }) => {
+    const { model } = body;
+    const faces = model.table.faces;
+    const tally = new FaceTally(faces.length);
+    const bvh = model.geometry.boundsTree as unknown as MeshBVH | undefined;
+    const index = model.geometry.index?.array;
+    const positions = model.geometry.getAttribute('position').array;
+    if (!bvh || !index) return tally;
+    const ray = new Ray();
+    /** How thick the material is straight in from a facet, up to `most`; null where the far side does not face back. */
+    const depth = (t: number, most: number, back: boolean) => {
+      const { normal, centroid } = triangle(positions, index, t);
+      if (!normal) return null;
+      ray.origin.copy(centroid).addScaledVector(normal, -EPSILON);
+      ray.direction.copy(normal).negate();
+      const hit = bvh.raycastFirst(ray, DoubleSide, 0, most);
+      if (!hit?.face || (back && hit.face.normal.dot(normal) > -0.9)) return null;
+      return hit.distance + EPSILON;
+    };
+    // Per convex fillet: the wall of the flat faces it runs into smoothly, measured from the facet beside it.
+    const beside = new Map<number, number>();
+    for (const pair of pairs) {
+      if (pair.smooth < 1) continue;
+      for (const [fillet, flat, at] of [[pair.a, pair.b, pair.smoothAt[1]], [pair.b, pair.a, pair.smoothAt[0]]] as const) {
+        const face = faces[fillet];
+        if (!face?.cylinder || !face.name.includes('blend(') || hollow[fillet] || !faces[flat]?.planeNormal || at < 0) continue;
+        const thick = depth(at, SHELL_WALL, true);
+        if (thick !== null) beside.set(fillet, Math.min(beside.get(fillet) ?? Infinity, thick));
+      }
+    }
+    if (beside.size === 0) return tally;
+    const least = new Map<number, number>();
+    for (let t = 0; t < index.length / 3; t += 1) {
+      const face = model.triangleFaces[t] ?? 0;
+      const nominal = beside.get(face);
+      if (nominal === undefined) continue;
+      const thick = depth(t, nominal, false) ?? nominal;
+      least.set(face, Math.min(least.get(face) ?? Infinity, thick));
+    }
+    for (const [face, thick] of least) {
+      const nominal = beside.get(face) ?? 0;
+      if (thick >= CORNER_SHARE * nominal) continue;
+      corners += 1;
+      tally.add(face, Math.max(faces[face]?.area ?? 0, EPSILON), thick, faces[face]?.centroid ?? []);
+      if (thick < thinnest) [thinnest, wall, radius] = [thick, nominal, faces[face]?.cylinder?.radius ?? 0];
+    }
+    return tally;
+  });
+  if (corners === 0) return null;
+  const found = locate(bodies.map(({ body }) => body), tallies, 0);
+  return { kind: 'shellCorner', severity: 'warn', corners, thickness: round(thinnest), wall: round(wall), radius: round(radius), inner: round(Math.max(0, radius - wall)), places: found.places, box: found.box };
+}
+
 /**
  * Adds the design hints (Manuel, 2026-11-14) to the check: how the part looks and holds, not whether it prints, so yellow
  * only and each turned off on its own (in the print settings, or with the design rule it belongs to). Each body lies as the
@@ -1601,7 +1674,14 @@ export function withDesign(check: PrintCheck, bodies: readonly PrintCheckBody[],
     pairs: [...faceEdges(body.model, laid[b]).values()],
     hollow: hollowFaces(body.model),
   }));
-  const found: (PrintFinding | null)[] = [off.includes('sharpEdge') ? null : sharpEdges(read), off.includes('edgeRadii') ? null : edgeRadii(read), off.includes('rootCorner') ? null : rootCorners(read, profile.nozzle), off.includes('shallowSlope') ? null : shallowSlopes(read, profile.layer)];
+  const hints: Record<DesignHint, () => PrintFinding | null> = {
+    sharpEdge: () => sharpEdges(read),
+    edgeRadii: () => edgeRadii(read),
+    rootCorner: () => rootCorners(read, profile.nozzle),
+    shallowSlope: () => shallowSlopes(read, profile.layer),
+    shellCorner: () => shellCorners(read),
+  };
+  const found = DESIGN_HINTS.map((hint) => (off.includes(hint) ? null : hints[hint]()));
   const findings = [...check.findings, ...found.filter((finding): finding is PrintFinding => finding !== null)];
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
   return { status: statusOf(findings), findings };

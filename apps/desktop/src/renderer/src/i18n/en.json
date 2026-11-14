@@ -1168,6 +1168,10 @@
       "shallowSlope": {
         "label": "Shallow slopes",
         "hint": "Says where a flat face facing up leans less than 15° from flat: the layers show on it as wide steps (over 0.75 mm at 0.2 mm layers). A hint, never a block."
+      },
+      "shellCorner": {
+        "label": "Uneven shell corners",
+        "hint": "Says where a shell is rounded outside and its wall thins in the corner under half, as the inside is not rounded to match: the inside wants the outer radius less the wall. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
       }
     }
   },
@@ -1225,7 +1229,8 @@
       "sharpEdge": "{count, plural, one {A sharp edge} other {# sharp edges}} ({length} mm) on bodies with no rounded or chamfered edge at all: the design rules round seen outer edges {radius} mm on a part of {size} mm",
       "edgeRadii": "Outer edges rounded with {count} different radii ({radii} mm): the design rules use at most {most} per part, so the rounds match",
       "rootCorner": "{count, plural, one {A slender arm stands} other {# sides of slender arms stand}} on a sharp inner corner, the thinnest {thickness} mm thick and {length} mm long: it breaks there first under load – round the root at least {radius} mm",
-      "shallowSlope": "{count, plural, one {A face facing up leans} other {# faces facing up lean}} less than {limit}° from flat, the shallowest {angle}°: the layers show there as steps about {step} mm wide"
+      "shallowSlope": "{count, plural, one {A face facing up leans} other {# faces facing up lean}} less than {limit}° from flat, the shallowest {angle}°: the layers show there as steps about {step} mm wide",
+      "shellCorner": "{count, plural, one {At a rounded outer edge} other {At # rounded outer edges}} the shell thins to {thickness} mm in the corner, under half its {wall} mm wall: rounded {radius} mm outside, not inside to match – round the inside {inner} mm"
     },
     "confirm": {
       "title": "Export anyway?",

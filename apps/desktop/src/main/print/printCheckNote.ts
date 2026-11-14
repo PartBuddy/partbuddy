@@ -71,6 +71,9 @@ function line(finding: Finding, nozzle: number): string {
     case 'shallowSlope':
       // Design hint (research O4, H4): a face sloped just off flat shows its layers as wide steps.
       return `- ${tag}: ${finding.faces === 1 ? 'a flat face facing up leans' : `${String(finding.faces)} flat faces facing up lean`} less than ${String(finding.limit)}° from flat (${String(finding.area)} mm², the shallowest ${String(finding.angle)}°)${where(finding.places)}: the layers show on it as steps about ${mm(finding.step)} wide. Where it is seen, make it flat or lean it at least ${String(finding.limit)}°; where the slope is its job (a drain, a ramp), leave it and tell the user the steps will show.`;
+    case 'shellCorner':
+      // Design hint (research O1, H7): a shell rounded outside but not inside thins in the corner.
+      return `- ${tag}: ${finding.corners === 1 ? 'a rounded outer edge of a shell thins' : `${String(finding.corners)} rounded outer edges of a shell thin`} the wall in the corner to ${mm(finding.thickness)}, under half the ${mm(finding.wall)} beside it${where(finding.places)}: the outside is rounded ${mm(finding.radius)}, the inside not to match. Round the inside to the outer radius less the wall (${mm(finding.inner)}), concentric, or round the outside before shelling (solid.shell keeps the wall even); else make the outer radius at most the wall.`;
     case 'contact':
       return finding.bodies > 1
         ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed for their height, the least ${String(finding.area)} mm²; they may come loose or tip over, a brim holds them${where(finding.places, finding.bodies)}.`
@@ -116,7 +119,7 @@ type Hint = NonNullable<PrintCheckReport['off']>[number];
 /** The hints of BC-24 as the note names them; the user may turn each off in the print settings. */
 const PRINT_HINT_NAMES = { smallHole: 'holes under 2 mm', narrowGap: 'slots under one nozzle' };
 /** The design hints (Manuel, 2026-11-14), off also with their design rule. */
-const DESIGN_HINT_NAMES = { sharpEdge: 'bodies with no rounded or chamfered edge', edgeRadii: 'more than three radii on outer edges', rootCorner: 'sharp inner corners at the foot of slender arms', shallowSlope: 'faces facing up that lean less than 15° from flat' };
+const DESIGN_HINT_NAMES = { sharpEdge: 'bodies with no rounded or chamfered edge', edgeRadii: 'more than three radii on outer edges', rootCorner: 'sharp inner corners at the foot of slender arms', shallowSlope: 'faces facing up that lean less than 15° from flat', shellCorner: 'shell corners rounded outside only' };
 const HINTS: Record<Hint, string> = { ...PRINT_HINT_NAMES, ...DESIGN_HINT_NAMES };
 const looked = (report: PrintCheckReport, names: Partial<Record<Hint, string>>) => (Object.keys(names) as Hint[]).filter((hint) => !report.off?.includes(hint)).map((hint) => HINTS[hint]);
 /** What the mesh check looks at at once (the finding kinds of printCheck.ts), so "nothing found" claims no more: hints turned off are left out. */

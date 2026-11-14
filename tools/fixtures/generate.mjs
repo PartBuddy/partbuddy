@@ -24,7 +24,7 @@ const HINGE = 'hinge';
 const WALLHOLDER = 'wallholder';
 const EDGES = 'edges';
 const DETAIL = 'detail';
-const DESIGN = ['sharp', 'radii', 'roots', 'slopes'];
+const DESIGN = ['sharp', 'radii', 'roots', 'slopes', 'corners'];
 const DEFAULT_CLI =
   process.platform === 'win32'
     ? 'C:\\Program Files\\SolidCraft\\solidcraft-cli.exe'

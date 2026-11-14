@@ -1168,6 +1168,10 @@
       "shallowSlope": {
         "label": "Flache Schrägen",
         "hint": "Zeigt nach oben weisende ebene Flächen, die weniger als 15° gegen die Waagrechte geneigt sind: Auf ihnen zeigen sich die Schichten als breite Stufen (bei 0,2 mm Schicht über 0,75 mm). Nur ein Hinweis, nie eine Sperre."
+      },
+      "shellCorner": {
+        "label": "Ungleiche Schalenecken",
+        "hint": "Zeigt gerundete Außenkanten einer Schale, an denen die Wand in der Ecke dünner als die halbe Wand wird, weil innen nicht passend gerundet ist: Innen gehört der Außenradius weniger der Wand hin. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
       }
     }
   },
@@ -1225,7 +1229,8 @@
       "sharpEdge": "{count, plural, one {Eine scharfe Kante} other {# scharfe Kanten}} ({length} mm) an Körpern ganz ohne Rundung oder Fase: Die Gestaltungsregeln runden sichtbare Außenkanten bei {size} mm Teilgröße mit {radius} mm",
       "edgeRadii": "Außenkanten mit {count} verschiedenen Radien ({radii} mm): Die Gestaltungsregeln nehmen höchstens {most} Radien je Teil, damit die Rundungen zusammenpassen",
       "rootCorner": "{count, plural, one {Ein schlanker Arm steht} other {# Seiten schlanker Arme stehen}} mit scharfer Innenecke auf, der dünnste {thickness} mm dick und {length} mm lang: Dort bricht er unter Last zuerst – den Fuß mit mindestens {radius} mm runden",
-      "shallowSlope": "{count, plural, one {Eine nach oben weisende Fläche ist} other {# nach oben weisende Flächen sind}} weniger als {limit}° geneigt, die flachste {angle}°: Die Schichten zeigen sich dort als etwa {step} mm breite Stufen"
+      "shallowSlope": "{count, plural, one {Eine nach oben weisende Fläche ist} other {# nach oben weisende Flächen sind}} weniger als {limit}° geneigt, die flachste {angle}°: Die Schichten zeigen sich dort als etwa {step} mm breite Stufen",
+      "shellCorner": "{count, plural, one {An einer gerundeten Außenkante} other {An # gerundeten Außenkanten}} wird die Schale in der Ecke {thickness} mm dünn, unter der halben Wand von {wall} mm: außen {radius} mm gerundet, innen nicht passend – innen {inner} mm runden"
     },
     "confirm": {
       "title": "Trotzdem exportieren?",

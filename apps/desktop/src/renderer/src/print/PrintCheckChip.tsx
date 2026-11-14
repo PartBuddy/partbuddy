@@ -48,6 +48,8 @@ export function useFindingText(): (finding: PrintFinding) => string {
         return t('check.finding.rootCorner', { count: finding.roots, thickness: number.format(finding.thickness), length: number.format(finding.length), radius: number.format(finding.radius) });
       case 'shallowSlope':
         return t('check.finding.shallowSlope', { count: finding.faces, angle: number.format(finding.angle), step: number.format(finding.step), limit: finding.limit });
+      case 'shellCorner':
+        return t('check.finding.shellCorner', { count: finding.corners, thickness: number.format(finding.thickness), wall: number.format(finding.wall), radius: number.format(finding.radius), inner: number.format(finding.inner) });
       case 'narrowGap':
         return t('check.finding.narrowGap', { gap: gap.format(finding.gap), minimum: gap.format(finding.minimum) });
       case 'contact':

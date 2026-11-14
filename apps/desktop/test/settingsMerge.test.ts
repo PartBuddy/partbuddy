@@ -9,7 +9,7 @@ describe('switches and the profile editor save onto the settings as stored (BC-2
   it('a switch changes only its own value, not the printers the editor saved meanwhile', () => {
     const next = withSwitch(stored, 'hints', 'smallHole', false);
     expect(next.printers).toEqual(stored.printers);
-    expect(next.hints).toEqual({ smallHole: false, narrowGap: true, sharpEdge: true, edgeRadii: true, rootCorner: true, shallowSlope: true });
+    expect(next.hints).toEqual({ smallHole: false, narrowGap: true, sharpEdge: true, edgeRadii: true, rootCorner: true, shallowSlope: true, shellCorner: true });
     expect(withSwitch(stored, 'design', 'rounding', false).design).toEqual({ ...stored.design, rounding: false });
   });
 

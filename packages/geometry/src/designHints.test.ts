@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { FaceTable } from './faceTable';
 import { checkPrint, DESIGN_HINTS, withDesign, type PrintCheckBody, type PrintCheckProfile, type PrintFinding } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
-import { parseTagged3mf } from './tagged3mf';
+import { parseTagged3mf, type TaggedMesh } from './tagged3mf';
 import { lyingTube, posed } from './testShapes';
 import { growth } from './testTiming';
 import { buildViewerModel } from './viewerModel';
@@ -24,6 +24,44 @@ function solidcraft(set: string, name: string): PrintCheckBody {
   if (!table) throw new Error(`no fixture ${set} ${name}`);
   const mesh = parseTagged3mf(new Uint8Array(readFileSync(new URL(`${set}-${name}.3mf`, fixture))));
   return { name, model: buildViewerModel(buildRenderMesh(mesh, table), table) };
+}
+
+/**
+ * The same body with every triangle cut in four, `times` over (16 times the triangles for 2), its faces kept: for the speed
+ * tests. Corners are welded by position, so the body stays closed.
+ */
+function subdivided(body: PrintCheckBody, times: number): PrintCheckBody {
+  const source = body.model.geometry.getAttribute('position').array;
+  const welded = new Map<string, number>();
+  let positions: number[] = [];
+  const weld = (x: number, y: number, z: number) => {
+    const key = `${String(x)},${String(y)},${String(z)}`;
+    let at = welded.get(key);
+    if (at === undefined) {
+      at = positions.length / 3;
+      welded.set(key, at);
+      positions.push(x, y, z);
+    }
+    return at;
+  };
+  let indices = Array.from(body.model.geometry.index?.array ?? [], (v) => weld(source[v * 3] ?? 0, source[v * 3 + 1] ?? 0, source[v * 3 + 2] ?? 0));
+  let faces = Array.from(body.model.triangleFaces);
+  for (let round = 0; round < times; round += 1) {
+    const next: number[] = [];
+    const nextFaces: number[] = [];
+    const middle = (a: number, b: number) => weld(((positions[a * 3] ?? 0) + (positions[b * 3] ?? 0)) / 2, ((positions[a * 3 + 1] ?? 0) + (positions[b * 3 + 1] ?? 0)) / 2, ((positions[a * 3 + 2] ?? 0) + (positions[b * 3 + 2] ?? 0)) / 2);
+    for (let t = 0; t < indices.length; t += 3) {
+      const [a, b, c] = [indices[t] ?? 0, indices[t + 1] ?? 0, indices[t + 2] ?? 0];
+      const [ab, bc, ca] = [middle(a, b), middle(b, c), middle(c, a)];
+      next.push(a, ab, ca, ab, b, bc, ca, bc, c, ab, bc, ca);
+      for (let k = 0; k < 4; k += 1) nextFaces.push(faces[t / 3] ?? 0);
+    }
+    [indices, faces] = [next, nextFaces];
+  }
+  positions = positions.slice();
+  const table = body.model.table;
+  const mesh: TaggedMesh = { name: body.name, faceCount: table.faces.length, positions: Float64Array.from(positions), indices: Uint32Array.from(indices), triangleFaces: Uint32Array.from(faces) };
+  return { ...body, model: buildViewerModel(buildRenderMesh(mesh, table), table) };
 }
 
 /** The design hints alone, of bodies as checked. */
@@ -192,6 +230,55 @@ describe('faces facing up that lean less than 15° from flat (shallowSlope)', ()
   it('is not looked for when turned off', () => {
     expect(one(design([solidcraft('slopes', 'Slope3')], { ...PLA, off: ['shallowSlope'] }), 'shallowSlope')).toBeUndefined();
   });
+});
+
+describe('shell corners rounded outside only (shellCorner)', () => {
+  // corners.script.json: 60 × 40 × 30 boxes, shelled 2 mm open at the top, the four upright edges rounded. [body, whether told]
+  const cases: [string, boolean][] = [
+    // Rounded 6 mm after shelling: sharp inside, the wall thins to about 0.34 mm in the corner.
+    ['ShellAfter', true],
+    // Rounded before shelling: 4 mm inside, concentric.
+    ['ShellBefore', false],
+    // 1 mm outside on a 2 mm wall: the corner grows a little, never thins.
+    ['ShellAfterSmall', false],
+    // No shell: a rounded block.
+    ['SolidRound', false],
+  ];
+
+  it.each(cases)('%s', (name, want) => {
+    everywhere(solidcraft('corners', name), (findings, what) => {
+      const found = one(findings, 'shellCorner');
+      if (!want) expect(found, what).toBeUndefined();
+      else {
+        expect(found, what).toMatchObject({ severity: 'warn', corners: 4, wall: 2, radius: 6, inner: 4 });
+        // Measured from the facets' middles, a little over the true 0.34 mm.
+        expect(found?.thickness, what).toBeGreaterThan(0.3);
+        expect(found?.thickness, what).toBeLessThan(1);
+      }
+    });
+  }, 60_000);
+
+  it('is not looked for when turned off', () => {
+    expect(one(design([solidcraft('corners', 'ShellAfter')], { ...PLA, off: ['shellCorner'] }), 'shellCorner')).toBeUndefined();
+  });
+});
+
+describe('speed of the design hints', () => {
+  // Every hint looks at each mesh edge, facet or face once, and casts a ray or two per facet of a fillet: 16 times the
+  // triangles take about 16 times as long (a ray is logarithmic), never 256 (BC-27 lesson: +40 s at 147k triangles).
+  it.each([
+    ['roots', 'ArmSharp', 'rootCorner'],
+    ['corners', 'ShellAfter', 'shellCorner'],
+    ['radii', 'Radii4', 'edgeRadii'],
+    ['slopes', 'Slope10', 'shallowSlope'],
+    ['sharp', 'RawBox', 'sharpEdge'],
+  ] as const)('grows linearly on %s %s', (set, name, kind) => {
+    const body = solidcraft(set, name);
+    const large = subdivided(body, 2);
+    expect(large.model.triangleFaces.length).toBe(body.model.triangleFaces.length * 16);
+    expect(one(design([large]), kind), name).toBeDefined();
+    expect(growth((one) => design([one]), body, large)).toBeLessThan(40);
+  }, 60_000);
 });
 
 describe("PartBuddy's templates", () => {

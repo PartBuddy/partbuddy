@@ -102,7 +102,10 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     const slope = reportOf({ status: 'warn', findings: [{ kind: 'shallowSlope', severity: 'warn', faces: 1, area: 912, angle: 9.5, step: 1.2, limit: 15, places: [{ body: 'Box', faces: ['F2:blend(F1:+x|F1:+z)'] }], box: null }] }, 0.4, 3);
     expect(printCheckReportSchema.safeParse(slope).success).toBe(true);
     expect(printCheckNote(slope)).toContain('- warning: a flat face facing up leans less than 15° from flat (912 mm², the shallowest 9.5°) (faces "F2:blend(F1:+x|F1:+z)" of body "Box"): the layers show on it as steps about 1.2 mm wide.');
-    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).toContain('Design hints looked for (how the part looks and holds; yellow, never a block): bodies with no rounded or chamfered edge, more than three radii on outer edges, sharp inner corners at the foot of slender arms, faces facing up that lean less than 15° from flat.');
+    const corner = reportOf({ status: 'warn', findings: [{ kind: 'shellCorner', severity: 'warn', corners: 4, thickness: 0.51, wall: 2, radius: 6, inner: 4, places: [{ body: 'Box', faces: ['F3:blend(F1:-x|F1:-y)'] }], box: null }] }, 0.4, 3);
+    expect(printCheckReportSchema.safeParse(corner).success).toBe(true);
+    expect(printCheckNote(corner)).toContain('- warning: 4 rounded outer edges of a shell thin the wall in the corner to 0.51 mm, under half the 2 mm beside it (faces "F3:blend(F1:-x|F1:-y)" of body "Box"): the outside is rounded 6 mm, the inside not to match. Round the inside to the outer radius less the wall (4 mm)');
+    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).toContain('Design hints looked for (how the part looks and holds; yellow, never a block): bodies with no rounded or chamfered edge, more than three radii on outer edges, sharp inner corners at the foot of slender arms, faces facing up that lean less than 15° from flat, shell corners rounded outside only.');
     expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1, [], { off: [...DESIGN_HINTS] }))).not.toContain('Design hints looked for');
   });
 
