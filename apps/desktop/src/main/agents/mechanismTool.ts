@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { LID, LIP, WEB, beadHigh, hangs, hingeDiameter, hingeLies, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideOver, slideProblem, slideRoof, slideSteps, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, snapFrame, snapHold, snapHook, snapLimit, snapProblem, snapSteps, snapStrain, snapWindow, standsUpright, limitWords, uprightSaid, latchArm, latchFrame, latchProblem, latchReach, latchSteps, latchStrain, LATCH, SNAP_OFTEN, SHARP_ROOT, pegBore, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
+import { LID, LIP, WEB, beadHigh, hangs, hingeDiameter, hingeLies, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideOver, slideProblem, slideRoof, slideSteps, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, snapFrame, snapHold, snapHook, snapLimit, rootedHook, snapProblem, snapSteps, snapStrain, snapWindow, standsUpright, limitWords, uprightSaid, latchArm, latchFrame, latchProblem, latchReach, latchSteps, latchStrain, LATCH, SNAP_OFTEN, pegBore, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, CLEARANCE_NORMAL, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 import { printInPlaceGap, type FitPrinter } from '../../shared/designFit';
@@ -292,7 +292,7 @@ export function snapOf(args: Record<string, unknown>, nozzle = 0.4, material?: {
   const more = args.more === undefined ? [] : Array.isArray(args.more) ? args.more.map(vec3) : null;
   if (!more || more.some((point) => point === null)) return 'more must be a list of points, each three numbers';
   const toward = base.to.map((value, i) => value - (base.from[i] ?? 0)) as Vec3;
-  const spec: SnapSpec = { fixed: base.fixed, moving: base.moving, from: base.from, up, toward, more: more as Vec3[], wall: typeof args.wall === 'number' ? args.wall : 2, hook: snapHook({ nozzle, layer: 0.2 }, material), name: base.name };
+  const spec: SnapSpec = { fixed: base.fixed, moving: base.moving, from: base.from, up, toward, more: more as Vec3[], wall: typeof args.wall === 'number' ? args.wall : 2, ...rootedHook(snapHook({ nozzle, layer: 0.2 }, material), nozzle), name: base.name };
   return snapProblem(spec) ?? spec;
 }
 
@@ -460,8 +460,8 @@ export function activated(steps: Step[], listing: unknown): Step[] {
   const out: Step[] = [];
   let active = 0;
   for (const [i, step] of steps.entries()) {
-    // A plastic feature names its body in `body`; every other step in `targets`.
-    const owner = (later: Step): unknown => (Array.isArray(later.params.targets) ? (later.params.targets as unknown[])[0] : later.command.startsWith('plastic.') ? later.params.body : undefined);
+    // A plastic feature and a fillet name their body in `body`; every other step in `targets`.
+    const owner = (later: Step): unknown => (Array.isArray(later.params.targets) ? (later.params.targets as unknown[])[0] : later.command.startsWith('plastic.') || later.command === 'solid.fillet' ? later.params.body : undefined);
     const target = steps.slice(i).map(owner).find((name) => name !== undefined);
     const component = typeof target === 'string' ? componentOf(listing, target) : 0;
     if (component !== active) out.push({ command: 'component.activate', params: { component } });
@@ -1145,7 +1145,9 @@ export async function snapTrial(upstream: UpstreamTools, spec: SnapSpec, printer
     return [
       rod('under', at(low + ROD / 2, face, -wide / 2), across, wide),
       rod('over', at(high - ROD / 2, face, -wide / 2), across, wide),
-      rod('front', at(0, -arm.gap / 2, 0), up, arm.length),
+      // Just in front of from, where the catch passes: a face standing anywhere in front of the wall's holds plastic there
+      // (the room for the root's radius, MV-10, lies further towards the arm).
+      rod('front', at(0, -(arm.gap - spec.root) / 2, 0), up, arm.length),
       // Just before where the window's cut starts, across it: a wall that curves further towards the hook keeps a wedge there.
       rod('curve', at(middle, -(arm.gap + ROD / 2), -window.half), across, 2 * window.half),
       rod('through', at(middle, FACE_SLACK, 0), toward, spec.wall - 2 * FACE_SLACK),
@@ -1674,7 +1676,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     const strain = snapStrain({ length: hook.length, thickness: hook.thickness, catchDepth: hold, catchLength: hook.catchLength });
     const limit = snapLimit(printer.material);
     const { low, high, wide } = snapNeeds(spec, printer);
-    const sized = hook.length !== SNAP.length || hook.thickness !== SNAP.thickness || hook.catch !== SNAP.catch ? ` (on the ${String(nozzle)} mm nozzle in ${limit.name}: an arm of two lines at the least, a catch of the narrowest line a slicer lays, and long enough to bend within what the material takes)` : '';
+    const sized = hook.length !== SNAP.length || hook.thickness !== SNAP.thickness || round2(hook.catch - spec.root) !== SNAP.catch ? ` (on the ${String(nozzle)} mm nozzle in ${limit.name}: an arm of two lines at the least, a catch of the narrowest line a slicer lays, and long enough to bend within what the material takes)` : '';
     // BC-28 (decided 2026-11-14, audit W48): the halves print on their parting face. The moving one is laid there where that
     // face is flat and whole (a cover standing on its rim is not: its top would hang); the fixed one cannot lie on it, its
     // arms stand out of it, and laid the other way up they would bend across their layers.
@@ -1683,7 +1685,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
       `Built ${String(count)} snap hook${count > 1 ? 's' : ''} "${spec.name}" on ${spec.fixed}, each with its window through the ${String(spec.wall)} mm wall of ${spec.moving}: an arm ${String(hook.length)} mm long, ${String(hook.thickness)} mm thick and ${String(hook.width)} mm wide, ${String(hook.gap)} mm off the wall, with a catch ${String(hook.catch)} mm deep that reaches ${String(hold)} mm over the window's edge${sized}. ` +
       `Pushed together the hooks snap in by themselves (the arm bends ${String(hold)} mm, about ${String(Math.round(strain * 10) / 10)} % strain at the root); to open, press each catch back through its window. It makes no joint. ` +
       `That strain is within the ${limitWords(limit)}${strain > limit.often ? `; for a cover taken off often keep under ${String(limit.often)} % (${String(Math.round(SNAP_OFTEN * 100))} % of that, Bayer)` : ''}. ` +
-      `The arms meet their foot in a sharp edge (SolidCraft's hook has no radius, and one beside the wall would run into it), where the formula assumes a round one: count about ${String(Math.round(SHARP_ROOT * strain * 10) / 10)} % there (a sharp root about ${String(SHARP_ROOT)} times as strained, Bayer)${SHARP_ROOT * strain > limit.strain ? `, more than those ${String(limit.strain)} %: print a test piece first${limit.known && limit.type === 'PLA' ? ', or use PETG' : ''}` : ''}. ` +
+      `Each arm meets its foot in a ${String(spec.root)} mm radius on both sides (half its thickness, at least 1 mm and two nozzles), as the formula assumes; for it the arm stands ${String(spec.root)} mm further off the wall than its catch would need, and the catch is that much deeper. ` +
       `PartBuddy measured that wall at each hook first: ${String(spec.wall)} mm thick behind from and whole round the window, from ${String(low)} to ${String(high)} mm above the foot and ${String(wide)} mm wide. ` +
       `${laid === null ? `${spec.moving} prints on its parting face, the face where it meets ${spec.fixed}, which is set as its print face, in place of any it had.` : `${spec.moving} was not laid on its parting face, the face where it meets ${spec.fixed} (${laid}): set its print face there if it stands flat on it, else on a face from which nothing of it hangs.`} ` +
       `PartBuddy does not set a print face for ${spec.fixed}: its arms stand out of its parting face, so it cannot lie on that face, and laid on the face opposite they would stand upright. ` +

@@ -25,6 +25,7 @@ export {
   checkPrint,
   DESIGN_HINTS,
   edgeRadius,
+  rootRadius,
   withDesign,
   type DesignHint,
   type PrintHint,

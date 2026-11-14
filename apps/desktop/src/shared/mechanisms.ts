@@ -5,7 +5,7 @@
  * in the tool (`mechanismTool.ts`).
  */
 
-import { BRIDGE_SPAN, minimumFloor, minimumWall, thinnestLine } from '@partbuddy/geometry';
+import { BRIDGE_SPAN, minimumFloor, minimumWall, rootRadius, thinnestLine } from '@partbuddy/geometry';
 
 import { printInPlaceGap, type FitPrinter } from './designFit';
 import { CAP_HEAD, CLEARANCE_NORMAL, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, INSERT, type BlockSize } from './screwSizes';
@@ -997,8 +997,10 @@ export interface SnapSpec {
   more: Vec3[];
   /** The wall's thickness in mm: the window goes that deep, so through it. */
   wall: number;
-  /** The hook's sizes on the printer and in the material ({@link snapHook}). */
+  /** The hook's sizes on the printer and in the material, set off the wall for its root radius ({@link rootedHook}). */
   hook: SnapHook;
+  /** The radius at each arm's root, on both sides (audit MV-10). */
+  root: number;
   name: string;
 }
 
@@ -1013,13 +1015,6 @@ export interface SnapSpec {
  */
 export const SNAP = { length: 12, thickness: 1.5, width: 5, catch: 0.8, catchLength: 1.5, gap: 0.2, side: 0.3, seat: 0.2, air: 0.5 };
 export type SnapHook = typeof SNAP;
-
-/**
- * How much more a sharp root strains than one rounded at {@link SNAP_ROOT}: Bayer's formula assumes the radius, and his Fig. 9
- * puts the stress concentration at about 1.5 there and about 3 at a sharp corner (read off the curve in the review of BC-17,
- * S5; one source). The mechanism's hooks have sharp roots (snapSteps).
- */
-export const SHARP_ROOT = 2;
 
 /** The radius at an arm's root as a share of its thickness: Bayer's optimum R/h 0.6 (Snap-Fit Joints for Plastics, p. 8); Hubs asks at least 0.5, Sovol 0.5 to 1 (audit MV-10). */
 export const SNAP_ROOT = 0.6;
@@ -1136,6 +1131,19 @@ export function snapHook(printer: FitPrinter, material?: { name?: string | undef
   return { ...SNAP, length, thickness, catch: depth, gap: round(depth - snapHold()) };
 }
 
+/**
+ * The snap mechanism's hook with a radius at its root (audit MV-10; the print check's `rootCorner` asks it): the radius the
+ * design rules give an inner corner under load, half the arm's thickness and at least 1 mm and two nozzles. On the wall's
+ * side a radius would run into the wall `gap` away, so the arm stands that much further off it, and its catch is that much
+ * deeper: it still reaches {@link snapHold} over the window's edge and the arm bends as far. The catch is at least as long
+ * as it is deep, so its lead-in leans at most 45° (the rules' 30–45°); the window follows it ({@link snapWindow}).
+ */
+export function rootedHook(hook: SnapHook, nozzle: number): { hook: SnapHook; root: number } {
+  const root = rootRadius(hook.thickness, nozzle);
+  const depth = round(hook.catch + root);
+  return { hook: { ...hook, catch: depth, catchLength: Math.max(hook.catchLength, depth), gap: round(hook.gap + root) }, root };
+}
+
 /** How far a hook's catch reaches over its window's edge, and how far the arm bends to pass the wall: the catch less the room between arm and wall (mm), the same for every hook {@link snapHook} sizes. */
 export const snapHold = () => round(SNAP.catch - SNAP.gap);
 
@@ -1178,12 +1186,10 @@ export function snapProblem(spec: SnapSpec): string | null {
 }
 
 /**
- * shortcut: no radius at the hooks' roots (audit MV-10): on the side towards the wall, where the arm is pulled, one would run
- * into the wall `gap` away; the snapFit block has it. Set the hook off the wall by the radius if a root cracks.
- *
  * A snap hook on the fixed body and its window in the wall of the other: the catch's flat underside lies over the
  * window's edge and holds against pulling the parts apart; pressed back through the window it lets go. The window is
- * cut first and the hook built last, each with its own body's component active.
+ * cut first and the hook built last, each with its own body's component active; then each arm's two root edges get
+ * `root` (audit MV-10), the side towards the wall the one that is pulled, as the snapFit block's (blocks.ts, rootFillet).
  */
 export function snapSteps(spec: SnapSpec): Step[] {
   const { up, toward, across } = snapFrame(spec);
@@ -1218,7 +1224,15 @@ export function snapSteps(spec: SnapSpec): Step[] {
       body: spec.fixed,
     },
   }));
-  return [...windows, ...hooks];
+  // The arm's face towards the wall runs through its position, its back one thickness behind; one edge a step, so a
+  // radius SolidCraft has to make smaller warns for that edge alone.
+  const roots = feet.flatMap((foot, i): Step[] =>
+    [hook.gap, hook.gap + hook.thickness].map((off) => ({
+      command: 'solid.fillet',
+      params: { edges: [foot.map((value, k) => round(value - (toward[k] ?? 0) * off))], radius: mm(spec.root), tangent_chain: false, fit: 'reduce', body: spec.fixed, name: `${spec.name} ${String(i + 1)} ◡` },
+    })),
+  );
+  return [...windows, ...hooks, ...roots];
 }
 
 export interface PegSpec {
