@@ -92,9 +92,10 @@ describe('tool policy: command groups are an allow list', () => {
     expect(reasonOf('execute', { command: 'timeline.move_many', params: { features: ['Base'], position: 4, active: false } })).toContain('moves features in the history');
     expect(step('Timeline.Move_Many', { features: ['Base'], position: 0 }).allow).toBe(false);
     // Neighbours that change nothing PartBuddy cannot show stay; folders keep the order.
-    for (const command of ['timeline.suppress', 'timeline.rollback', 'timeline.move_to_group', 'occurrence.copy', 'occurrence.ground', 'parameters.add', 'parameters.list']) {
+    for (const command of ['timeline.suppress', 'timeline.rollback', 'timeline.move_to_group', 'occurrence.copy', 'occurrence.ground', 'parameters.list']) {
       expect(execute(command, { feature: 'Extrude1' }), command).toEqual({ allow: true });
     }
+    expect(execute('parameters.add', { name: 'wand', expression: '2 mm', comment: '[Gehäuse] Wand' })).toEqual({ allow: true });
   });
 
   it("refuses SolidCraft's physical material (audit S-27)", () => {
@@ -211,6 +212,98 @@ describe('tool policy: files by argument, per command (audit N-normteile-policy-
     // Measured rc.4: document.metadata.set {properties: {<key>}} was allowed; the whole group is refused now.
     expect(execute('document.metadata.set', { properties: { [key]: { bodies: ['Deckel'] } } }).allow).toBe(false);
     expect(execute('component.metadata.set', { component: 'Deckel', properties: { colour: 'red' } })).toEqual({ allow: true });
+  });
+});
+
+describe('tool policy: new parameters keep the rules of toolNotes.ts (groups, no clearances)', () => {
+  const add = (name: string, comment?: string) => ({ command: 'parameters.add', params: { name, expression: '2 mm', ...(comment === undefined ? {} : { comment }) } });
+  const reasonOfAdd = (name: string, comment?: string) => reasonOf('execute', add(name, comment));
+
+  it('refuses parameters.add without a group, by every way the policy sees', () => {
+    // Real run 14.11.2026 (cable clip): 13 of 15 parameters had no [Group] comment.
+    const refusal = reasonOfAdd('clip_width', 'Clip width');
+    expect(refusal).toBe(
+      'parameters.add needs a comment that starts with the parameter\'s group, as "[Group] Label", such as "[Monitor] Ultrawide-Höhe": the group is one or two words for a part of the design or what it holds (no digits), the label at most 24 characters in the user\'s language. A size the print profile marks for refitting goes into the group [Druck] with its mark: "[Druck] Bodenstärke [auto 5×layer]". Add "clip_width" again with such a comment.',
+    );
+    expect(reasonOfAdd('clip_width')).toBe(refusal);
+    expect(reasonOfAdd('clip_width', '')).toBe(refusal);
+    // A bracket with a digit is a size or a range, not a group; the fit mark alone is none either.
+    expect(reasonOfAdd('screw', '[M3] Schraubenloch')).toContain('needs a comment that starts with');
+    expect(reasonOfAdd('floor', '[auto 5×layer] Boden')).toContain('needs a comment that starts with');
+    expect(reasonOfAdd('wall', 'Wand [Gehäuse]')).toContain('needs a comment that starts with');
+    expect(reasonOf('execute', { command: 'Parameters.Add', params: { name: 'w', expression: '2 mm', comment: 7 } })).toContain('needs a comment');
+    expect(reasonOf('batch', { commands: [{ command: 'sketch.finish', params: {} }, add('clip_width', 'Clip width')] })).toBe(`batch step 1 (parameters.add): ${refusal}`);
+    expect(reasonOf('batch', { commands: [{ command: 'execute', params: add('clip_width', 'Clip width') }] })).toBe(`batch step 0 (execute): ${refusal}`);
+    expect(reasonOf('batch', { commands: [{ id: 'parameters.add', params: add('clip_width', 'Clip width').params }] })).toContain('needs a comment');
+    expect(execute('timeline.redefine', { feature: 'Box1', command: 'parameters.add', params: add('clip_width').params }).allow).toBe(false);
+  });
+
+  it('lets a grouped parameter through, the fit mark before or after the group', () => {
+    expect(execute('parameters.add', add('uw_h', '[Monitor] Ultrawide-Höhe [300..400]').params)).toEqual({ allow: true });
+    expect(execute('parameters.add', add('fuss', ' [Fuß] Breite; from the photo').params)).toEqual({ allow: true });
+    expect(execute('parameters.add', add('floor', '[Druck] Bodenstärke [auto 5×layer]').params)).toEqual({ allow: true });
+    expect(execute('parameters.add', add('wall', '[auto 3×line] [Druck] Wand').params)).toEqual({ allow: true });
+    expect(decide('batch', { commands: [add('a', '[Kopf] Breite'), { command: 'execute', params: add('b', '[Kopf] Tiefe') }] })).toEqual({ allow: true });
+  });
+
+  it('refuses a clearance or allowance parameter unless the print profile marked it for refitting', () => {
+    // Real run 14.11.2026 (cable clip): "Steckpassung", "Lochzugabe" and "Passung" were made parameters.
+    const refusal = reasonOfAdd('steckpassung', '[Clip] Steckpassung');
+    expect(refusal).toBe(
+      '"steckpassung" would be a clearance or allowance parameter, and those are never parameters of their own: the hole allowance and the clearances come from the print profile, and partbuddy_block and partbuddy_mechanism apply them themselves. Where you model a fit yourself, write the number from the print profile\'s note into the feature or a formula over the nominal size. Only a size the print profile marks for refitting stays a parameter, in the group [Druck] with its mark: "[Druck] Bodenstärke [auto 5×layer]".',
+    );
+    for (const [name, comment] of [
+      ['lochzugabe', '[Kabel] Lochzugabe'],
+      ['p', '[Clip] Passung'],
+      ['hole_clearance', '[Lid] Hole'],
+      ['lidGap', '[Lid] Rand'],
+      ['fitWidth', '[Lid] Width'],
+      ['x', '[Achse] Axialspiel'],
+      ['x', '[Achse] Spiel'],
+      ['x', '[Deckel] Restluft'],
+      ['x', '[Deckel] Toleranz'],
+      ['x', '[Deckel] Play'],
+      ['x', '[Deckel] Allowance of the pin'],
+      ['x', '[Deckel] Shrink compensation'],
+      ['x', '[Passung] Deckel'],
+    ] as const) {
+      expect(reasonOfAdd(name, comment), `${name} ${comment}`).toContain('would be a clearance or allowance parameter');
+    }
+    expect(reasonOf('batch', { commands: [{ command: 'execute', params: add('spiel', '[Achse] Breite') }] })).toContain('batch step 0 (execute): "spiel" would be a clearance');
+    // Sizes the print profile fits again keep their parameter (printProfiles.ts: "[Druck] Hinge gap [auto 1×nozzle]").
+    expect(execute('parameters.add', add('hinge_gap', '[Druck] Hinge gap [auto 1×nozzle]').params)).toEqual({ allow: true });
+    expect(execute('parameters.add', add('spalt', '[auto 1×nozzle] [Druck] Scharnierspiel').params)).toEqual({ allow: true });
+  });
+
+  it('keeps words that only look like one, and what comes after the semicolon', () => {
+    for (const [name, comment] of [
+      ['display_w', '[Display] Breite'],
+      ['brett', '[Spielbrett] Breite'],
+      ['bsp', '[Halter] Beispielhöhe'],
+      ['anp', '[Halter] Anpassung der Höhe'],
+      ['vent', '[Gehäuse] Lufteinlass'],
+      ['outfit', '[Figur] Höhe'],
+      ['board_w', '[Platine] Breite; the board fits with the push fit of the profile'],
+    ] as const) {
+      expect(execute('parameters.add', add(name, comment).params), `${name} ${comment}`).toEqual({ allow: true });
+    }
+  });
+
+  it('refuses a dimension that makes a clearance parameter, and keeps the other named dimensions', () => {
+    expect(reasonOf('execute', { command: 'sketch.dimension', params: { a: 'l1', value: 'passung = 0.2 mm' } })).toContain('"passung" would be a clearance or allowance parameter');
+    expect(
+      reasonOf('batch', { commands: [{ command: 'sketch.draw.dimensioned', params: { command: 'sketch.rectangle.two_point', params: { p1: [0, 0], p2: [20, 10] }, dimensions: { width: 'lid_gap = 0.3 mm' } } }] }),
+    ).toContain('"lid_gap" would be a clearance');
+    expect(execute('sketch.dimension', { a: 'l1', value: 'breite = 40 mm' })).toEqual({ allow: true });
+    expect(execute('sketch.dimension', { a: 'l1', value: 'spiel' })).toEqual({ allow: true });
+  });
+
+  it('leaves changing, renaming and commenting a parameter that exists free', () => {
+    expect(decide('set_parameter', { name: 'spiel', value: '0.3 mm', comment: 'Spiel' })).toEqual({ allow: true });
+    expect(execute('parameters.change', { name: 'lochzugabe', expression: '0.2 mm' })).toEqual({ allow: true });
+    expect(execute('parameters.change', { changes: { passung: '0.2 mm' } })).toEqual({ allow: true });
+    expect(execute('parameters.rename', { name: 'spiel', new_name: 'gap' })).toEqual({ allow: true });
+    expect(execute('parameters.comment', { name: 'wand', comment: 'Wand' })).toEqual({ allow: true });
   });
 });
 

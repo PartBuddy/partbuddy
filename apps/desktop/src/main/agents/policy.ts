@@ -8,6 +8,7 @@ import type { JsonSchemaValidator } from '@modelcontextprotocol/server';
 import { AjvJsonSchemaValidator } from '@modelcontextprotocol/server/validators/ajv';
 
 import { TAPPED_FROM } from '../../shared/mechanisms';
+import { groupOf, PRINT_GROUP } from '../../shared/parameterGroup';
 import { METADATA_PREFIX } from '../notes/noteRecord';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 import { COMMAND_GROUPS, GROUP_EXCEPTIONS, KNOWN_COMMANDS, KNOWN_COMMANDS_VERSION } from './knownCommands';
@@ -276,6 +277,8 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
   if (!COMMAND_ID.test(command)) return refuse(`${JSON.stringify(id)} is not an engine command id; ids look like solid.extrude, as list_commands lists them.`);
   const refused = entryOf(REFUSED_COMMANDS, command);
   if (refused) return refuse(`${command} ${refused}`);
+  const made = decideNewParameters(command, params);
+  if (!made.allow) return made;
   const checked = entryOf(CHECKED_WAYS, command);
   if (checked) return refuse(`${command} ${checked} Call that instead; if it cannot build what you need, tell the user what is missing.`);
   if (command === 'timeline.edit' && Object.keys(objectOr(params.set)).some((key) => HOLE_KEYS.has(key.split('.')[0]?.trim().toLowerCase() ?? ''))) {
@@ -557,6 +560,53 @@ export async function decideParameterNames(callTool: UpstreamTools['callTool'], 
     `There is no parameter ${JSON.stringify(missing)}: setting it would make a new parameter and change nothing in the design. The parameters are: ` +
       `${list || 'none'}. Take the exact name, or add a new parameter with parameters.add.`,
   );
+}
+
+/**
+ * Words that mark a parameter as a clearance or an allowance (the rule "Which parameters" of toolNotes.ts): those come
+ * from the print profile, into the feature or a formula. English words whole, in names split at _ and camel case;
+ * German ones also inside a compound ("Steckpassung", "Lochzugabe"; "Spiel" and "Luft" only at its end, so "Spielbrett" and
+ * "Lufteinlass" pass), but not "Beispiel" or "Anpassung".
+ */
+const CLEARANCE_WORD = /\b(?:clearances?|gaps?|allowances?|play|fits?|tolerances?|compensation)\b|(?<!bei)spiel\b|(?<!an)passung|zugabe|toleranz|kompensation|luft\b/i;
+/** The mark of a size the print profile has refitted for another printer ("[auto 3×line]"). */
+const FIT_MARK = /\[auto\s[^\]]*\]/i;
+const GROUPED_EXAMPLE = '"[Monitor] Ultrawide-Höhe"';
+const PRINT_EXAMPLE = `"[${PRINT_GROUP}] Bodenstärke [auto 5×layer]"`;
+
+/** "hole_clearance", "steckPassung" → words the check above reads; a comment counts up to its reason after ";". */
+const wordsOf = (text: string): string => text.split(';')[0]?.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2') ?? '';
+
+/**
+ * The parameters a command makes: `parameters.add` needs a comment that starts with its group, and no new parameter
+ * (a dimension `name = value` included) may be a clearance or an allowance unless it carries a fit mark. Changing,
+ * renaming and commenting a parameter that exists stays free; `set_parameter` and `parameters.change` cannot make
+ * one (decideParameterNames refuses an unknown name).
+ * shortcut: a dimension `name = value` carries no comment, so it is held to the clearance words only; refuse it
+ * without a group too once a measurement shows SolidCraft lists such a name as a user parameter in the panel.
+ */
+function decideNewParameters(command: string, params: Record<string, unknown>): ToolDecision {
+  const made: { name: string; comment: string | null }[] = dimensionNames(params).map((name) => ({ name, comment: null }));
+  if (command === 'parameters.add') made.push({ name: typeof params.name === 'string' ? params.name.trim() : '', comment: typeof params.comment === 'string' ? params.comment : '' });
+  for (const { name, comment } of made) {
+    if (comment !== null && groupOf(comment) === null) {
+      return refuse(
+        `${command} needs a comment that starts with the parameter's group, as "[Group] Label", such as ${GROUPED_EXAMPLE}: ` +
+          'the group is one or two words for a part of the design or what it holds (no digits), the label at most 24 characters in the ' +
+          `user's language. A size the print profile marks for refitting goes into the group [${PRINT_GROUP}] with its mark: ${PRINT_EXAMPLE}. ` +
+          `Add ${JSON.stringify(name)} again with such a comment.`,
+      );
+    }
+    if (!FIT_MARK.test(comment ?? '') && CLEARANCE_WORD.test(`${wordsOf(name)} ${wordsOf(comment ?? '')}`)) {
+      return refuse(
+        `${JSON.stringify(name)} would be a clearance or allowance parameter, and those are never parameters of their own: the hole ` +
+          'allowance and the clearances come from the print profile, and partbuddy_block and partbuddy_mechanism apply them themselves. ' +
+          "Where you model a fit yourself, write the number from the print profile's note into the feature or a formula over the nominal size. " +
+          `Only a size the print profile marks for refitting stays a parameter, in the group [${PRINT_GROUP}] with its mark: ${PRINT_EXAMPLE}.`,
+      );
+    }
+  }
+  return { allow: true };
 }
 
 const validators = new AjvJsonSchemaValidator();
