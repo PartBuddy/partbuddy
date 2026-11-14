@@ -246,47 +246,56 @@ describe('tool policy: new parameters keep the rules of toolNotes.ts (groups, no
     expect(decide('batch', { commands: [add('a', '[Kopf] Breite'), { command: 'execute', params: add('b', '[Kopf] Tiefe') }] })).toEqual({ allow: true });
   });
 
-  it('refuses a clearance or allowance parameter unless the print profile marked it for refitting', () => {
+  it('refuses a parameter named as a clearance or allowance unless the print profile marked it for refitting', () => {
     // Real run 14.11.2026 (cable clip): "Steckpassung", "Lochzugabe" and "Passung" were made parameters.
     const refusal = reasonOfAdd('steckpassung', '[Clip] Steckpassung');
     expect(refusal).toBe(
-      '"steckpassung" would be a clearance or allowance parameter, and those are never parameters of their own: the hole allowance and the clearances come from the print profile, and partbuddy_block and partbuddy_mechanism apply them themselves. Where you model a fit yourself, write the number from the print profile\'s note into the feature or a formula over the nominal size. Only a size the print profile marks for refitting stays a parameter, in the group [Druck] with its mark: "[Druck] Bodenstärke [auto 5×layer]".',
+      '"steckpassung" would be a clearance or allowance parameter, and those are never parameters of their own: the hole allowance and the clearances come from the print profile, and partbuddy_block and partbuddy_mechanism apply them themselves. Where you model a fit yourself, write the number from the print profile\'s note into the feature or a formula over the nominal size. Only a size the print profile marks for refitting stays a parameter, in the group [Druck] with its mark: "[Druck] Bodenstärke [auto 5×layer]". If the word means something else here (a game, ventilation, a slot the user asked for), name the parameter by what it sets instead, e.g. vent_slot_width.',
     );
-    for (const [name, comment] of [
-      ['lochzugabe', '[Kabel] Lochzugabe'],
-      ['p', '[Clip] Passung'],
-      ['hole_clearance', '[Lid] Hole'],
-      ['lidGap', '[Lid] Rand'],
-      ['fitWidth', '[Lid] Width'],
-      ['x', '[Achse] Axialspiel'],
-      ['x', '[Achse] Spiel'],
-      ['x', '[Deckel] Restluft'],
-      ['x', '[Deckel] Toleranz'],
-      ['x', '[Deckel] Play'],
-      ['x', '[Deckel] Allowance of the pin'],
-      ['x', '[Deckel] Shrink compensation'],
-      ['x', '[Passung] Deckel'],
-    ] as const) {
-      expect(reasonOfAdd(name, comment), `${name} ${comment}`).toContain('would be a clearance or allowance parameter');
+    for (const name of [
+      'lochzugabe', 'Lochzugabe', 'passung', 'presspassung', 'schiebepassung', 'axialspiel', 'radialspiel', 'restluft',
+      'lid_gap', 'Lid-Gap', 'fitClearance', 'Spiel', 'hole_allowance', 'pin_tolerance', 'axle_play', 'deckel_luft', 'lid_fit', 'zugabe_loch', 'toleranz', 'gap2',
+    ]) {
+      expect(reasonOfAdd(name, '[Deckel] Breite'), name).toContain('would be a clearance or allowance parameter');
     }
     expect(reasonOf('batch', { commands: [{ command: 'execute', params: add('spiel', '[Achse] Breite') }] })).toContain('batch step 0 (execute): "spiel" would be a clearance');
-    // Sizes the print profile fits again keep their parameter (printProfiles.ts: "[Druck] Hinge gap [auto 1×nozzle]").
+    // Sizes the print profile refits keep their parameter (printProfiles.ts: "[Druck] Hinge gap [auto 1×nozzle]"), the mark before or after the group.
     expect(execute('parameters.add', add('hinge_gap', '[Druck] Hinge gap [auto 1×nozzle]').params)).toEqual({ allow: true });
-    expect(execute('parameters.add', add('spalt', '[auto 1×nozzle] [Druck] Scharnierspiel').params)).toEqual({ allow: true });
+    expect(execute('parameters.add', add('axialspiel', '[auto 2x layer] [Druck] Axialspiel').params)).toEqual({ allow: true });
+    // Only the forms designFit.ts refits count as a mark.
+    for (const mark of ['[auto]', '[auto 3×gap]', '[auto by hand]', '[auto 0×line]']) {
+      expect(reasonOfAdd('hinge_gap', `[Druck] Hinge gap ${mark}`), mark).toContain('would be a clearance');
+    }
   });
 
-  it('keeps words that only look like one, and what comes after the semicolon', () => {
+  it('reads only whole segments of the name, never the group or the label', () => {
+    // Review of #414: each of these is normal work.
     for (const [name, comment] of [
+      ['card_w', '[Kartenspiel] Breite'],
+      ['board_d', '[Brettspiel] Tiefe'],
+      ['zuluft_offnung', '[Gehäuse] Zuluft-Öffnung'],
+      ['abluft', '[Gehäuse] Abluft'],
+      ['einlass', '[Luft] Einlass'],
+      ['kluft', '[Fels] Kluft'],
+      ['vent_slot_width', '[Lüftung] Gap width'],
+      ['tooth_pitch', '[Kamm] Tooth gap'],
+      ['panel_w', '[Rahmen] Fit width'],
+      ['monitor_w', '[Monitor] Fits 27 inch'],
+      ['passungsflaeche', '[Lager] Passungsfläche'],
+      ['einpassung', '[Lager] Einpassung'],
+      ['kartenspiel', '[Box] Breite'],
+      ['gapless', '[Box] Breite'],
+      ['fitting', '[Box] Breite'],
       ['display_w', '[Display] Breite'],
-      ['brett', '[Spielbrett] Breite'],
-      ['bsp', '[Halter] Beispielhöhe'],
-      ['anp', '[Halter] Anpassung der Höhe'],
-      ['vent', '[Gehäuse] Lufteinlass'],
-      ['outfit', '[Figur] Höhe'],
-      ['board_w', '[Platine] Breite; the board fits with the push fit of the profile'],
+      ['spielbrett', '[Box] Breite'],
     ] as const) {
       expect(execute('parameters.add', add(name, comment).params), `${name} ${comment}`).toEqual({ allow: true });
     }
+  });
+
+  it('says what to do when the name is missing or not text', () => {
+    expect(reasonOf('execute', { command: 'parameters.add', params: { expression: '2 mm' } })).toMatch(/Add the parameter again with its name and such a comment\.$/);
+    expect(reasonOf('execute', { command: 'parameters.add', params: { name: 3, expression: '2 mm', comment: 'Wand' } })).not.toContain('Add ""');
   });
 
   it('refuses a dimension that makes a clearance parameter, and keeps the other named dimensions', () => {
@@ -295,6 +304,7 @@ describe('tool policy: new parameters keep the rules of toolNotes.ts (groups, no
       reasonOf('batch', { commands: [{ command: 'sketch.draw.dimensioned', params: { command: 'sketch.rectangle.two_point', params: { p1: [0, 0], p2: [20, 10] }, dimensions: { width: 'lid_gap = 0.3 mm' } } }] }),
     ).toContain('"lid_gap" would be a clearance');
     expect(execute('sketch.dimension', { a: 'l1', value: 'breite = 40 mm' })).toEqual({ allow: true });
+    expect(execute('sketch.dimension', { a: 'l1', value: 'abluft = 40 mm' })).toEqual({ allow: true });
     expect(execute('sketch.dimension', { a: 'l1', value: 'spiel' })).toEqual({ allow: true });
   });
 

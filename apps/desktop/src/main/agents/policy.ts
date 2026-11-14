@@ -7,6 +7,7 @@
 import type { JsonSchemaValidator } from '@modelcontextprotocol/server';
 import { AjvJsonSchemaValidator } from '@modelcontextprotocol/server/validators/ajv';
 
+import { fitMarkOf } from '../../shared/designFit';
 import { TAPPED_FROM } from '../../shared/mechanisms';
 import { groupOf, PRINT_GROUP } from '../../shared/parameterGroup';
 import { METADATA_PREFIX } from '../notes/noteRecord';
@@ -563,23 +564,31 @@ export async function decideParameterNames(callTool: UpstreamTools['callTool'], 
 }
 
 /**
- * Words that mark a parameter as a clearance or an allowance (the rule "Which parameters" of toolNotes.ts): those come
- * from the print profile, into the feature or a formula. English words whole, in names split at _ and camel case;
- * German ones also inside a compound ("Steckpassung", "Lochzugabe"; "Spiel" and "Luft" only at its end, so "Spielbrett" and
- * "Lufteinlass" pass), but not "Beispiel" or "Anpassung".
+ * Name segments that mark a parameter as a clearance or an allowance (the rule "Which parameters" of toolNotes.ts): those
+ * come from the print profile, into the feature or a formula. Only the name counts, split at _, - and camel case, and
+ * only a whole segment: "lid_gap", "fitClearance", "Spiel" match, "kartenspiel", "abluft", "einpassung", "gapless" and
+ * "fitting" do not. Group and label stay free ("[Brettspiel] Tiefe", "Gap width" of a vent slot).
+ * shortcut: a run-together lower-case name ("lidgap") is not split and passes; list it with the compounds if the assistant writes such names.
  */
-const CLEARANCE_WORD = /\b(?:clearances?|gaps?|allowances?|play|fits?|tolerances?|compensation)\b|(?<!bei)spiel\b|(?<!an)passung|zugabe|toleranz|kompensation|luft\b/i;
-/** The mark of a size the print profile has refitted for another printer ("[auto 3×line]"). */
-const FIT_MARK = /\[auto\s[^\]]*\]/i;
+const CLEARANCE_SEGMENTS = new Set([
+  'clearance', 'allowance', 'tolerance', 'play', 'spiel', 'passung', 'zugabe', 'toleranz', 'luft', 'gap', 'fit',
+  // German compounds that are a clearance or an allowance as a whole.
+  'lochzugabe', 'steckpassung', 'presspassung', 'schiebepassung', 'axialspiel', 'radialspiel', 'restluft',
+]);
 const GROUPED_EXAMPLE = '"[Monitor] Ultrawide-Höhe"';
 const PRINT_EXAMPLE = `"[${PRINT_GROUP}] Bodenstärke [auto 5×layer]"`;
 
-/** "hole_clearance", "steckPassung" → words the check above reads; a comment counts up to its reason after ";". */
-const wordsOf = (text: string): string => text.split(';')[0]?.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2') ?? '';
+/** "hole_clearance", "fitClearance", "Lid-Gap" → its lower-case segments. */
+const segmentsOf = (name: string): string[] =>
+  name
+    .replace(/([a-zäöüß])([A-ZÄÖÜ])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[^a-zäöüß]+/)
+    .filter((segment) => segment !== '');
 
 /**
  * The parameters a command makes: `parameters.add` needs a comment that starts with its group, and no new parameter
- * (a dimension `name = value` included) may be a clearance or an allowance unless it carries a fit mark. Changing,
+ * (a dimension `name = value` included) may be named as a clearance or an allowance unless it carries a fit mark. Changing,
  * renaming and commenting a parameter that exists stays free; `set_parameter` and `parameters.change` cannot make
  * one (decideParameterNames refuses an unknown name).
  * shortcut: a dimension `name = value` carries no comment, so it is held to the clearance words only; refuse it
@@ -594,15 +603,17 @@ function decideNewParameters(command: string, params: Record<string, unknown>): 
         `${command} needs a comment that starts with the parameter's group, as "[Group] Label", such as ${GROUPED_EXAMPLE}: ` +
           'the group is one or two words for a part of the design or what it holds (no digits), the label at most 24 characters in the ' +
           `user's language. A size the print profile marks for refitting goes into the group [${PRINT_GROUP}] with its mark: ${PRINT_EXAMPLE}. ` +
-          `Add ${JSON.stringify(name)} again with such a comment.`,
+          (name === '' ? 'Add the parameter again with its name and such a comment.' : `Add ${JSON.stringify(name)} again with such a comment.`),
       );
     }
-    if (!FIT_MARK.test(comment ?? '') && CLEARANCE_WORD.test(`${wordsOf(name)} ${wordsOf(comment ?? '')}`)) {
+    // Only the forms designFit.ts refits ("[auto 3×line]") keep a clearance a parameter.
+    if (fitMarkOf(comment ?? '') === null && segmentsOf(name).some((segment) => CLEARANCE_SEGMENTS.has(segment))) {
       return refuse(
         `${JSON.stringify(name)} would be a clearance or allowance parameter, and those are never parameters of their own: the hole ` +
           'allowance and the clearances come from the print profile, and partbuddy_block and partbuddy_mechanism apply them themselves. ' +
           "Where you model a fit yourself, write the number from the print profile's note into the feature or a formula over the nominal size. " +
-          `Only a size the print profile marks for refitting stays a parameter, in the group [${PRINT_GROUP}] with its mark: ${PRINT_EXAMPLE}.`,
+          `Only a size the print profile marks for refitting stays a parameter, in the group [${PRINT_GROUP}] with its mark: ${PRINT_EXAMPLE}. ` +
+          'If the word means something else here (a game, ventilation, a slot the user asked for), name the parameter by what it sets instead, e.g. vent_slot_width.',
       );
     }
   }
