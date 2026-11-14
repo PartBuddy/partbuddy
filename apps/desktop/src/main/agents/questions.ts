@@ -181,7 +181,9 @@ export const questionGuidance = (research: boolean): string => [
   // audit R41: the material need not be PLA; how far an arm may bend is FLEX_GUIDANCE's (loop.ts).
   '3. Function check: before the plan, go through the part in use. Is it held securely under those loads, can it be put in',
   'and taken out, does it flex where it must (a snap or a lip needs a thin, long arm; otherwise use a band,',
-  'spring, screw or clamp), are levers short and walls strong enough, does it print without supports. If the check fails,',
+  'spring, screw or clamp), are levers short and walls strong enough, does it print without supports. Name the main load and',
+  'its direction (what pulls, presses or bends the part, and where) and the side the part stands on, so that load runs along',
+  'the layers. If the check fails,',
   'change the concept and tell the user why.',
   `Then call ${PLAN_TOOL}, with the function check as its last step, and build only after the user said Go. For several`,
   `features at once, the plan alone is enough. When a dimension or choice that matters is unclear later, ask with ${ASK_TOOL}`,
