@@ -1747,11 +1747,16 @@ describe('snap hooks with their windows (standards)', () => {
   it('lays the cover on its parting face where that face is whole, and sets no print face under the arms (BC-28, W48)', async () => {
     const faces: [string, string][] = [];
     const keep = (body: string, face: string) => faces.push([body, face]);
-    const wall = String((await withMechanismTool(boxWorld(cover()), () => 0.4, keep).callTool(MECHANISM_TOOL, args)).content[0]?.text);
-    expect(wall).toContain("Cover prints on its parting face, the face where it meets Base, which is set as its print face, in place of any it had. Base's print face is not set: its arms stand out of its parting face, so it cannot lie on that face, and laid on the face opposite they would stand upright. Printed standing, an arm bends");
-    expect(faces).toEqual([['Cover', 'F[20,21,4.5]']]);
+    // The cover's wall standing on the base's top, where the hooks' feet are (z = 4).
+    const onBase: Box = [[0, 20, 4], [40, 22, 24.5]];
+    const wall = String((await withMechanismTool(boxWorld({ ...cover(), Cover: [onBase] }), () => 0.4, keep).callTool(MECHANISM_TOOL, args)).content[0]?.text);
+    expect(wall).toContain('Cover prints on its parting face, the face where it meets Base, which is set as its print face, in place of any it had. PartBuddy does not set a print face for Base: its arms stand out of its parting face, so it cannot lie on that face, and laid on the face opposite they would stand upright. Printed standing, an arm bends');
+    expect(faces).toEqual([['Cover', 'F[20,21,4]']]);
+    // Review of BC-28, S2: a wall 0.5 mm over the feet's face is not laid on, whatever its bottom measures.
+    expect(String((await withMechanismTool(boxWorld(cover()), () => 0.4, keep).callTool(MECHANISM_TOOL, args)).content[0]?.text)).toContain('Cover was not laid on its parting face, the face where it meets Base (Cover reaches 0.5 mm past the face where the two meet on that side: a spigot, a peg or a step stands out of it)');
+    expect(faces).toHaveLength(1);
     // A hollow cover (walls and a top) stands on its rim: the middle of that side is open, as SolidCraft answers (measured 2026-11-14).
-    const hollow = boxWorld({ ...cover(), Cover: [...(cover().Cover ?? []), [[0, -2, 4.5], [40, 0, 24.5]], [[0, -2, 24.5], [40, 22, 26.5]]] });
+    const hollow = boxWorld({ ...cover(), Cover: [onBase, [[0, -2, 4], [40, 0, 24.5]], [[0, -2, 24.5], [40, 22, 26.5]]] });
     const inner = hollow.callTool.bind(hollow);
     hollow.callTool = async (name, call, id) => {
       const result = await inner(name, call, id);
@@ -1759,7 +1764,7 @@ describe('snap hooks with their windows (standards)', () => {
       return empty ? { content: [{ type: 'text', text: JSON.stringify({ results: [], failed: { command: 'inspect.measure', error: "invalid parameters for `inspect.measure`: no face of 'Cover' at the picked point" } }) }], isError: true } : result;
     };
     const rim = String((await withMechanismTool(hollow, () => 0.4, keep).callTool(MECHANISM_TOOL, args)).content[0]?.text);
-    expect(rim).toContain('Cover was not laid on its parting face, the face where it meets Base (Cover has no face at the middle of that side, [20,10,4.5]: an opening or a pocket lies there): set its print face there if it stands flat on it, else on a face from which nothing of it hangs.');
+    expect(rim).toContain('Cover was not laid on its parting face, the face where it meets Base (nothing flat of Cover lies at the middle of that side, [20,10,4]): set its print face there if it stands flat on it, else on a face from which nothing of it hangs.');
     expect(faces).toHaveLength(1);
   });
 
@@ -1849,21 +1854,45 @@ describe('a plugged connection (standards)', () => {
     expect(text).toContain('Right prints on its parting face, the face where it meets Left, which is set as its print face, in place of any it had; Left prints on the face opposite its parting face, which is set as its print face, in place of any it had, so that the pegs stand upright and come out round.');
     expect(faces).toEqual([['Right', 'F[30,15,10]'], ['Left', 'F[0,15,10]']]);
     expect(text).not.toContain('flat ceiling');
+    // Review of BC-28, S3: four pockets in the parting face, measured as SolidCraft does (the mouths, 6.45 mm, cut out), on a
+    // face 30 × 15.2 of the body's 30 × 20: set only with all four mouths added back, at the mouth's width.
+    const mouth = Math.PI * 3.225 ** 2;
+    const four = boxWorld(halves);
+    const measure = four.callTool.bind(four);
+    four.callTool = async (name, call, id) => ((call.commands as { params: { items?: { body: string }[] } }[] | undefined)?.[0]?.params.items?.[0]?.body === 'Right' ? { content: [{ type: 'text', text: JSON.stringify({ results: [{ items: [{ area_mm2: 30 * 15.2 - 4 * mouth, outer_perimeter_mm: 90.4 }] }] }) }] } : measure(name, call, id));
+    const pegs4 = { ...args, from: [30, 8, 6], to: [35, 8, 6], more: [[30, 22, 6], [30, 8, 14], [30, 22, 14]] };
+    const kept: string[] = [];
+    expect(String((await withMechanismTool(four, () => 0.4, (body) => kept.push(body)).callTool(MECHANISM_TOOL, pegs4)).content[0]?.text)).toContain('Right prints on its parting face, the face where it meets Left, which is set as its print face');
+    expect(kept).toEqual(['Right', 'Left']);
+    // A pocket's mouth that lies off the parting face is not counted: one moved 1 mm in leaves three mouths, too few.
+    kept.length = 0;
+    expect(String((await withMechanismTool(four, () => 0.4, (body) => kept.push(body)).callTool(MECHANISM_TOOL, { ...pegs4, more: [[30, 22, 6], [30, 8, 14], [31, 22, 14]] })).content[0]?.text)).toContain('Right prints on its parting face, the face where it meets Left, which PartBuddy did not set as its print face (the face at the middle of that side is about');
+    expect(kept).toEqual(['Left']);
     // A pocket wider than a bridge (10 mm, as the print check counts) is said.
     expect(String((await withMechanismTool(boxWorld(halves), () => 0.4).callTool(MECHANISM_TOOL, { ...args, from: [30, 8, 10], to: [35, 8, 10], more: [[30, 22, 10]], diameter: 10 })).content[0]?.text)).toContain("Each pocket's end is then a flat ceiling 10.452 mm across, more than the 10 mm the print check counts as a bridge: it may sag into the 1 mm the pocket is deeper than the peg.");
     // Not along an axis: said and asked for.
     const askew = String((await withMechanismTool(upstream([]), () => 0.4).callTool(MECHANISM_TOOL, { ...args, to: [35, 15, 10] })).content[0]?.text);
-    expect(askew).toContain('Right prints on its parting face, the face where it meets Left, which PartBuddy could not set as its print face (that face does not lie square to an axis): set it there;');
+    expect(askew).toContain('Right prints on its parting face, the face where it meets Left, which PartBuddy did not set as its print face (that face does not lie square to an axis): set its print face there if it stands flat on it, else on a face from which nothing of it hangs;');
     // As measured in SolidCraft on the split block (2026-11-14): the parting face with two pockets' mouths (6.45 mm) cut out.
     const parting = (area: number): Run => (steps) => Promise.resolve(steps.map((step) => (step.command === 'body.print_face' ? { face: 'F2:-x' } : (step.params.items ? { items: [{ area_mm2: area, inner_perimeter_mm: 40.53, outer_perimeter_mm: 100, perimeter_mm: 140.53 }] } : { bodies: [{ bbox: { min: [30, 0, 0], max: [60, 30, 20] } }] }))));
-    const mouth = Math.PI * 3.225 ** 2;
-    expect(await layOn(parting(534.65), 'Right', [-1, 0, 0], () => undefined, 2 * mouth)).toBeNull();
+    const at: [number, number, number] = [30, 8, 10];
+    expect(await layOn(parting(534.65), 'Right', [-1, 0, 0], () => undefined, { at, open: 2 * mouth })).toBeNull();
     // Four pockets read as a face about 37 × 13 without their mouths added back.
-    expect(await layOn(parting(600 - 4 * mouth), 'Right', [-1, 0, 0], () => undefined)).toContain("about 37 × 13 mm");
-    expect(await layOn(parting(600 - 4 * mouth), 'Right', [-1, 0, 0], () => undefined, 4 * mouth)).toBeNull();
+    expect(await layOn(parting(600 - 4 * mouth), 'Right', [-1, 0, 0], () => undefined, { at })).toContain('about 37 × 13 mm');
+    expect(await layOn(parting(600 - 4 * mouth), 'Right', [-1, 0, 0], () => undefined, { at, open: 4 * mouth })).toBeNull();
+    // Review of BC-28, S2: the box's side lies off the parting plane (a second call's moving body over the first call's peg
+    // tips, a lid's centring spigot 3 mm under its flange): refused, not laid on.
+    expect(await layOn(parting(600), 'Right', [-1, 0, 0], () => undefined, { at: [37.5, 8, 10] })).toBe('Right reaches 7.5 mm past the face where the two meet on that side: a spigot, a peg or a step stands out of it');
+    const spigot = boxWorld({ Lid: [[[0, 0, 3], [80, 60, 10]], [[7, 7, 0], [73, 53, 3]]] });
+    const run: Run = (commands) => spigot.callTool('batch', { commands }).then((result) => (JSON.parse(String(result.content[0]?.text)) as { results: unknown[] }).results);
+    expect(await layOn(run, 'Lid', [0, 0, -1], () => undefined)).toBeNull();
+    expect(await layOn(run, 'Lid', [0, 0, -1], () => undefined, { at: [5, 5, 3] })).toContain('Lid reaches 3 mm past the face where the two meet');
+    // Within PARTING_SLACK (0.05 mm) it passes.
+    expect(await layOn(parting(600), 'Right', [-1, 0, 0], () => undefined, { at: [30.04, 8, 10] })).toBeNull();
+    expect(await layOn(parting(600), 'Right', [-1, 0, 0], () => undefined, { at: [30.06, 8, 10] })).toContain('reaches 0.06 mm past');
     // A point in a pocket: SolidCraft finds no face there (measured), said as such.
     const hollow: Run = (steps) => (steps[0]?.params.items ? Promise.reject(new Error("SolidCraft refused inspect.measure: invalid parameters for `inspect.measure`: no face of 'Right' at the picked point")) : parting(600)(steps));
-    expect(await layOn(hollow, 'Right', [-1, 0, 0], () => undefined)).toBe('Right has no face at the middle of that side, [30,15,10]: an opening or a pocket lies there');
+    expect(await layOn(hollow, 'Right', [-1, 0, 0], () => undefined)).toBe('nothing flat of Right lies at the middle of that side, [30,15,10]');
   });
 
   it('refuses what cannot be plugged and warns of a single or a thin peg', async () => {

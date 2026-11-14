@@ -395,6 +395,9 @@ interface Site {
 type KeepFace = (body: string, face: string) => void;
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
+/** How far, mm, the side `layOn` lays a body on may lie from the parting face it is meant to be (review of BC-28, S2). */
+export const PARTING_SLACK = 0.05;
+
 /** How much of a body's box, each way across, the face `layOn` lays it on must fill (own choice: a top with rounds or chamfers of a tenth of its size still passes). */
 const FACE_FILLS = 0.75;
 
@@ -404,11 +407,13 @@ const FACE_FILLS = 0.75;
  * the latch asked the model to set it, and the print check judged them as built: 2400 mm² under a latch's lid). Null when
  * it is set, else why not. The face at that point must fill the box across, both ways, to `FACE_FILLS` at least: on a lid
  * with a knob in the middle the point lies on the knob's top (review of BC-15, S1), and that is not set; nor is a face
- * SolidCraft does not measure. `open` is the area of openings the mechanism cut into that face (mm², a peg's pockets),
- * added back to the measured area so they do not read as a hollow.
+ * SolidCraft does not measure. `parting`, where given, is the plane the face must lie in (the point `at` on it, within
+ * {@link PARTING_SLACK} along the axis): a spigot or an earlier peg standing out of the parting face is refused, not laid on
+ * (review of BC-28, S2). `open` is the area of openings the mechanism cut into that face (mm², a peg's pockets), added back
+ * to the measured area so they do not read as a hollow.
  * shortcut: the face's two sides are reckoned from its area and outer perimeter as a rectangle's; a ring or an L-shaped top reads smaller and is asked for instead of set.
  */
-export async function layOn(run: Run, body: string, down: Vec3, keepFace: KeepFace, open = 0): Promise<string | null> {
+export async function layOn(run: Run, body: string, down: Vec3, keepFace: KeepFace, parting?: { at: Vec3; open?: number }): Promise<string | null> {
   const axis = down.findIndex((value) => Math.abs(value) > 1e-6);
   if (axis < 0 || down.some((value, i) => i !== axis && Math.abs(value) > 1e-6)) return 'that face does not lie square to an axis';
   try {
@@ -417,16 +422,18 @@ export async function layOn(run: Run, body: string, down: Vec3, keepFace: KeepFa
     const [min, max] = [vec3(box?.min), vec3(box?.max)];
     if (!min || !max) return `${body} could not be measured`;
     const point = min.map((value, i) => (i === axis ? ((down[axis] ?? 0) > 0 ? max[i] : value) : round2((value + (max[i] ?? 0)) / 2))) as Vec3;
+    const off = parting ? Math.abs((point[axis] ?? 0) - (parting.at[axis] ?? 0)) : 0;
+    if (off > PARTING_SLACK) return `${body} reaches ${String(round2(off))} mm past the face where the two meet on that side: a spigot, a peg or a step stands out of it`;
     // Measured 2026-11-14 (SolidCraft, BC-28): a point in an opening fails with "no face of '<body>' at the picked point".
     const [measured] = await run([{ command: 'inspect.measure', params: { items: [{ type: 'face', body, point }] } }]).catch((cause: unknown) => {
-      if ((cause as Error).message.includes('no face')) throw new Error(`${body} has no face at the middle of that side, ${JSON.stringify(point)}: an opening or a pocket lies there`);
+      if ((cause as Error).message.includes('no face')) throw new Error(`nothing flat of ${body} lies at the middle of that side, ${JSON.stringify(point)}`);
       throw cause;
     });
     const item = ((measured as { items?: unknown } | undefined)?.items as { area_mm2?: unknown; perimeter_mm?: unknown; outer_perimeter_mm?: unknown }[] | undefined)?.[0];
     const [area, perimeter] = [item?.area_mm2, item?.outer_perimeter_mm ?? item?.perimeter_mm];
     if (typeof area !== 'number' || typeof perimeter !== 'number' || !(area > 0)) return `SolidCraft did not measure the face at ${JSON.stringify(point)}`;
     // A rectangle of that area and perimeter; a face rounder than a square, as a square of that area.
-    const whole = area + open;
+    const whole = area + (parting?.open ?? 0);
     const [half, square] = [perimeter / 2, (perimeter / 2) ** 2 - 4 * whole];
     const sides = square < 0 ? [Math.sqrt(whole), Math.sqrt(whole)] : [(half + Math.sqrt(square)) / 2, (half - Math.sqrt(square)) / 2];
     const across = [0, 1, 2].filter((i) => i !== axis).map((i) => (max[i] ?? 0) - (min[i] ?? 0)).sort((a, b) => b - a);
@@ -1670,7 +1677,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     // BC-28 (decided 2026-11-14, audit W48): the halves print on their parting face. The moving one is laid there where that
     // face is flat and whole (a cover standing on its rim is not: its top would hang); the fixed one cannot lie on it, its
     // arms stand out of it, and laid the other way up they would bend across their layers.
-    const laid = await layOn(run, spec.moving, spec.up.map((value) => -value) as Vec3, keepFace);
+    const laid = await layOn(run, spec.moving, spec.up.map((value) => -value) as Vec3, keepFace, { at: spec.from });
     return (
       `Built ${String(count)} snap hook${count > 1 ? 's' : ''} "${spec.name}" on ${spec.fixed}, each with its window through the ${String(spec.wall)} mm wall of ${spec.moving}: an arm ${String(hook.length)} mm long, ${String(hook.thickness)} mm thick and ${String(hook.width)} mm wide, ${String(hook.gap)} mm off the wall, with a catch ${String(hook.catch)} mm deep that reaches ${String(hold)} mm over the window's edge${sized}. ` +
       `Pushed together the hooks snap in by themselves (the arm bends ${String(hold)} mm, about ${String(Math.round(strain * 10) / 10)} % strain at the root); to open, press each catch back through its window. It makes no joint. ` +
@@ -1678,7 +1685,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
       `The arms meet their foot in a sharp edge (SolidCraft's hook has no radius, and one beside the wall would run into it), where the formula assumes a round one: count about ${String(Math.round(SHARP_ROOT * strain * 10) / 10)} % there (a sharp root about ${String(SHARP_ROOT)} times as strained, Bayer)${SHARP_ROOT * strain > limit.strain ? `, more than those ${String(limit.strain)} %: print a test piece first${limit.known && limit.type === 'PLA' ? ', or use PETG' : ''}` : ''}. ` +
       `PartBuddy measured that wall at each hook first: ${String(spec.wall)} mm thick behind from and whole round the window, from ${String(low)} to ${String(high)} mm above the foot and ${String(wide)} mm wide. ` +
       `${laid === null ? `${spec.moving} prints on its parting face, the face where it meets ${spec.fixed}, which is set as its print face, in place of any it had.` : `${spec.moving} was not laid on its parting face, the face where it meets ${spec.fixed} (${laid}): set its print face there if it stands flat on it, else on a face from which nothing of it hangs.`} ` +
-      `${spec.fixed}'s print face is not set: its arms stand out of its parting face, so it cannot lie on that face, and laid on the face opposite they would stand upright. ` +
+      `PartBuddy does not set a print face for ${spec.fixed}: its arms stand out of its parting face, so it cannot lie on that face, and laid on the face opposite they would stand upright. ` +
       `${uprightSaid('an arm', standsUpright(spec.up) ? `As designed the arms stand upright: where the part allows, lay ${spec.fixed} so that they lie flat.` : `Keep ${spec.fixed} lying as designed, with the arms flat.`)} Put hooks on opposite walls so that they hold each other in their windows.${warnings}`
     );
   }
@@ -1738,17 +1745,20 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     const count = spec.more.length + 1;
     // BC-28 (decided 2026-11-14, audit N-mechanik-19): both halves lie with the way from fixed into moving up, the moving
     // one on its parting face and the fixed one on the face opposite, so the pegs stand upright and come out round.
-    // shortcut: a pocket at the middle of the parting face leaves no face at the point layOn measures, and that is asked for instead of set, and every pocket counts as cut into that face; pick the point beside the pockets if single centred pegs are common.
+    // shortcut: a pocket at the middle of the parting face leaves no face at the point layOn measures, and that is asked for instead of set; pick the point beside the pockets if single centred pegs are common.
     const down = spec.from.map((value, i) => value - (spec.to[i] ?? 0)) as Vec3;
     const mouth = pegBore(spec) + 2 * PEG.chamfer;
-    const pocketsDown = await layOn(run, spec.moving, down, keepFace, count * Math.PI * (mouth / 2) ** 2);
+    // Only the pockets whose mouths lie in the parting plane are cut into that face.
+    const axis = down.findIndex((value) => Math.abs(value) > 1e-6);
+    const inPlane = [spec.from, ...spec.more].filter((foot) => Math.abs((foot[axis] ?? 0) - (spec.from[axis] ?? 0)) <= PARTING_SLACK).length;
+    const pocketsDown = await layOn(run, spec.moving, down, keepFace, { at: spec.from, open: inPlane * Math.PI * (mouth / 2) ** 2 });
     const pegsUp = await layOn(run, spec.fixed, down, keepFace);
-    const faceSaid = (laid: string | null) => (laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`);
+    const faceSaid = (laid: string | null) => (laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy did not set as its print face (${laid}): set its print face there if it stands flat on it, else on a face from which nothing of it hangs`);
     return (
       `Built ${String(count)} peg${count > 1 ? 's' : ''} "${spec.name}" on ${spec.fixed} with ${count > 1 ? 'their pockets' : 'its pocket'} in ${spec.moving}: ${String(spec.diameter)} mm thick and ${String(long)} mm long, ${String(spec.gap)} mm clear per side as printed (the pocket drawn ${String(pegBore(spec))} mm wide, the material's hole allowance wider), the pocket ${String(PEG.deeper)} mm deeper for air and glue, tip and mouth chamfered. It makes no joint. ` +
       `${spec.moving} prints on its parting face, the face where it meets ${spec.fixed}, ${faceSaid(pocketsDown)}; ${spec.fixed} prints on the face opposite its parting face, ${faceSaid(pegsUp)}, so that the pegs stand upright and come out round. ` +
       // Lying so, the pocket's end is a flat ceiling as wide as the pocket; the pocket's extra depth leaves room for it to sag.
-      (pegBore(spec) > BRIDGE_SPAN ? `Each pocket's end is then a flat ceiling ${String(pegBore(spec))} mm across, more than the ${String(BRIDGE_SPAN)} mm the print check counts as a bridge: it may sag into the ${String(PEG.deeper)} mm the pocket is deeper than the peg. ` : '') +
+      (pocketsDown === null && pegBore(spec) > BRIDGE_SPAN ? `Each pocket's end is then a flat ceiling ${String(pegBore(spec))} mm across, more than the ${String(BRIDGE_SPAN)} mm the print check counts as a bridge: it may sag into the ${String(PEG.deeper)} mm the pocket is deeper than the peg. ` : '') +
       `${count === 1 ? 'One round peg lets the parts turn about it: add a second one far from it (more). ' : ''}${spec.diameter < PEG.least ? `A peg under ${String(PEG.least)} mm printed standing is weak. ` : ''}` +
       `A peg printed standing breaks along its layers sooner than one lying. ${pockets.measured ? `PartBuddy measured ${spec.moving}: each pocket has ${String(PEG.wall)} mm of plastic round it and ${String(floor)} mm under it.` : `PartBuddy could not measure ${spec.moving} this time: keep ${String(PEG.wall)} mm of plastic round each pocket and ${String(floor)} mm under it, ${String(deep)} mm from the face.`} Not printed yet: when it binds or rattles, build it again with another gap.${held}${typeof args.gap === 'number' ? '' : unmeasuredSaid(printer)}${warnings}`
     );

@@ -3763,7 +3763,7 @@ test('the assistant clips a cover onto its base with snap hooks: each hook catch
       { timeout: 90_000 },
     );
     // BC-28: the hollow cover stands on its rim, whose middle is open (measured 2026-11-14), and the base's arms stand out of its parting face.
-    await expect(page.getByTestId('assistant-text').last()).toContainText("Cover was not laid on its parting face, the face where it meets Base (Cover has no face at the middle of that side, [20,15,4]: an opening or a pocket lies there): set its print face there if it stands flat on it, else on a face from which nothing of it hangs. Base's print face is not set: its arms stand out of its parting face");
+    await expect(page.getByTestId('assistant-text').last()).toContainText("Cover was not laid on its parting face, the face where it meets Base (nothing flat of Cover lies at the middle of that side, [20,15,4]): set its print face there if it stands flat on it, else on a face from which nothing of it hangs. PartBuddy does not set a print face for Base: its arms stand out of its parting face");
     await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Snap hooks “Back clip” with their windows')).toHaveCount(1);
