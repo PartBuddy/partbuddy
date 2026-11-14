@@ -17,6 +17,7 @@ import {
 } from '../../shared/contract';
 import { ENTRY_CHAMFER, STURDY, textDepth, textStroke } from '../../shared/blocks';
 import { snapHook, snapLength, snapLimit } from '../../shared/mechanisms';
+import { BED_CHAMFER_LAYERS } from '../../shared/standards';
 import { CLEARANCE_NOZZLE, ELEPHANT_FOOT, lineWidth, printInPlaceGap, scaleClearance, type FitPrinter } from '../../shared/designFit';
 import { MATERIAL_CATALOG } from '../../shared/materialCatalog';
 import { COMPENSATED_CIRCLE, holeAllowance, HOLE_SIZES, LARGEST_HOLE } from '../../shared/tolerances';
@@ -242,25 +243,16 @@ const smallLedge = (nozzle: number) => Math.round(4 * 1.125 * nozzle * 100) / 10
 const MOVING_GAP = printInPlaceGap({ nozzle: 0, layer: 0 });
 
 /**
- * The profile as the model reads it (English, like every note to the model). It names what the
- * practice run of 2026-11-04 missed: parts were built at nominal size and fits came up only when
- * asked. Names are the user's own text, so they are quoted and cut short.
- */
-/**
  * Rules for designing without support (M7f, decided 2026-11-05), from what the practice run and
  * the slicer showed and the common design-for-printing advice (Prusa knowledge base, Hackaday's
  * teardrop holes). Bridges over counterbores facing the bed are left to the slicer, which builds
- * them itself (plan step R1). The spans are the print check's own (audit T25, D18).
+ * them itself (plan step R1). The spans are the print check's own (audit T25, D18). The material's
+ * angle stands alone in the profile's material line; these lines say only how to stay within it (audit W6).
  */
-function withoutSupportLines(overhang: number, nozzle: number): string[] {
-  // The material's angle where it prints less than 45° (PETG 40°, TPU 35°), so a chamfer or roof built to these rules is no overhang itself.
-  const lean = `leaning at most ${String(Math.min(45, overhang))}° from the vertical`;
+function withoutSupportLines(lean: string, nozzle: number): string[] {
   return [
-    'Design it to print without support wherever the shape allows, as designed or on the print face you set; where it cannot, tell the user which faces need support and why:',
-    `- Edges that face down towards the bed: where you would round them, chamfer them instead, ${lean} (the bottom of a fillet ends flat; Prusa); fillets that face up or sideways are fine.`,
-    `- Holes lying across the layers: up to ${String(LYING_HOLE)} mm across they print round without support (MakerVerse); wider ones get a teardrop roof (its sides ${lean} up to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
-    `- Ceilings and ledges: walls at most ${String(BRIDGE_SPAN)} mm apart are bridged (UltiMaker; Hubs names 5 mm for a bridge that does not sag at all), and ledges reaching out at most ${mm(smallLedge(nozzle))} (four lines) from the material below are left without support (OrcaSlicer); the print check counts both the same way. Anything wider gets a slope underneath, ${lean}, or say which side the part should rather stand on.`,
-    'Model these as their own features, sized from this profile (layer height, roof angle) and not as parameters, and name them when you report.',
+    `- Without support, as designed or on the print face you set; where it cannot be avoided, tell the user which faces need support and why. Edges that face down, on the bed too: where you would round them, chamfer them, ${lean} (the bottom of a fillet ends flat; Prusa). Holes lying across the layers print round up to ${String(LYING_HOLE)} mm across (MakerVerse); wider ones get a teardrop roof, its sides ${lean} up to a point, or that roof cut flat.`,
+    `- Walls at most ${String(BRIDGE_SPAN)} mm apart are bridged (UltiMaker; without any sag 5 mm: Hubs), and ledges reaching out at most ${mm(smallLedge(nozzle))} (four lines) from the material below need no support (OrcaSlicer); the print check counts both the same way. Anything wider gets a slope underneath, ${lean}, or another side down. Model these as features from this profile, not parameters; name them when you report.`,
   ];
 }
 
@@ -286,10 +278,12 @@ const snapArm = (printer: FitPrinter, material: MaterialProfile) => {
 };
 
 /**
- * What a careful FDM designer does without being asked (decided 2026-11-07), in five groups the user
- * can turn off: in the settings for every project, in the chat for one. The sizes come from the
- * printer in use, so they fit its nozzle and layer height. Sizes the user names are above all of it.
- * Every fixed size names its source or says it is PartBuddy's own choice (audit D29).
+ * What a careful FDM designer does without being asked (decided 2026-11-07), ranked by Manuel's order of
+ * 2026-11-14: it works, prints without support, holds, looks good, prints fast. Five groups the user can turn
+ * off: in the settings for every project, in the chat for one. The sizes come from the printer in use, so they
+ * fit its nozzle and layer height. Sizes the user names are above all of it. Every fixed size names its source
+ * or says it is PartBuddy's own choice (audit D29); the research behind the 2026-11-14 rewrite is audit 10
+ * (design quality), whose W1 to W9 the comments name.
  */
 export function designLines(design: DesignRules, printer: FitPrinter, material: MaterialProfile): string[] {
   const line = lineWidth(printer);
@@ -297,64 +291,89 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
   const gap = printInPlaceGap(printer);
   // The print check's own minimum, so the rules and the check name the same wall (0.56, not 0.562, at 0.25 mm).
   const minWall = minimumWall(printer.nozzle);
+  // The material's angle where it prints less than 45° (PETG 40°, TPU 35°), so a chamfer or roof built to these rules is no overhang itself.
+  const angle = Math.min(45, material.overhang);
+  const lean = `leaning at most ${String(angle)}° from the vertical`;
   const clearance = (fit: keyof MaterialProfile['clearance']) => mm(scaleClearance(material.clearance[fit], printer, material.measuredNozzle));
   // A measured clamp fit may be below zero (the schema allows it): then it is an interference, not room.
   const room = Object.values(material.clearance).every((value) => value >= 0)
     ? 'Each is room, never an interference.'
     : 'A value below zero is an interference: the part is that much larger than its seat, per side.';
+  const measured = material.measuredNozzle === undefined ? 'not measured with the tolerance pieces' : 'measured with the tolerance pieces';
+  // On the nozzle the values stand for they are used as read (scaleClearance), so only another nozzle needs the sentence.
+  const scaled = printer.nozzle === (material.measuredNozzle ?? CLEARANCE_NOZZLE) ? '' : `; brought to this nozzle, they grow with a nozzle wider than ${mm(CLEARANCE_NOZZLE)} and never go under their ${mm(CLEARANCE_NOZZLE)} values on a finer one`;
   const off = (Object.keys(RULE_NAMES) as DesignRule[]).filter((rule) => !design[rule]);
   const lines = [
-    'Design it well without being asked: apply the rules below on your own, in every design, unless the user says otherwise.',
-    `- Sizes the user names are fixed: build them exactly, never round or snap them to the nozzle or layer height. If one does not print at all (a wall or detail thinner than ${mm(thinnestLine(printer.nozzle))}, the narrowest line a slicer lays with this nozzle; a floor or lid thinner than one ${mm(layer)} layer; such walls and floors are what the print check blocks), or is implausible for the part (ten times off the rest, a hole wider than the face it goes through), do not build it: ask with ${ASK_TOOL}, offering the value as given and the nearest one that prints. A size that only prints less well (a wall under two lines, ${mm(minWall)}, or not a whole number of ${mm(line)} lines; a detail under one line; a floor under ${mm(minimumFloor(layer))}) is built as given, with one sentence on the better value. Working parts are the exception: lips and snap arms under two lines do not hold, and ${BLOCK_TOOL} refuses them, so ask for those too.`,
-    `- Fits follow the purpose, not the raw size: nominal size plus the clearance per side of the fit, clamp ${clearance('clamp')} (tight, only with force), push ${clearance('push')} (in by hand), slide ${clearance('slide')} (without force), turn ${clearance('turn')} (turns freely); the material's values brought to this nozzle: they grow with a nozzle wider than ${mm(CLEARANCE_NOZZLE)} and never go under their ${mm(CLEARANCE_NOZZLE)} values on a finer one. ${room} A round hole also gets the material's hole allowance on its diameter. ${BLOCK_TOOL} and ${MECHANISM_TOOL} add both themselves: give them nominal sizes (the screw, the insert, the magnet, the peg, the shaft), never a size with clearance or allowance added, or they come out twice as loose. A part that holds something (a clip on a cable, tube or pen) grips it: wrap round items more than halfway, with the push fit and an opening narrower than the item. Ask only when the purpose is unclear.`,
-    `- Printing comes first: nothing leans more than ${String(material.overhang)}° without support, no support that a better shape or orientation avoids, and stand the part so loads and snap arms run along the layers, not across them. A refinement never makes function or printing worse; leave it out where it would.`,
+    // W5: one ranking, said once.
+    'Design it well without being asked, in every design unless the user says otherwise; goals by rank, none at the cost of an earlier one: it works, prints without support, holds, looks good, prints fast and lean.',
+    // W7: the thin-wall limits as the user's sizes need them; the profile line above only names what prints.
+    `- Sizes the user names are fixed: build them exactly, never round or snap them. If one does not print at all (a wall or detail under ${mm(thinnestLine(printer.nozzle))} or a floor under one layer, which the print check blocks) or is implausible (ten times off the rest, a hole wider than its face), do not build it: ask with ${ASK_TOOL}, offering the value as given and the nearest one that prints. One that only prints less well (a wall under two lines or not a whole number of ${mm(line)} lines, a detail under one line, a floor under ${mm(minimumFloor(layer))}) is built as given, with one sentence on the better value. Lips and snap arms under two lines do not hold and ${BLOCK_TOOL} refuses them: ask for those too.`,
+    `- Fits follow the purpose: nominal size plus the clearance per side, clamp ${clearance('clamp')} (tight, only with force), push ${clearance('push')} (in by hand), slide ${clearance('slide')} (without force), turn ${clearance('turn')} (turns freely), the material's values (${measured}${scaled}). ${room} A round hole also gets the material's hole allowance on its diameter. ${BLOCK_TOOL} and ${MECHANISM_TOOL} add both themselves: give them nominal sizes (the screw, the insert, the shaft), or they come out twice as loose. Where you model a fit yourself, put both into the feature or a formula over the nominal size and say which fit you chose. A part that holds something (a clip on a cable, tube or pen) grips it: wrap round items more than halfway, with the push fit and an opening narrower than the item. Ask only when the purpose is unclear.`,
   ];
-  if (design.rounding)
+  if (design.snap)
     lines.push(
-      `- Edges: round outer edges that are seen or touched, radius 1 mm on parts under 30 mm, 2 mm up to 100 mm, 3 mm above (own choice), never more than the wall they cut into. Edges on the bed get a 45° chamfer, not a fillet, ${series(layer, 2, 3)} high, which also takes up the elephant's foot (0.1 to ${mm(ELEPHANT_FOOT)}: Prusa about 0.2, Bambu Lab 0.1 to 0.2, OrcaSlicer up to 0.25). Round inner corners under load with at least half the wall thickness (guides say a quarter to the whole wall: MakerVerse, Xometry), and at least ${mm(Math.max(1, printer.nozzle * 2))} (own choice). Use at most two or three radii per part so they match.`,
+      `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids and steps to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(minimumFloor(layer))} (four layers and 0.8 mm: Stratasys, Hubs), print-in-place gaps ${mm(gap)}, details at least one line. Where such a size is a parameter, put it in the group [Druck] and mark its comment with the multiple, e.g. "[Druck] Wall [auto 3×line]", "[Druck] Hinge gap [auto 1×nozzle]", so PartBuddy refits it for another printer; sizes the user named get no mark.`,
     );
+  lines.push(
+    '- Function: know what the part holds, carries and touches and the direction of its main load, and stand it so that load and any snap arm run along the layers, never pulling them apart (Hubs, CNC Kitchen).',
+  );
   if (design.printInPlace)
     lines.push(
-      `- Hinges, guides, snap closures and clips: build them with partbuddy_mechanism (hinges print in place in one piece with this printer's gap; guides, closures and clips print as separate parts). Other joints you model yourself (a wheel on its axle, a lever): first look for a print-in-place solution that prints without support, with ${mm(gap)} gap all round the moving parts (one nozzle, at least ${mm(MOVING_GAP)}: Prusa), the pin lying flat with 45° cones or teardrop holes instead of flat ceilings, and a ${mm(layer * 2)} chamfer on the moving parts' bed edges so they do not fuse. Snap arms long enough to bend within what the material takes, which ${BLOCK_TOOL} snapFit checks at the root (in this material on this nozzle at least ${mm(snapArm(printer, material))} for its ${mm(snapHook(printer, material).thickness)} arm with a ${mm(snapHook(printer, material).catch)} catch; a deeper catch or a thicker arm needs more), with a 30–45° lead-in (own choice). When print-in-place does not work (load, size, material), choose another joint on purpose and say why in one sentence.`,
+      `- Hinges, guides, snap closures and clips: build them with partbuddy_mechanism. Joints you model yourself (a wheel on its axle, a lever): first look for a print-in-place solution without support, ${mm(gap)} gap all round the moving parts (one nozzle, at least ${mm(MOVING_GAP)}: Prusa), the pin lying flat with ${String(angle)}° cones or teardrop holes, and their bed edges chamfered ${mm(layer * 2)} so they do not fuse. Snap arms long enough to bend within the material, as ${BLOCK_TOOL} snapFit checks at the root (here at least ${mm(snapArm(printer, material))} for its ${mm(snapHook(printer, material).thickness)} arm with a ${mm(snapHook(printer, material).catch)} catch; deeper catches and thicker arms need more), with a 30–45° lead-in (own choice). Where it does not suit (load, size, material), choose another joint and say why.`,
+    );
+  lines.push(
+    ...withoutSupportLines(lean, printer.nozzle),
+    // W9: ribs as thick as the wall is the FDM figure (Stratasys); thinner ribs are injection moulding's.
+    `- Strength comes from the walls, not the infill (Prusa, CNC Kitchen): where the part carries load, walls of four lines (${mm(4 * line)}), and tell the user to print it with at least four perimeters. Ribs, not thicker walls, stiffen: as thick as the wall (Stratasys), at most three walls high, in the plane the part bends in, both ends tied to a wall or boss; several low ribs beat one tall one (Fictiv). A boss taller than twice its diameter is tied to a wall or gets three or four gussets (Stratasys, Fictiv; the factor own choice). Pins under 5 mm hold little: a fillet at the foot, a bought pin where one must hold (Hubs, Xometry).`,
+    '- A spring or flexing arm you model yourself lies in the layers, is at least 5 mm wide, tapers to half its root thickness at the tip and has a root fillet of half that thickness (Hubs, Fictiv). Under a lasting load allow a tenth of a breaking load, as plastic creeps (own choice).',
+  );
+  if (layer > printer.nozzle / 2) lines.push('- This layer is more than half the nozzle: for a part under load, say that thinner layers hold better (CNC Kitchen: a hook on 0.3 mm layers held half).');
+  if (design.rounding)
+    lines.push(
+      // W1: inner radius = outer − wall on shells; W8: one sentence for every least radius.
+      `- Edges: round outer edges that are seen or touched, radius 1 mm on parts under 30 mm, 2 mm up to 100 mm, 3 mm above (own choice), at most three radii per part; on a shell the inside of such a corner gets the outer radius less the wall, so the wall stays even (Envalior), sharp where that is nothing; the edges of a plate or rib at most half its thickness. Top edges: at least five layers (${mm(5 * layer)}) or a 45° chamfer, as a smaller fillet prints as steps (own choice). Bed edges: a chamfer ${String(BED_CHAMFER_LAYERS[0])} to ${String(BED_CHAMFER_LAYERS[1])} layers high (${mm(BED_CHAMFER_LAYERS[0] * layer)} to ${mm(BED_CHAMFER_LAYERS[1] * layer)}) takes up the elephant's foot (0.1 to ${mm(ELEPHANT_FOOT)}: Prusa, Bambu Lab, OrcaSlicer). Inner corners under load at least half the wall and ${mm(Math.max(1, printer.nozzle * 2))} (own choice; guides say a quarter to the whole wall: MakerVerse, Xometry), all others at least one nozzle (${mm(printer.nozzle)}).`,
     );
   if (design.details)
     lines.push(
-      `- Details: keep walls the same thickness throughout (one wall parameter), chamfer hole and screw entries ${mm(ENTRY_CHAMFER)} × 45° and give mating edges a 0.5 mm lead-in chamfer so parts go together (both own choice), sink screw heads (counterbore or countersink), and blend changes in thickness with a radius or a 45° slope instead of a sharp step. Details that have to hold at least ${mm(Math.max(STURDY, line))} (Xometry). Embossed or engraved text at least ${mm(textDepth(printer))} deep and ${mm(textStroke(printer))} wide per stroke (Xometry: 0.5 mm and 1 mm).`,
-    );
-  if (design.snap)
-    lines.push(
-      `- Sizes you choose yourself snap up to the printer: walls and ribs to whole lines of ${mm(line)} (${series(line, 2, 5)}), floors, lids, steps and chamfer heights to whole layers of ${mm(layer)} (${series(layer, 3, 6)}), floors and lids at least ${mm(minimumFloor(layer))} (four layers and 0.8 mm: Stratasys, Hubs), print-in-place gaps ${mm(gap)}, radii at least ${mm(printer.nozzle)} and details at least one line. Where such a size is a parameter, put it in the group [Druck] and mark its comment with the multiple, e.g. "[Druck] Wall [auto 3×line]", "[Druck] Floor [auto 5×layer]", "[Druck] Hinge gap [auto 1×nozzle]" (the label in the user's language), so PartBuddy fits it again when the user changes printer or nozzle; these do not count toward the 8 to 15 sizes the user changes. Sizes the user named get no mark.`,
+      // W3: the entry and lead-in chamfers are the blocks' fixed 0.5 mm, so steps but not these snap to layers.
+      `- Details: one wall thickness throughout (one wall parameter), changes blended with a radius or a ${String(angle)}° slope; hole and screw entries chamfered ${mm(ENTRY_CHAMFER)} × 45° and mating edges a ${mm(ENTRY_CHAMFER)} lead-in, as ${BLOCK_TOOL} builds them (own choice); screw heads sunk (counterbore or countersink); details that have to hold at least ${mm(Math.max(STURDY, line))} (Xometry).`,
+      '- Looks: put the face seen most on top as one flat level or on the bed, never over support (Hubs, Prusa). Seen faces facing up lie flat or lean at least 15°, as flatter ones show wide layer steps (own choice). A part round in plan shows its seam (Prusa): if it is seen from all sides, give it a sharp upright edge or a small groove at the back for it (own choice), or tell the user.',
+      `- Text and logos: a bold sans-serif font, letters at least 5 mm high (HLH Rapid: 14 pt), at least ${mm(textDepth(printer))} deep and ${mm(textStroke(printer))} wide per stroke (Xometry: 0.5 mm and 1 mm); engraved on top or bed faces, either on upright ones, never over support.`,
     );
   // Material and print time (2026-11-12): what the shape decides of them, by the makers' design guides (Prusa, Protolabs
   // Network, Markforged, Stratasys Direct); what the slicer decides is named as not the assistant's to promise.
   if (design.economy)
     lines.push(
-      `- Material and print time, from the first shape on and not as a clean-up: build a shell, not a block. Slicers print two to four lines (${mm(minWall)} to ${mm(4 * line)}) as wall and fill anything thicker with sparse infill, so stiffen with ribs as thick as the wall, at least two lines (${mm(minWall)}), instead of thickening the wall. Keep the part low as it prints: every ${mm(layer)} of height is one more layer, and print time grows with the layers. Shape it so it needs no support, which costs more time and material than any other choice. Leave out whole regions that do nothing (an open frame instead of a plate, a shorter body); small pockets and holes in a filled region add walls and save little or nothing. Split a part only when that saves support or much height and a joint is acceptable. Loaded regions, sizes the user names and what the user wants solid stay as they are. Infill, speed and layer height are set in the slicer: never promise grams or minutes. The print check lists each body's solid volume, height, layers and support area: compare them before and after a change.`,
+      // W4: Stratasys finds solid often faster than hollowed; a cavity adds walls and a bridged ceiling.
+      `- Material and print time, from the first shape on: leave out volume that does nothing (an open bottom, a frame instead of a plate, a shorter body), but never hollow a closed body: slicers print two to four lines (${mm(minWall)} to ${mm(4 * line)}) as wall and fill the rest with sparse infill, and a cavity only adds walls and a bridged ceiling (Stratasys); small pockets in a filled region save nothing. Keep the part low as it prints: every ${mm(layer)} of height is one more layer. Split a part only when that saves support or much height and a joint is acceptable. Loaded regions and what the user wants solid stay as they are. Infill, speed and layer height are the slicer's: never promise grams or minutes; compare the print check's solid volume, layers and support area before and after.`,
     );
   if (off.length > 0)
     // audit H-28: the groups may have been turned off by the assistant with partbuddy_design_rules, so the note does not say "the user".
     lines.push(`- Turned off for this part, in PartBuddy's settings or with ${DESIGN_TOOL} in the chat: ${off.map((rule) => RULE_NAMES[rule]).join(', ')}. Do not add them unless the user asks for them.`);
   lines.push(
-    `- After each design step, name what you added on your own${design.economy ? ', what you did for material and print time' : ''} and the sizes you snapped in one short line, e.g. "Outer edges 2 mm rounded, hinge print-in-place with ${mm(gap)} gap, lid slide fit ${clearance('slide')}${design.economy ? `, shell ${mm(line * 3)} with two ribs instead of a solid block` : ''}", so the user can turn it off or change it.`,
+    `- After each design step, name what you added on your own${design.economy ? ', what you did for material and print time' : ''} and the sizes you snapped in one short line, e.g. "Outer edges 2 mm rounded, hinge print-in-place with ${mm(gap)} gap, lid slide fit ${clearance('slide')}${design.economy ? `, open frame with two ${mm(line * 3)} ribs instead of a solid plate` : ''}", so the user can turn it off or change it.`,
     `- When the user turns one of these off or back on ("no fillets", "screw the hinge instead", "make it solid"), call partbuddy_design_rules, so it holds for the rest of the project, also after a restart.`,
   );
   return lines;
 }
 
+/**
+ * The profile as the model reads it (English, like every note to the model). It names what the
+ * practice run of 2026-11-04 missed: parts were built at nominal size and fits came up only when
+ * asked. Names are the user's own text, so they are quoted and cut short. The clearances are named
+ * once, in the design rules' fits.
+ */
 export function printNote({ printer, material: used, design }: PartPrint): string {
   const name = (text: string) => JSON.stringify(text.slice(0, 60));
   const [x, y, z] = printer.bed;
-  const fit = (value: number) => mm(scaleClearance(value, printer, used.measuredNozzle));
-  const { clamp, push, slide, turn } = used.clearance;
+  const lines = designLines(design, printer, used);
   return [
     `[PartBuddy: print profile of this part. Printer ${name(printer.name)}: build volume ${String(x)} × ${String(y)} × ${String(z)} mm,`,
     `nozzle ${mm(printer.nozzle)}, layer height ${mm(printer.layer)}; walls thinner than ${mm(minimumWall(printer.nozzle))} (two lines) print poorly, and walls or details thinner than ${mm(thinnestLine(printer.nozzle))}, the narrowest line a slicer lays, do not print. The print check blocks such walls where they cover more than a few square millimetres and only warns about smaller spots; fine details and text it does not check.`,
-    `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter, a guide value for holes of ${String(HOLE_SIZES[0])} to ${String(LARGEST_HOLE)} mm that the hole plate of the tolerance pieces measures on this printer; larger ones shrink more, about ${mm(holeAllowance(used.holeShrink, COMPENSATED_CIRCLE))} at ${String(COMPENSATED_CIRCLE)} mm, growing evenly in between (shrinkage is a share of the size).`,
-    `Clearance per side between mating parts, for this nozzle (${used.measuredNozzle === undefined ? 'not measured with the tolerance pieces' : 'measured with the tolerance pieces'}): clamp ${fit(clamp)}, push ${fit(push)}, slide ${fit(slide)}, turn ${fit(turn)}.`,
-    'It is printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point} with a point on the flat face that goes on the bed; the check and the slicer then lay it on that face.',
-    ...withoutSupportLines(used.overhang, printer.nozzle),
-    ...designLines(design, printer, used),
-    `Where you model a fit yourself, put the clearance and the hole allowance from this profile into the feature or a formula over the nominal size, never into parameters of their own (${BLOCK_TOOL} and ${MECHANISM_TOOL} add them themselves), and say which fit you chose.]`,
+    `Material ${name(used.name)}: faces leaning more than ${String(used.overhang)}° from the vertical need support; holes come out about ${mm(used.holeShrink)} smaller in diameter from ${String(HOLE_SIZES[0])} to ${String(LARGEST_HOLE)} mm (the tolerance pieces' hole plate measures it on this printer) and about ${mm(holeAllowance(used.holeShrink, COMPENSATED_CIRCLE))} at ${String(COMPENSATED_CIRCLE)} mm, growing evenly in between.`,
+    'It is printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point} with a point on the flat face that goes on the bed.',
+    ...lines.slice(0, -1),
+    `${lines.at(-1) ?? ''}]`,
   ].join('\n');
 }
 

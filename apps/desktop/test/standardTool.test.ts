@@ -58,7 +58,7 @@ describe('the standards the assistant looks up', () => {
     expect(vent).not.toMatch(/1\.2 mm/);
     // T50, R45: the bed chamfer in layers, on its own and only where chamfers are on; the hook's root radius against the usual half wall.
     const feet = standardText('feet');
-    expect(feet).toContain(`Unless chamfers are turned off for the part, chamfer every edge that lies on the print bed at 45°, 2 to 3 layers high (0.4 to 0.6 mm on 0.2 mm layers)`);
+    expect(feet).toContain(`Unless chamfers are turned off for the part, chamfer every edge that lies on the print bed at 45° (steeper in a material that takes less overhang), 2 to 3 layers high (0.4 to 0.6 mm on 0.2 mm layers)`);
     expect(DEFAULT_PRINTER.layer).toBe(0.2);
     expect(feet).not.toContain('0.4 mm at 45°');
     expect(feet).not.toContain('design rules');
