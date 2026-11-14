@@ -27,9 +27,9 @@ function setup() {
 
 /** Sentences only each group's rules carry, one per rule line, so every line of a group goes with it. */
 const MARKERS: Record<DesignRule, string[]> = {
-  rounding: ['round outer edges that are seen or touched', 'Top edges: at least five layers'],
+  rounding: ['round outer edges that are seen or touched', 'Top edges: a fillet of at least five layers'],
   printInPlace: ['first look for a print-in-place solution'],
-  details: ['hole and screw entries chamfered', 'put the face seen most on top', 'Text and logos: a bold sans-serif font'],
+  details: ['hole and screw entries chamfered'],
   snap: ['Sizes you choose yourself snap up to the printer'],
   economy: ['Material and print time, from the first shape on'],
 };
@@ -109,23 +109,21 @@ describe('material and print time as a rule group of its own (2026-11-12)', () =
     const { profiles } = setup();
     const note = printNote(profiles.part());
     // 0.4 mm nozzle, 0.2 mm layer: lines of 0.45 mm.
-    expect(note).toContain('slicers print two to four lines (0.9 mm to 1.8 mm) as wall and fill the rest with sparse infill');
     // Audit 10, W4: leave out what does nothing, but a closed body is not hollowed (Stratasys: solid is often faster).
     expect(note).toContain('leave out volume that does nothing (an open bottom, a frame instead of a plate, a shorter body), but never hollow a closed body');
     expect(note).not.toContain('build a shell, not a block');
     // Ribs stay as thick as the wall (review of PR 357), now a strength rule that holds with the group off too.
-    expect(note).toContain('Ribs, not thicker walls, stiffen: as thick as the wall (Stratasys)');
+    expect(note).toContain('Ribs, not thicker walls, stiffen: as thick as the wall,');
     expect(note).not.toContain('three quarters');
     expect(note).toContain('every 0.2 mm of height is one more layer');
     expect(note).toContain('open frame with two 1.35 mm ribs instead of a solid plate');
     // It never outranks function, and it promises nothing the slicer decides.
     expect(note).toContain('Loaded regions and what the user wants solid stay as they are.');
     expect(note).toContain('never promise grams or minutes');
-    expect(note).toContain('goals by rank, none at the cost of an earlier one: it works, prints without support, holds, looks good, prints fast and lean.');
+    expect(note).toContain('Goals by rank, none at the cost of an earlier one: it works, prints without support, holds, looks good, prints fast and lean.');
     const settings = profiles.settings();
     profiles.save({ ...settings, printers: settings.printers.map((printer) => ({ ...printer, nozzle: 0.6, layer: 0.3 })) });
     const wide = printNote(profiles.part());
-    expect(wide).toContain('slicers print two to four lines (1.35 mm to 2.7 mm) as wall');
     expect(wide).toContain('walls of four lines (2.7 mm)');
     expect(wide).toContain('every 0.3 mm of height is one more layer');
   });
@@ -154,7 +152,8 @@ describe('design rules ranked and freed of contradictions (audit 10, 2026-11-14)
   it('states the order of the goals once, before every rule', () => {
     const note = noteFor(0.4, 0.2);
     expect(count(note, 'it works, prints without support, holds, looks good, prints fast and lean')).toBe(1);
-    expect(note.indexOf('goals by rank')).toBeLessThan(note.indexOf('- Sizes the user names'));
+    expect(note.indexOf('Goals by rank')).toBeGreaterThan(0);
+    expect(note.indexOf('Goals by rank')).toBeLessThan(note.indexOf('- Sizes the user names'));
     expect(note).not.toContain('Printing comes first');
   });
 
@@ -169,31 +168,38 @@ describe('design rules ranked and freed of contradictions (audit 10, 2026-11-14)
 
   it('rounds a shell inside to the outer radius less the wall, and names one set of least radii (W1, W8)', () => {
     const note = noteFor(0.4, 0.2);
-    expect(note).toContain('on a shell the inside of such a corner gets the outer radius less the wall, so the wall stays even (Envalior)');
+    // Review of 1ee1bd76, point 4: one order, never under one nozzle, under load the largest of the three.
+    expect(note).toContain('Inner corners never under one nozzle (0.4 mm); on a shell the inside of a rounded edge is the outer radius less the wall, so the wall stays even; under load the larger of that, half the wall and 1 mm (own choice).');
     expect(note).not.toContain('never more than the wall they cut into');
-    expect(note).toContain('Inner corners under load at least half the wall and 1 mm');
-    expect(note).toContain('all others at least one nozzle (0.4 mm)');
     expect(note).not.toContain('radii at least 0.4 mm');
-    expect(noteFor(0.6, 0.3)).toContain('Top edges: at least five layers (1.5 mm)');
+    expect(noteFor(0.6, 0.3)).toContain('Top edges: a fillet of at least five layers (1.5 mm)');
   });
 
   it('snaps steps to layers but keeps the entry chamfer of the blocks, so the two no longer disagree (W3)', () => {
     const note = noteFor(0.4, 0.2);
     expect(note).toContain('floors, lids and steps to whole layers');
     expect(note).not.toContain('chamfer heights');
-    expect(note).toContain('hole and screw entries chamfered 0.5 mm × 45° and mating edges a 0.5 mm lead-in, as partbuddy_block builds them (own choice)');
+    // Point 7: the block builds the hole entries, the mechanisms the lead-ins (PEG.chamfer, LEAD_IN).
+    expect(note).toContain('hole and screw entries chamfered 0.5 mm × 45°, as partbuddy_block builds them, and mating edges a lead-in chamfer as partbuddy_mechanism builds them (0.5 mm on pegs, 0.8 mm on lid lips; own choice)');
   });
 
   it('adds the missing rules: load direction, ribs, bosses, springs, show face, slopes, seam and text', () => {
     const note = noteFor(0.4, 0.2);
-    expect(note).toContain('the direction of its main load, and stand it so that load and any snap arm run along the layers');
+    expect(note).toContain('the direction of its main load. Stand it so that load and any snap arm run along the layers');
+    // Point 6: layer direction under load is part of "it works" and wins over printing without support.
+    expect(note).toContain('this is "it works" and goes before printing without support');
     expect(note).toContain('at most three walls high, in the plane the part bends in, both ends tied to a wall or boss');
-    expect(note).toContain('A boss taller than twice its diameter is tied to a wall or gets three or four gussets');
+    expect(note).toContain('A boss taller than twice its diameter (own choice) is tied to a wall or gets three or four gussets');
     expect(note).toContain('tapers to half its root thickness at the tip and has a root fillet of half that thickness');
     expect(note).toContain('put the face seen most on top as one flat level or on the bed, never over support');
-    expect(note).toContain('lean at least 15°');
+    expect(note).toContain('lean at least 15° from horizontal');
     expect(note).toContain('give it a sharp upright edge or a small groove at the back for it');
-    expect(note).toContain('letters at least 5 mm high (HLH Rapid: 14 pt)');
+    // Point 5: capitals from the stroke the block tool advises (textStroke / TEXT_STROKE.bold); raised text on top faces is fine.
+    expect(note).toContain('capitals at least 5 mm high');
+    expect(noteFor(0.6, 0.3)).toContain('capitals at least 6.7 mm high');
+    expect(note).toContain('raised or engraved on top faces, engraved on bed faces');
+    expect(note).toContain('Pins printed standing under 5 mm hold little across');
+    expect(note).toContain('say so when the user names a weight');
   });
 
   it('keeps function and strength when every group is off', () => {
@@ -201,14 +207,24 @@ describe('design rules ranked and freed of contradictions (audit 10, 2026-11-14)
     const note = noteFor(0.4, 0.2, pla, none);
     expect(note).toContain('- Function: know what the part holds');
     expect(note).toContain('- Strength comes from the walls');
-    expect(note).toContain('- Without support, as designed');
+    expect(note).toContain('- Print it without support, standing as designed');
+    // Point 8: what is seen is always on.
+    expect(note).toContain('- Looks: put the face seen most on top');
+    expect(note).toContain('- Text and logos: a bold sans-serif font');
+    // With every switch off the ranking and the report name nothing that is off.
+    expect(note).toContain('holds, looks good. ');
+    expect(note).not.toContain('fast and lean');
+    expect(note).toContain('name what you added on your own in one short line, e.g. "Lid slide fit 0.25 mm"');
     for (const marker of Object.values(MARKERS).flat()) expect(note).not.toContain(marker);
   });
 
   it('builds cones and slopes to the angle of the material, and names thin layers only where they are thick', () => {
     const petg = { ...pla, name: 'PETG', overhang: 40 };
-    expect(noteFor(0.4, 0.2, petg)).toContain('the pin lying flat with 40° cones');
-    expect(noteFor(0.4, 0.2, petg)).toContain('a radius or a 40° slope');
+    // Point 2: one definition of steep with the material's angle, used by cones, slopes, roofs and chamfers.
+    expect(noteFor(0.4, 0.2, petg)).toContain('Steep here means leaning at most 40° from the vertical.');
+    expect(noteFor(0.4, 0.2, petg)).toContain('the pin lying flat with steep cones');
+    expect(noteFor(0.4, 0.2, petg)).toContain('a radius or a steep slope');
+    expect(noteFor(0.4, 0.2, petg)).not.toMatch(/\d+° (cones|slope)/);
     expect(noteFor(0.4, 0.2)).not.toContain('This layer is more than half the nozzle');
     expect(noteFor(0.4, 0.28)).toContain('This layer is more than half the nozzle');
   });
