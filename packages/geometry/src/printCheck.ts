@@ -383,6 +383,16 @@ const round = (value: number, digits = 2) => Math.round(value * 10 ** digits) / 
 /** How close (mm) to the bed a corner must lie to touch it: overhang.ts's BED_TOLERANCE. */
 const BED_TOUCH = 0.05;
 
+/**
+ * A rounded bed edge has a facet leaning more than 65° from the vertical (BC-27 review B1): a fillet runs flat into the
+ * bed, and meshed in two facets or more its lowest one leans at least 67.5°. A chamfer has one slope all the way: the
+ * rules' 45°, or the material's angle where that is less, reads at most about 46° on the facets of a cone round a
+ * rounded corner or a disc, which lean past a 40° or 35° material's limit but are no fillet.
+ * shortcut: a cone leaning more than 65° at the bed (a chamfer nearly flat) is told as a rounded edge too; tell cones
+ * apart by their single slope if one turns up.
+ */
+const FILLET_FOOT = Math.sin((65 * Math.PI) / 180);
+
 /** How close (mm) two bodies must come to count as touching. */
 const TOUCH = 0.05;
 /** Askew, so a ray does not run along the edges of boxes drawn on the axes. */
@@ -784,12 +794,13 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       const overhangTally = new FaceTally(faces);
       const contactTally = new FaceTally(faces);
       const roundTally = new FaceTally(faces);
-      // Per curved face: whether it starts on the bed beside a face lying there, and how high its leaning part reaches.
+      // Per curved face as it lies: whether it touches the bed beside a face lying there, whether a facet lies as flat as a
+      // fillet's foot, its corners (x y z each), and how high its leaning part reaches; and its facets leaning past the limit.
       const besideBed = new Uint8Array(faces);
+      const flatFoot = new Uint8Array(faces);
+      const faceCorners = new Map<number, number[]>();
       const leanTop = new Float64Array(faces).fill(-Infinity);
-      // Per curved face as it lies: its area and the area-weighted sum of its triangles' middles; its facets leaning past the limit.
-      const middle = new Float64Array(faces * 4);
-      const leaning: { face: number; area: number; corners: number[]; normal: Vector3; centroid: Vector3; top: number }[] = [];
+      const leaning: { face: number; area: number; corners: number[]; lying: ReturnType<typeof triangle> }[] = [];
       const at = (v: number) => `${String(Math.round((mesh.positions[v * 3] ?? 0) * 1000))},${String(Math.round((mesh.positions[v * 3 + 1] ?? 0) * 1000))}`;
       const bedPoints = new Set<string>();
       map.vertices.forEach((kind, v) => {
@@ -811,17 +822,31 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
           const v = index[t * 3 + k] ?? 0;
           if ((mesh.positions[v * 3 + 2] ?? Infinity) <= mesh.bed + BED_TOUCH && bedPoints.has(at(v))) besideBed[face] = 1;
         }
-        middle[face * 4] = (middle[face * 4] ?? 0) + lying.area;
-        for (let k = 0; k < 3; k += 1) middle[face * 4 + 1 + k] = (middle[face * 4 + 1 + k] ?? 0) + lying.area * lying.centroid.getComponent(k);
-        if (lying.normal && -lying.normal.z > roundLean) leaning.push({ face, area, corners, normal: lying.normal, centroid: lying.centroid, top: Math.max(lying.corners[2] ?? -Infinity, lying.corners[5] ?? -Infinity, lying.corners[8] ?? -Infinity) });
+        const own = faceCorners.get(face) ?? [];
+        own.push(...lying.corners);
+        faceCorners.set(face, own);
+        if (lying.normal && -lying.normal.z > FILLET_FOOT) flatFoot[face] = 1;
+        if (lying.normal && -lying.normal.z > roundLean) leaning.push({ face, area, corners, lying });
       }
-      // Only the outside of a round counts: the face's middle lies behind each of its facets (a hole's roof bends the other way).
-      for (const { face, area, corners, normal, centroid, top } of leaning) {
-        const weight = middle[face * 4] ?? 0;
-        const behind = new Vector3(middle[face * 4 + 1] ?? 0, middle[face * 4 + 2] ?? 0, middle[face * 4 + 3] ?? 0).divideScalar(weight || 1).sub(centroid).dot(normal);
+      // Only the outside of a round counts (review M1): the face's corners round a facet lie behind it on the whole, as along
+      // a fillet's profile, also where it runs round the foot of a hole (the tight bend of the profile outweighs the wide
+      // one round the hole). Round a hole's roof they lie in front.
+      for (const { face, area, corners, lying } of leaning) {
+        const { normal, centroid } = lying;
+        const own = faceCorners.get(face) ?? [];
+        if (!besideBed[face] || !flatFoot[face] || !normal) continue;
+        let reach = 0;
+        for (let k = 0; k < 9; k += 3) reach = Math.max(reach, centroid.distanceTo(new Vector3(lying.corners[k], lying.corners[k + 1], lying.corners[k + 2])));
+        // Three times the way from the middle to the farthest corner: the neighbours across each edge of the facet count.
+        const within = (3 * reach) ** 2;
+        let behind = 0;
+        for (let k = 0; k < own.length; k += 3) {
+          const [dx, dy, dz] = [(own[k] ?? 0) - centroid.x, (own[k + 1] ?? 0) - centroid.y, (own[k + 2] ?? 0) - centroid.z];
+          if (dx * dx + dy * dy + dz * dz <= within) behind += dx * normal.x + dy * normal.y + dz * normal.z;
+        }
         if (behind >= -EPSILON) continue;
         roundTally.add(face, area, 0, corners);
-        leanTop[face] = Math.max(leanTop[face] ?? -Infinity, top);
+        leanTop[face] = Math.max(leanTop[face] ?? -Infinity, lying.corners[2] ?? -Infinity, lying.corners[5] ?? -Infinity, lying.corners[8] ?? -Infinity);
       }
       map.supportByFace.forEach((area, face) => {
         overhangTally.area[face] = area;
@@ -831,7 +856,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       // above the first layer (under it the slicer's first layer is all there is of it). A large one needs support and is
       // told as an overhang already; this tells the small ones the slicers print without, whose foot ends flat and curls.
       roundTally.area.forEach((_, face) => {
-        if (!besideBed[face] || (leanTop[face] ?? -Infinity) <= mesh.bed + layerOf(profile.layer) || (overhangTally.area[face] ?? 0) >= MIN_AREA) roundTally.area[face] = 0;
+        if ((leanTop[face] ?? -Infinity) <= mesh.bed + layerOf(profile.layer) || (overhangTally.area[face] ?? 0) >= MIN_AREA) roundTally.area[face] = 0;
       });
       rounded.push(roundTally);
       standing[b] = { tally: contactTally, area: map.area[Overhang.Bed], foot };

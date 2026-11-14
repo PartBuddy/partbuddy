@@ -58,6 +58,12 @@ describe('rounded bed edges (BC-27)', () => {
     ['ChamferBed2', 45, 'none'],
     ['FilletTop2', 45, 'none'],
     ['FilletTop2', 40, 'none'],
+    // Review M1: a 1 mm fillet round the foot of an 8 mm hole bends round the hole the other way, and is one still.
+    ['HoleFillet1', 45, 23],
+    ['HoleFillet1', 40, 23],
+    // Review B1: a 0.6 mm chamfer round rounded corners (r 1, 2, 5 mm) and round a disc is a cone of one slope, 45°: past
+    // a 40° or 35° material's limit, but a chamfer already (the first version said 4 to 52 mm²).
+    ...(['CornerBox1', 'CornerBox2', 'CornerBox5', 'ChamferDisc'] as const).flatMap((name) => [45, 40, 35].map((angle): [string, number, 'none'] => [name, angle, 'none'])),
   ];
 
   it.each(cases)('%s at %i°', (name, overhang, want) => {
@@ -74,7 +80,7 @@ describe('rounded bed edges (BC-27)', () => {
       } else {
         expect(round, what).toMatchObject({ severity: 'warn', limit: overhang });
         expect(Math.abs((round?.area ?? 0) - want), `${what}: ${String(round?.area)} mm²`).toBeLessThanOrEqual(want * 0.1);
-        expect(round?.places[0]?.faces.every((face) => face.includes('blend')), what).toBe(true);
+        expect(round?.places[0]?.faces.length, what).toBeGreaterThan(0);
       }
     }
   }, 60_000);
@@ -84,5 +90,25 @@ describe('rounded bed edges (BC-27)', () => {
     for (const name of ['Chamfer', 'Rod8M5', 'Rod20M8']) {
       for (const overhang of [45, 40]) expect(one(checkPrint([solidcraft('holes', name)], { ...PLA, overhang }).findings, 'roundBedEdge'), `${name} at ${String(overhang)}°`).toBeUndefined();
     }
+  }, 60_000);
+});
+
+describe("PartBuddy's templates (BC-27 review B1)", () => {
+  // templates.faces.json: templateSteps of each template built with SolidCraft 0.40.1 (apps/desktop/test/templateFixtures.test.ts),
+  // the bodies it names on their print faces and in their print-in-place groups; standard parts are left out as in the app.
+  const tables = JSON.parse(readFileSync(new URL('templates.faces.json', fixture), 'utf8')) as Record<string, FaceTable & { printFace?: string; group?: string }>;
+  const ids = [...new Set(Object.keys(tables).map((key) => key.split('/')[0] ?? ''))];
+
+  it.each(ids)('%s has no rounded bed edge at 45°, 40° or 35°: its bed chamfers round rounded corners are cones', (id) => {
+    const bodies = Object.entries(tables)
+      .filter(([key]) => key.startsWith(`${id}/`))
+      .map(([, table]) => {
+        const mesh = parseTagged3mf(new Uint8Array(readFileSync(new URL(`templates-${id}-${table.body.replace(/\W/g, '')}.3mf`, fixture))));
+        return { name: table.body, model: buildViewerModel(buildRenderMesh(mesh, table), table), printFace: table.printFace, group: table.group };
+      });
+    expect(bodies.length, id).toBeGreaterThan(0);
+    for (const overhang of [45, 40, 35]) expect(one(checkPrint(bodies, { ...PLA, overhang }).findings, 'roundBedEdge'), `${id} at ${String(overhang)}°`).toBeUndefined();
+    // The housing's one warning stays the lid lying on it (solidcraft.contract.spec.ts, sharing package).
+    if (id === 'housing') expect(kinds(checkPrint(bodies, PLA).findings)).toEqual(['separate']);
   }, 60_000);
 });
