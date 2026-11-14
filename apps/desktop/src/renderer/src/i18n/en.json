@@ -700,6 +700,8 @@
     }
   },
   "structure": {
+    "sectionHeight": "Height of {name}",
+    "sectionHeightHint": "Drag to change the height · double-click: as high as its rows",
     "title": "Structure",
     "bodies": "Bodies ({count})",
     "sketches": "Sketches ({count})",

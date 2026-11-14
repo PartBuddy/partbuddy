@@ -700,6 +700,8 @@
     }
   },
   "structure": {
+    "sectionHeight": "Höhe von {name}",
+    "sectionHeightHint": "Ziehen ändert die Höhe · Doppelklick: so hoch wie die Einträge",
     "title": "Struktur",
     "bodies": "Körper ({count})",
     "sketches": "Skizzen ({count})",

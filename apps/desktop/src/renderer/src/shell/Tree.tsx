@@ -1,6 +1,8 @@
 import { IconChevronRight } from '@tabler/icons-react';
 import { createContext, useContext, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Menu, MenuItem, Popover } from 'react-aria-components';
+import { ChatResizer } from './ChatResizer';
 import { pressable } from '../ui/Button';
 import { fieldBox } from '../ui/Field';
 import { POPOVER_OFFSET, menuClass, menuItemClass, popoverClass } from '../ui/Overlay';
@@ -12,6 +14,30 @@ import { Shortcut } from '../ui/Tooltip';
  * and End jump; each row handles its own Enter, F2, Space, Left and Right.
  */
 const Roving = createContext<{ current: string; setCurrent: (id: string) => void }>({ current: '', setCurrent: () => undefined });
+
+/** Kept in the renderer's localStorage: which sections and groups are open and how high a section was dragged. */
+function useStored<T>(key: string, initial: T): [T, (value: T) => void] {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const stored = window.localStorage.getItem(key);
+      return stored === null ? initial : (JSON.parse(stored) as T);
+    } catch {
+      return initial;
+    }
+  });
+  const set = (next: T) => {
+    setValue(next);
+    try {
+      window.localStorage.setItem(key, JSON.stringify(next));
+    } catch {
+      // Without storage it lasts until the window closes.
+    }
+  };
+  return [value, set];
+}
+
+/** The smallest a section dragged up may be: its head and one row. */
+const LEAST_SECTION = 56;
 
 const rows = (tree: Element) => [...tree.querySelectorAll<HTMLElement>('[role="treeitem"]:not([data-extra])')];
 
@@ -33,6 +59,7 @@ export function Tree({ label, first, children, testId }: { label: string; first:
   };
   return (
     <Roving.Provider value={{ current, setCurrent }}>
+      {/* Each open section scrolls on its own, heads stay in sight; the tree scrolls only when the window is too low for all of them. */}
       <div ref={stop} role="tree" aria-label={label} onKeyDown={onKeyDown} className="flex w-full min-w-0 flex-col overflow-y-auto border-r border-border bg-surface py-1" data-testid={testId}>
         {children}
       </div>
@@ -54,7 +81,12 @@ function useRow(id: string) {
 
 const toParent = (row: HTMLElement) => row.parentElement?.closest('[role="group"]')?.previousElementSibling as HTMLElement | null | undefined;
 
-/** A folding section: chevron, type icon, name and a count badge; Left and Right fold it. */
+/**
+ * A folding section: chevron, type icon, name and a count badge; Left and Right fold it. Open or closed and a height
+ * dragged at its lower edge are remembered (decided 2026-11-14); without a dragged height it is as high as its rows
+ * and gives way with a scrollbar of its own when the sections do not fit, the more the more rows it has, keeping up
+ * to five rows in sight; an empty one does not give way.
+ */
 export function TreeSection({
   id,
   icon,
@@ -75,10 +107,20 @@ export function TreeSection({
   children: ReactNode;
   testId?: string;
 }) {
-  const [open, setOpen] = useState(true);
+  const { t } = useTranslation();
+  const [open, setOpen] = useStored(`partbuddy.tree.${id}.open`, true);
+  const [height, setHeight] = useStored<number | null>(`partbuddy.tree.${id}.height`, null);
+  const box = useRef<HTMLDivElement>(null);
   const row = useRow(id);
+  const room = () => box.current?.parentElement?.clientHeight ?? 2000;
+  const shown = Math.min(Math.max(count, 2), 5);
   return (
-    <div className="border-border not-first:border-t" data-testid={testId}>
+    <div
+      ref={box}
+      className="relative flex min-h-0 flex-col border-border not-first:border-t"
+      style={open ? (height === null ? { flex: `0 ${String(count)} auto`, minHeight: `calc(var(--spacing-row) + ${String(shown)} * var(--spacing-control-sm) + 0.25rem)` } : { flex: `0 0 ${String(height)}px` }) : { flex: 'none' }}
+      data-testid={testId}
+    >
       <div
         {...row}
         role="treeitem"
@@ -97,7 +139,7 @@ export function TreeSection({
             (event.currentTarget.nextElementSibling?.querySelector('[role="treeitem"]:not([data-extra])') as HTMLElement | null)?.focus();
           }
         }}
-        className="flex h-row cursor-default items-center gap-2 pr-2 pl-1 text-sm font-semibold text-text outline-none transition-colors select-none hover:bg-surface-hover active:bg-surface-pressed focus-visible:focus-ring-inset"
+        className="flex h-row shrink-0 cursor-default items-center gap-2 pr-2 pl-1 text-sm font-semibold text-text outline-none transition-colors select-none hover:bg-surface-hover active:bg-surface-pressed focus-visible:focus-ring-inset"
       >
         <IconChevronRight className={`size-icon-sm shrink-0 text-text-subtle transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />
         <span className="inline-flex shrink-0 text-text-muted">{icon}</span>
@@ -111,7 +153,95 @@ export function TreeSection({
         </span>
       </div>
       {open ? (
-        <div role="group" className="relative animate-fade-in pb-1 before:absolute before:top-0 before:bottom-1 before:left-3 before:border-l before:border-border">
+        <div role="group" className="min-h-0 animate-fade-in overflow-y-auto" data-testid={testId ? `${testId}-body` : undefined}>
+          <div className="relative pb-1 before:absolute before:top-0 before:bottom-1 before:left-3 before:border-l before:border-border">{children}</div>
+        </div>
+      ) : null}
+      {open ? (
+        // A tree holds only rows, so the divider sits in one, left out of the arrow keys and reached with Tab.
+        <TreeExtra className="relative h-0 shrink-0">
+          <ChatResizer
+            edge="bottom"
+            // 0 stands for as high as its rows: Home, Enter and a double click go back to it.
+            width={height ?? 0}
+            measure={() => box.current?.getBoundingClientRect().height ?? 0}
+            min={0}
+            max={window.innerHeight}
+            standard={0}
+            onChange={(next) => {
+              setHeight(next <= 0 ? null : Math.round(Math.min(room(), Math.max(LEAST_SECTION, next))));
+            }}
+            label={t('structure.sectionHeight', { name: title })}
+            hint={t('structure.sectionHeightHint')}
+            testId={testId ? `${testId}-resizer` : 'section-resizer'}
+          />
+        </TreeExtra>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A group of rows inside a section (the parameters' groups, their computed values): a row with a chevron, the
+ * name and a count, its rows one level deeper. Right and Left open and close it, Enter and Space too; whether
+ * it is open is remembered by `id`.
+ */
+export function TreeFolder({
+  id,
+  title,
+  count,
+  level = 2,
+  initiallyOpen = true,
+  children,
+  testId,
+}: {
+  id: string;
+  title: string;
+  count: number;
+  level?: number;
+  initiallyOpen?: boolean;
+  children: ReactNode;
+  testId?: string;
+}) {
+  const [open, setOpen] = useStored(`partbuddy.tree.${id}.open`, initiallyOpen);
+  const row = useRow(id);
+  return (
+    <div data-testid={testId} data-group={title}>
+      <div
+        {...row}
+        role="treeitem"
+        aria-level={level}
+        aria-expanded={open}
+        aria-selected={false}
+        onClick={() => {
+          setOpen(!open);
+        }}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key === 'Enter' || event.key === ' ' || (event.key === 'ArrowLeft' && open) || (event.key === 'ArrowRight' && !open)) {
+            event.preventDefault();
+            setOpen(!open);
+          } else if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            (event.currentTarget.nextElementSibling?.querySelector('[role="treeitem"]:not([data-extra])') as HTMLElement | null)?.focus();
+          } else if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            toParent(event.currentTarget)?.focus();
+          }
+        }}
+        className="relative mr-1 flex h-control-sm cursor-default items-center gap-1 rounded-r-sm pr-1 pl-4 text-xs font-medium text-text-muted outline-none select-none hover:bg-surface-hover focus-visible:focus-ring-inset"
+      >
+        <IconChevronRight className={`size-icon-sm shrink-0 text-text-subtle transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden />
+        <span className="min-w-0 flex-1 truncate">
+          {title}
+          <span className="sr-only">{` (${String(count)})`}</span>
+        </span>
+        <span className="shrink-0 text-text-subtle tabular-nums" aria-hidden>
+          {count}
+        </span>
+      </div>
+      {open ? (
+        <div role="group" className="relative pl-3">
           {children}
         </div>
       ) : null}
@@ -181,6 +311,7 @@ export function TreeItem({
   children,
   testId,
   data,
+  level = 2,
   className = '',
 }: {
   id: string;
@@ -201,6 +332,8 @@ export function TreeItem({
   children: ReactNode;
   testId?: string;
   data?: Record<string, string | boolean>;
+  /** Deeper inside a group (TreeFolder). */
+  level?: number;
   className?: string;
 }) {
   const row = useRow(id);
@@ -229,7 +362,7 @@ export function TreeItem({
         {...dataAttributes}
         ref={ref}
         role="treeitem"
-        aria-level={2}
+        aria-level={level}
         {...(label === undefined ? {} : { 'aria-label': label })}
         aria-selected={selected ?? false}
         {...(expanded === undefined ? {} : { 'aria-expanded': expanded })}
