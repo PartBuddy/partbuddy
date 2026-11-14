@@ -145,7 +145,18 @@ Opus 5.5 · Mittel (PR #354); Claude Codes Eintrag „Default (recommended)“ i
 | 12.11.2026 | #353: 3. Runde gepusht (Brückenrichtung aus den Auflagern, Flutung vom Bett, Laufzeit 56 s → 0,4 s); 3. Review läuft, Vertragstests in der Schlange. #356: 3. Review „merge-reif“, letzte kleine Runde (Absturz nicht dauerhaft merken, Cache validieren, Zeitfenster der Druckprüfung) plus neuer Befund P-6 (`screenshot {path}` überschreibt Nutzerdateien) | je nach Push: Vertragstests, mergen |
 | 12.11.2026 | Merke: `contract.yml` hat nur EINEN wartenden Platz – ein neu angestoßener Lauf bricht den wartenden ab. Vertragstests immer einzeln anstoßen, erst wenn kein Lauf mehr läuft oder wartet; `cancelled` zählt nicht. Der Test „starts SolidCraft without a window“ zählt `solidcraft-cli`-Prozesse auf dem Rechner und kippt, wenn nebenher ein Harness-Lauf endet | gilt |
 
-## Stand Nacht 13./14.11.2026 (neue Sitzung, laufend fortgeschrieben) – ZUERST LESEN
+## Stand 14.11.2026 Tag – ZUERST LESEN
+
+- **Gemergt nach der Fragerunde:** #400 electron-updater 6.8.12, #401 BC-26 (Erlaubnisliste je Befehl), #402 BC-28 (Drucklage
+  Zapfen/Schnapphaken), #391 BC-19 (Schalter „Stützfrei“ gestrichen, Überhang nur Hinweis), #403 Issues #326/#374 (Fenster leer
+  nach Klick in Fragekarte), #404 BC-27 (nur `roundBedEdge`; `wallLines` gestrichen, Arachne + Fehlalarme an eigenen Teilen).
+- **Repo:** Actions-Freigabe für alle externen Beiträger (`all_external_contributors`).
+- **Server:** SolidCraft 0.41.0 seit 08:18 (UniGetUI); PowerShell 7 war von UniGetUI durch die Store-Version ersetzt worden →
+  Runner fanden `pwsh` nicht; per `winget … --installer-type wix --scope machine` zurück.
+- **In Arbeit:** BC-24 (Worktree `../partbuddy-wt-bc-24`, Zweig `feat/bc24-new-checks`), danach Phase 4 und Phase 7.
+- **Lehre:** Neue Prüfungen immer an allen Vorlagen und eigenen Bausteinen (mehrere Düsen/Materialien) messen, bevor sie reviewt werden.
+
+## Stand Nacht 13./14.11.2026 (neue Sitzung, laufend fortgeschrieben)
 
 - **Gemergt in der Nacht:** BC-11 #389, BC-13 #390 (vor BC-12, Text zum Lochspiel stimmt seit #387), BC-21 #388, BC-12 #387,
   BC-20 #392, BC-08 #385, E2E-Wackler #393 (Shader je Revision neu kompiliert: drei-Patch `<Line>` + `thumbnail.ts`; Kamera-Flow
