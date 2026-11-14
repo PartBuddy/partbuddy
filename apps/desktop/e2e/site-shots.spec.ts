@@ -329,7 +329,7 @@ test('website pictures', async () => {
     });
     await step('model', async () => {
       await page.getByTestId('agent-status').click();
-      await expect(page.getByTestId('agent-menu').getByTestId('model-option')).toHaveCount(4);
+      await expect(page.getByTestId('agent-menu').getByTestId('model-option')).toHaveCount(3);
       await expect(page.getByTestId('agent-usage')).toBeVisible();
       await shot('model');
       await page.keyboard.press('Escape');
@@ -373,8 +373,9 @@ test('website pictures', async () => {
     // The housing around an imported circuit board.
     await step('import', async () => {
       await open('Housing');
+      const bodies = await page.getByTestId('structure-body').count();
       await page.evaluate((path) => (globalThis as unknown as Bridge).partbuddy.design.insert(path), board);
-      await expect(page.getByTestId('structure-body')).toHaveCount(3, { timeout: 30_000 });
+      await expect(page.getByTestId('structure-body')).toHaveCount(bodies + 1, { timeout: 30_000 });
       await page.keyboard.press('0');
       await shot('import');
     });
@@ -394,12 +395,8 @@ test('website pictures', async () => {
           .toBe(true);
         console.log(`research: ${String(await page.getByTestId('source-card').count())} source cards`);
       } else await expect(page.getByTestId('source-card')).toHaveCount(2, { timeout: 30_000 });
-      // The standard part the answer speaks of, in the lid hole nearest the camera (lid beside the housing).
-      const inserted = await page.evaluate(() =>
-        (globalThis as unknown as Bridge).partbuddy.design.insertPart({ family: 'socket_head_cap_screw', size: 'M3', length: 10, point: [76.2, 75.5, 1] }),
-      );
-      if (!inserted.body) throw new Error('no screw inserted');
-      await expect(page.getByTestId('structure-body').filter({ hasText: 'standard part' })).toHaveCount(1, { timeout: 30_000 });
+      // The standard parts the answer speaks of: the template seats an M3 screw in each lid hole.
+      await expect(page.getByTestId('structure-body').filter({ hasText: 'standard part' })).toHaveCount(4, { timeout: 30_000 });
       if (REAL) {
         // The seated screw took the chat to its end; the website's crop (crops.ts: x 560–1440, y 300–720 at
         // 1440 × 900) shows the chat's middle, so the first search card goes there.
@@ -467,6 +464,8 @@ test('website pictures', async () => {
       await fresh();
       await send('Build a box with a hinged lid');
       await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 60_000 });
+      // The joint moves only once the turn is over (its final review runs after the build).
+      await expect(page.getByTestId('composer-stop')).toHaveCount(0, { timeout: 3 * 60_000 });
       await page.keyboard.press('0');
       await page.waitForTimeout(1200);
       await page.getByTestId('joints').click();

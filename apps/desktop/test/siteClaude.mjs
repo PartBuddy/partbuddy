@@ -44,9 +44,9 @@ const HINGED_BOX = [
   {"command":"solid.box","params":{"length":60,"width":40,"height":8,"operation":"new","body_name":"Box","name":"Box"}},
   {"command":"solid.fillet","params":{"edges":[[0,0,4],[60,0,4],[0,40,4],[60,40,4]],"radius":3,"body":"Box","name":"Box corners"}},
   {"command":"solid.box","params":{"length":56.8,"width":36.8,"height":7,"corner":[1.6,1.6,1],"operation":"cut","targets":["Box"],"name":"Hollow"}},
-  {"command":"solid.box","params":{"length":60,"width":40,"height":2,"corner":[0,44,0],"operation":"new","body_name":"Lid","name":"Lid"}},
-  {"command":"solid.fillet","params":{"edges":[[0,44,1],[60,44,1],[0,84,1],[60,84,1]],"radius":3,"body":"Lid","name":"Lid corners"}},
-  {"command":"solid.box","params":{"length":16,"width":1.2,"height":4,"corner":[22,82.8,2],"operation":"join","targets":["Lid"],"name":"Catch"}},
+  {"command":"solid.box","params":{"length":60,"width":40,"height":4,"corner":[0,44,0],"operation":"new","body_name":"Lid","name":"Lid"}},
+  {"command":"solid.fillet","params":{"edges":[[0,44,2],[60,44,2],[0,84,2],[60,84,2]],"radius":3,"body":"Lid","name":"Lid corners"}},
+  {"command":"solid.box","params":{"length":16,"width":1.2,"height":4,"corner":[22,82.8,4],"operation":"join","targets":["Lid"],"name":"Catch"}},
 ];
 
 const HOUSING_ROUND = [
@@ -142,8 +142,8 @@ if (args[0] === '--version') {
       out({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'wf1', name: 'WebFetch', input: { url: 'https://fastener-tables.example/iso-4762', prompt: 'M3 head size' } }] } });
       out({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'wf1', content: 'M3: head diameter 5.5 mm, head height 3 mm.' }] } });
       say(
-        'An **M3** socket head cap screw (ISO 4762) has a **5.5 mm** head, 3 mm high. The lid holes are **3.4 mm**, the normal clearance for M3 (ISO 273), and the bosses leave room for the head.\n\n' +
-          'An M3 × 10 goes through the 2 mm lid and 8 mm into the insert below it. I seated one in a corner of the lid so you can check the length.',
+        'An **M3** socket head cap screw (ISO 4762) has a **5.5 mm** head, 3 mm high. The lid holes print at **3.4 mm**, the normal clearance for M3 (ISO 273), and the bosses leave room for the head.\n\n' +
+          'An M3 × 10 goes through the 2 mm lid and 8 mm into the insert below it. One sits in each corner of the lid, so you can check the length.',
       );
       continue;
     }
@@ -181,7 +181,7 @@ if (args[0] === '--version') {
       say('The case and a flat lid are built, the lid **0.1 mm** above the rim. The print indicator shows that as tighter than the push fit for PLA: printed like this, the two would fuse.');
     } else if (said === 'Build a box with a hinged lid') {
       for (const step of HINGED_BOX) await client?.callTool({ name: 'execute', arguments: step });
-      await client?.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'hinge', fixed: 'Box', moving: 'Lid', from: [6, 42, 5], to: [54, 42, 5], diameter: 10, name: 'Lid hinge' } });
+      await client?.callTool({ name: 'partbuddy_mechanism', arguments: { kind: 'hinge', fixed: 'Box', moving: 'Lid', from: [6, 41.8, 3], to: [54, 41.8, 3], name: 'Lid hinge' } });
       // The whole way to closed on the slider, as a real answer did (practice run 2026-11-10): the check then points at the catch.
       await client?.callTool({ name: 'execute', arguments: { command: 'joint.limits', params: { joint: 'Lid hinge', min: 0, max: 180 } } });
       await client?.close();
