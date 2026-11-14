@@ -35,7 +35,7 @@ describe('a print limit of a form block in the interface language (third review 
   });
 
   it('has a sentence for every reason in both languages, with the same placeholders', () => {
-    const reasons = ['stroke', 'strokeBold', 'lipWall', 'grooveWall', 'armWall', 'catch', 'layer', 'screw', 'nutFlats', 'nutCorners', 'nutHeight'];
+    const reasons = ['stroke', 'strokeBold', 'lipWall', 'grooveWall', 'armWall', 'catch', 'layer', 'screw', 'nutFlats', 'nutCorners', 'nutHeight', 'strain'];
     const placeholders = (text: string) => [...text.matchAll(/\{(\w+)/g)].map((match) => match[1]).sort();
     for (const reason of reasons) {
       const [english, german] = [(en.blocks.limit as Record<string, string>)[reason] ?? '', (de.blocks.limit as Record<string, string>)[reason] ?? ''];

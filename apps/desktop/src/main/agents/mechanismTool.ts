@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import { LID, LIP, WEB, hangs, hingeDiameter, hingeLies, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideOver, slideProblem, slideRoof, slideSteps, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, snapFrame, snapHold, snapProblem, snapSteps, snapWindow, latchFrame, latchProblem, latchReach, latchSteps, latchStrain, LATCH, pegBore, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
-import { snapStrain } from '../../shared/blocks';
+import { LID, LIP, WEB, hangs, hingeDiameter, hingeLies, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideOver, slideProblem, slideRoof, slideSteps, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, snapFrame, snapHold, snapHook, snapLimit, snapProblem, snapSteps, snapStrain, snapWindow, standsUpright, limitWords, uprightSaid, latchArm, latchFrame, latchProblem, latchReach, latchSteps, latchStrain, LATCH, SNAP_OFTEN, SHARP_ROOT, pegBore, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, CLEARANCE_NORMAL, INSERT, type BlockSize } from '../../shared/screwSizes';
-import { BRIDGE_SPAN, minimumFloor, minimumWall, thinnestLine } from '@partbuddy/geometry';
+import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 import { printInPlaceGap, type FitPrinter } from '../../shared/designFit';
 import { DEFAULT_MATERIAL, DEFAULT_PRINTER, drawnHole, fitClearance, heldSaid, unmeasuredSaid, type ToolMaterial, type ToolPrinter } from '../../shared/toolFit';
 
@@ -47,11 +46,11 @@ const mechanismTool: UpstreamTool = {
     'screw: one or more screws that hold the moving body on the fixed one: a clearance hole with the room for the head in the moving body, and on the same line the seat of a heat-set insert (or a modelled thread from M5) in the fixed body; the screws go in as standard parts. ' +
     'Give from where the screw goes in (on the outer face of the moving body) and to where its line passes into the fixed body (on the face the two meet at); more lists where further screws of the same kind go in. ' +
     'snap: cantilever snap hooks standing on the fixed body, each catching in a window cut through a wall of the moving body, for a cover that clips on and comes off by pressing the catches back. Give from as the foot of the hook (on the face of the fixed body it stands on, at the inner face of that wall), up as the way the hook stands, which is the way the parts come apart, to as a point further into the wall (the way the catch points), wall as the wall\'s thickness, and more for further hooks catching the same way; call again for the opposite wall. ' +
-    'PartBuddy measures that wall at each hook before it builds and says what is wrong: as thick as wall, its inner face at from, and whole round the window, which goes from ' + String(snapWindow().from) + ' to ' + String(snapWindow().to) + ' mm above the foot and is ' + String(2 * snapWindow().half) + ' mm wide, by two lines of the nozzle (over and under the window in a standing wall four layers, at least ' + String(minimumFloor(0.001)) + ' mm). It makes no joint. ' +
+    'PartBuddy measures that wall at each hook before it builds and says what is wrong: as thick as wall, its inner face at from, and whole round the window, which goes from ' + String(snapWindow().from) + ' to ' + String(snapWindow().to) + ' mm above the foot and is ' + String(2 * snapWindow().half) + ' mm wide on a 0.4 mm nozzle, by two lines of the nozzle or four layers (at least ' + String(minimumFloor(0.001)) + ' mm), whichever is more, as the part may print either way. On a coarser nozzle, or in a material that takes less bending, the hook is thicker or longer and its window with it: the answer gives the sizes. It makes no joint. ' +
     'plug: a plugged connection that makes no joint, to align and glue the halves of a split part or to push one part onto another. With shape peg (the default): round pegs on the fixed body and their pockets in the moving one; give from as the foot of the peg on the face the two meet at, to as a point further into the moving body, more for further pegs (two or more, far apart, keep the parts from turning), diameter (default 5) and gap per side (default the material\'s push fit to slide and glue, ' + String(fitClearance('push', DEFAULT_PRINTER)) + ' in PLA; its clamp fit to press, ' + String(fitClearance('clamp', DEFAULT_PRINTER)) + ' in PLA). ' +
     'With shape dovetail: a dovetail rail on the fixed body and its groove in the moving one, given as for slide (from, to, up, width, height) but a close fit (gap default the material\'s push fit, ' + String(fitClearance('push', DEFAULT_PRINTER)) + ' in PLA; less to press) and without a joint; the moving body is pushed on from the end at from and stops at to where the groove ends inside it. ' +
     'latch: a snap latch on the outside of a box, where the outer walls of lid and box lie in one plane: an arm grows out of the lid\'s wall, hangs down over the joint and snaps with a hook under a bead on the box; pulled at its lower end it lets go. Give fixed as the box and moving as the lid, from as the middle of the latch on the line where the two meet on that wall, to as a point straight out of the wall, up as the way from box to lid, and width. ' +
-    'PartBuddy measures before it builds that both walls are flat there and plastic ' + String(LATCH.into) + ' mm deep, across the latch: the lid\'s from ' + String(LATCH.foot) + ' to ' + String(latchReach().above) + ' mm above the joint, the box\'s from ' + String(LATCH.foot) + ' to ' + String(latchReach().below) + ' mm below it. ' +
+    'PartBuddy measures before it builds that both walls are flat there and plastic ' + String(LATCH.into) + ' mm deep, across the latch: on a 0.4 mm nozzle the lid\'s from ' + String(LATCH.foot) + ' to ' + String(latchReach().above) + ' mm above the joint, the box\'s from ' + String(LATCH.foot) + ' to ' + String(latchReach().below) + ' mm below it (on a coarser nozzle the arm is thicker and needs more: the answer says). ' +
     'It is for a lid that lifts off and prints apart from its box: one in the middle of a long wall, or one on each of two opposite walls. A lid on a print-in-place hinge prints with its box, where hook and bead would fuse: use closure there. It makes no joint. ' +
     'lid: a screw lid for a round container. It coils a thread with 45° flanks onto the container\'s neck and makes the lid itself, with the matching thread, flutes to grip and its top as print face; the two mesh as built. ' +
     'Give the container as fixed, the name the lid shall have as moving (no such body yet), from as the centre of the rim at its height, and diameter as the neck\'s outer diameter; the neck must be a plain upright cylinder of that diameter below the rim, with a wall of at least ' + String(NECK_WALL) + ' mm, as far down as the lid covers it: PartBuddy measures that before it builds and says what is wrong. ' +
@@ -252,30 +251,13 @@ const PEG_GAP = [0.05, 0.5] as const;
 const DOVETAIL_GAP = [0.1, 1] as const;
 
 /** The latch the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
-export function latchOf(args: Record<string, unknown>, nozzle = 0.4): LatchSpec | string {
+export function latchOf(args: Record<string, unknown>, nozzle = 0.4, material?: { name?: string | undefined }): LatchSpec | string {
   const base = common(args, 0.4, 'Latch');
   if (typeof base === 'string') return base;
   const up = args.up === undefined ? ([0, 0, 1] as Vec3) : vec3(args.up);
   if (!up) return 'up must be three numbers';
-  const spec: LatchSpec = { fixed: base.fixed, moving: base.moving, from: base.from, up, out: base.to.map((value, i) => value - (base.from[i] ?? 0)) as Vec3, width: typeof args.width === 'number' ? args.width : 10, name: base.name };
-  return latchProblem(spec) ?? armProblem('latch', LATCH.thick, null, nozzle) ?? spec;
-}
-
-/**
- * Snap hooks and the latch have fixed sizes (SNAP, LATCH): on a coarse nozzle their arm is under the two lines that print
- * solid, the hook's catch under the narrowest line a slicer lays (audit W15: arms of 1.5 and 1.6 mm, two lines of a 0.8 mm
- * nozzle are 1.8). Refused there, with what to use instead; null where they print.
- * shortcut: refused, not sized to the nozzle: hooks per material and nozzle are audit BC-17's.
- */
-export function armProblem(kind: 'snap' | 'latch', thick: number, hook: number | null, nozzle: number): string | null {
-  const [wall, line] = [minimumWall(nozzle), thinnestLine(nozzle)];
-  const why = [
-    thick < wall - 1e-9 ? `the arm of ${String(thick)} mm is under the ${String(wall)} mm of two lines that print solid` : null,
-    hook !== null && hook < line - 1e-9 ? `the catch of ${String(hook)} mm is under the ${String(line)} mm of the narrowest line a slicer lays` : null,
-  ].filter((part) => part !== null);
-  if (why.length === 0) return null;
-  const instead = kind === 'snap' ? 'Use partbuddy_block snapFit, whose sizes are raised to the nozzle, or print with a finer nozzle' : 'Use kind closure, whose lip follows the nozzle, or print with a finer nozzle';
-  return `${kind === 'snap' ? "PartBuddy's snap hooks" : "PartBuddy's latch"} ${kind === 'snap' ? 'are' : 'is'} sized for finer nozzles: on a ${String(nozzle)} mm nozzle ${why.join(' and ')}. ${instead}`;
+  const spec: LatchSpec = { fixed: base.fixed, moving: base.moving, from: base.from, up, out: base.to.map((value, i) => value - (base.from[i] ?? 0)) as Vec3, width: typeof args.width === 'number' ? args.width : 10, arm: latchArm({ nozzle, layer: 0.2 }, material), name: base.name };
+  return latchProblem(spec) ?? spec;
 }
 
 /** What each kind reads besides kind, fixed, moving, from and name; a plug by its shape. */
@@ -301,7 +283,7 @@ export function unusedSaid(args: Record<string, unknown>): string {
 }
 
 /** The snap hooks the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
-export function snapOf(args: Record<string, unknown>, nozzle = 0.4): SnapSpec | string {
+export function snapOf(args: Record<string, unknown>, nozzle = 0.4, material?: { name?: string | undefined }): SnapSpec | string {
   const base = common(args, 0.4, 'Snap hook');
   if (typeof base === 'string') return base;
   const up = args.up === undefined ? ([0, 0, 1] as Vec3) : vec3(args.up);
@@ -309,8 +291,8 @@ export function snapOf(args: Record<string, unknown>, nozzle = 0.4): SnapSpec | 
   const more = args.more === undefined ? [] : Array.isArray(args.more) ? args.more.map(vec3) : null;
   if (!more || more.some((point) => point === null)) return 'more must be a list of points, each three numbers';
   const toward = base.to.map((value, i) => value - (base.from[i] ?? 0)) as Vec3;
-  const spec: SnapSpec = { fixed: base.fixed, moving: base.moving, from: base.from, up, toward, more: more as Vec3[], wall: typeof args.wall === 'number' ? args.wall : 2, name: base.name };
-  return snapProblem(spec) ?? armProblem('snap', SNAP.thickness, SNAP.catch, nozzle) ?? spec;
+  const spec: SnapSpec = { fixed: base.fixed, moving: base.moving, from: base.from, up, toward, more: more as Vec3[], wall: typeof args.wall === 'number' ? args.wall : 2, hook: snapHook({ nozzle, layer: 0.2 }, material), name: base.name };
+  return snapProblem(spec) ?? spec;
 }
 
 /** The screw lid the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
@@ -1108,14 +1090,18 @@ const LATCH_FRONT = 0.15;
 /** How far past a hook's wall the rod reaches that must find nothing, so the window opens (mm). */
 const WINDOW_BEYOND = 1;
 
-/** The least a wall keeps along `way`, the way it is thick: four layers where that runs upright (a floor), two lines otherwise; for the hinge's skins and the bars and posts round a hook's window. */
+/** The least a wall keeps along `way`, the way it is thick: four layers where that runs upright (a floor), two lines otherwise; for the hinge's skins (a hook's window takes the larger of both, snapNeeds). */
 const leastAlong = (way: Vec3, printer: FitPrinter) => (Math.abs(way[2]) >= Math.SQRT1_2 ? minimumFloor(printer.layer) : minimumWall(printer.nozzle));
 
-/** Where each snap hook's window goes, round it, as `snapTrial` tries it (mm above the foot, and the width in all). */
-export function snapNeeds(spec: Pick<SnapSpec, 'up' | 'toward'>, printer: FitPrinter): { low: number; high: number; wide: number; bar: number; post: number } {
-  const { up, across } = snapFrame(spec);
-  const window = snapWindow();
-  const [bar, post] = [leastAlong(up, printer), leastAlong(across, printer)];
+/**
+ * Where each snap hook's window goes, round it, as `snapTrial` tries it (mm above the foot, and the width in all). The wall
+ * round it keeps two lines or four layers, whichever is more: how the part will lie to print is not known when it is built,
+ * and lying on its side a bar of the design's two lines is a floor (BC-11 review: 0.8 instead of 1.8 mm on a 0.8 mm nozzle).
+ */
+export function snapNeeds(spec: Pick<SnapSpec, 'hook'>, printer: FitPrinter): { low: number; high: number; wide: number; bar: number; post: number } {
+  const window = snapWindow(spec.hook);
+  const least = Math.max(minimumFloor(printer.layer), minimumWall(printer.nozzle));
+  const [bar, post] = [least, least];
   return { low: round2(window.from - bar), high: round2(window.to + bar), wide: round2(2 * (window.half + post)), bar, post };
 }
 
@@ -1132,7 +1118,8 @@ export function snapNeeds(spec: Pick<SnapSpec, 'up' | 'toward'>, printer: FitPri
  */
 export async function snapTrial(upstream: UpstreamTools, spec: SnapSpec, printer: FitPrinter, callId: string | undefined): Promise<string | null> {
   const { up, toward, across } = snapFrame(spec);
-  const window = snapWindow();
+  const { hook: arm } = spec;
+  const window = snapWindow(arm);
   const { low, high, wide, bar, post } = snapNeeds(spec, printer);
   const middle = (window.from + window.to) / 2;
   const feet = [spec.from, ...spec.more];
@@ -1144,9 +1131,9 @@ export async function snapTrial(upstream: UpstreamTools, spec: SnapSpec, printer
     return [
       rod('under', at(low + ROD / 2, face, -wide / 2), across, wide),
       rod('over', at(high - ROD / 2, face, -wide / 2), across, wide),
-      rod('front', at(0, -SNAP.gap / 2, 0), up, SNAP.length),
+      rod('front', at(0, -arm.gap / 2, 0), up, arm.length),
       // Just before where the window's cut starts, across it: a wall that curves further towards the hook keeps a wedge there.
-      rod('curve', at(middle, -(SNAP.gap + ROD / 2), -window.half), across, 2 * window.half),
+      rod('curve', at(middle, -(arm.gap + ROD / 2), -window.half), across, 2 * window.half),
       rod('through', at(middle, FACE_SLACK, 0), toward, spec.wall - 2 * FACE_SLACK),
       rod('beyond', at(middle, spec.wall, 0), toward, WINDOW_BEYOND),
     ];
@@ -1162,7 +1149,7 @@ export async function snapTrial(upstream: UpstreamTools, spec: SnapSpec, printer
       if (side < apart - 1e-6 && rise < high - low) return `hooks ${String(i + 1)} and ${String(k + 1)} stand ${String(round2(side))} mm apart along the wall: their windows are ${String(2 * window.half)} mm wide and keep ${String(post)} mm of wall between them, so the middles must be at least ${String(apart)} mm apart`;
     }
   }
-  const shares = await rodsInside(upstream, rods, up, SNAP.length, callId);
+  const shares = await rodsInside(upstream, rods, up, arm.length, callId);
   for (const hook of feet.keys()) {
     const found = (kind: string) => {
       const rod = rods.find((entry) => entry.hook === hook && entry.kind === kind);
@@ -1171,9 +1158,9 @@ export async function snapTrial(upstream: UpstreamTools, spec: SnapSpec, printer
     const where = feet.length > 1 ? ` at hook ${String(hook + 1)} (from ${JSON.stringify(feet[hook])})` : '';
     // In this order, so that each says the first thing wrong: something in the arm's way, no wall round the window, then its thickness.
     const front = found('front');
-    if (front.mm > TRIAL_SLACK) return `${spec.moving} stands in front of from${where}: in the ${String(SNAP.gap)} mm the arm keeps off the wall, up to ${String(SNAP.length)} mm above the foot, ${String(front.mm)} mm of the way are plastic, so the hook would run into it. Give from on the inner face of the wall, with the room in front of it free`;
+    if (front.mm > TRIAL_SLACK) return `${spec.moving} stands in front of from${where}: in the ${String(arm.gap)} mm the arm keeps off the wall, up to ${String(arm.length)} mm above the foot, ${String(front.mm)} mm of the way are plastic, so the hook would run into it. Give from on the inner face of the wall, with the room in front of it free`;
     const curve = found('curve');
-    if (curve.mm > TRIAL_SLACK) return `${spec.moving}'s wall${where} curves towards the hook by more than the ${String(SNAP.gap)} mm the arm keeps off it, across the window's ${String(2 * window.half)} mm (${String(curve.mm)} mm of a line there are plastic), so a thin wedge of it would stay in the window. Put the hook where the wall is flatter, or make it flat there`;
+    if (curve.mm > TRIAL_SLACK) return `${spec.moving}'s wall${where} curves towards the hook by more than the ${String(arm.gap)} mm the arm keeps off it, across the window's ${String(2 * window.half)} mm (${String(curve.mm)} mm of a line there are plastic), so a thin wedge of it would stay in the window. Put the hook where the wall is flatter, or make it flat there`;
     for (const side of ['under', 'over'] as const) {
       const bars = found(side);
       if (bars.mm < bars.length - TRIAL_SLACK) return `${spec.moving}'s wall${where} does not stand whole round the window, which goes from ${String(window.from)} to ${String(window.to)} mm above the foot: it needs ${String(bar)} mm of wall under and over it (from ${String(low)} to ${String(high)} mm above the foot) and ${String(post)} mm beside it (${String(wide)} mm wide in all), its face at most ${String(FACE_SLACK)} mm behind from; ${side} the window only ${String(bars.mm)} of ${String(bars.length)} mm are plastic. Make the wall that high and wide there, or move the hook`;
@@ -1187,9 +1174,9 @@ export async function snapTrial(upstream: UpstreamTools, spec: SnapSpec, printer
 }
 
 /** How far the latch's walls must be plastic behind their face, and from where to where along `up`, as `latchTrial` tries them. */
-function latchNeeds(): { deep: number; lid: [number, number]; box: [number, number] } {
-  const { above, below } = latchReach();
-  return { deep: LATCH.into, lid: [LATCH.foot, above], box: [-below, -LATCH.foot] };
+function latchNeeds(arm = LATCH): { deep: number; lid: [number, number]; box: [number, number] } {
+  const { above, below } = latchReach(arm);
+  return { deep: arm.into, lid: [arm.foot, above], box: [-below, -arm.foot] };
 }
 
 /**
@@ -1203,10 +1190,10 @@ function latchNeeds(): { deep: number; lid: [number, number]; box: [number, numb
  */
 export async function latchTrial(upstream: UpstreamTools, spec: LatchSpec, callId: string | undefined): Promise<string | null> {
   const { up, out, run } = latchFrame(spec);
-  const { deep, lid, box } = latchNeeds();
+  const { deep, lid, box } = latchNeeds(spec.arm);
   const at = (y: number, x: number, z: number) => spec.from.map((value, k) => round2(value + (up[k] ?? 0) * y + (out[k] ?? 0) * x + (run[k] ?? 0) * z));
   const edges = (half: number) => [-(half - ROD / 2), 0, half - ROD / 2];
-  const wide = spec.width / 2 + LATCH.beside;
+  const wide = spec.width / 2 + spec.arm.beside;
   const inside = (kind: 'lid' | 'box', body: string, [from, to]: [number, number], half: number) => edges(half).map((z, n) => ({ name: `${PROBE} ${kind} ${String(n)}`, kind, base: at(from, -(deep - ROD / 2), z), axis: up, length: round2(to - from), body }));
   const rods = [
     ...inside('lid', spec.moving, lid, spec.width / 2),
@@ -1222,7 +1209,7 @@ export async function latchTrial(upstream: UpstreamTools, spec: LatchSpec, callI
   const proud = rods.filter((rod) => rod.kind === 'front' && mm(rod) > TRIAL_SLACK);
   if (proud.length > 0) {
     const bodies = [...new Set(proud.map((rod) => rod.body))];
-    return `${bodies.join(' and ')} stand${bodies.length > 1 ? '' : 's'} out of the wall's plane at from: ${String(LATCH_FRONT)} mm in front of it, from ${String(-box[0])} mm below the joint to ${String(lid[1])} mm above it, up to ${String(Math.max(...proud.map(mm)))} mm of the way are plastic, where the arm hangs ${String(LATCH.off)} mm off the wall. Give from and to on a flat stretch of the outer wall, where lid and box lie in one plane`;
+    return `${bodies.join(' and ')} stand${bodies.length > 1 ? '' : 's'} out of the wall's plane at from: ${String(LATCH_FRONT)} mm in front of it, from ${String(-box[0])} mm below the joint to ${String(lid[1])} mm above it, up to ${String(Math.max(...proud.map(mm)))} mm of the way are plastic, where the arm hangs ${String(spec.arm.off)} mm off the wall. Give from and to on a flat stretch of the outer wall, where lid and box lie in one plane`;
   }
   return null;
 }
@@ -1658,9 +1645,8 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     );
   }
   if (args.kind === 'snap') {
-    const spec = snapOf(args, nozzle);
+    const spec = snapOf(args, nozzle, printer.material);
     if (typeof spec === 'string') throw new Error(spec);
-    const printer: FitPrinter = { nozzle, layer };
     const warnings = await build(site, spec, snapSteps(spec), `Give from as a point on a face of ${spec.fixed} at the inner face of the wall of ${spec.moving}, up as that face's normal and to as a point further into that wall.`, false, async () => {
       // Not measured is not built: whether the window goes through a wall that holds the catch is checked here or nowhere.
       const problem = await snapTrial(upstream, spec, printer, callId).catch((cause: unknown) => {
@@ -1669,20 +1655,25 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
       if (problem) throw new Error(problem);
     });
     const count = spec.more.length + 1;
+    const { hook } = spec;
     const hold = snapHold();
-    const strain = snapStrain({ length: SNAP.length, thickness: SNAP.thickness, catchDepth: hold, catchLength: SNAP.catchLength });
+    const strain = snapStrain({ length: hook.length, thickness: hook.thickness, catchDepth: hold, catchLength: hook.catchLength });
+    const limit = snapLimit(printer.material);
     const { low, high, wide } = snapNeeds(spec, printer);
+    const sized = hook.length !== SNAP.length || hook.thickness !== SNAP.thickness || hook.catch !== SNAP.catch ? ` (on the ${String(nozzle)} mm nozzle in ${limit.name}: an arm of two lines at the least, a catch of the narrowest line a slicer lays, and long enough to bend within what the material takes)` : '';
     return (
-      `Built ${String(count)} snap hook${count > 1 ? 's' : ''} "${spec.name}" on ${spec.fixed}, each with its window through the ${String(spec.wall)} mm wall of ${spec.moving}: an arm ${String(SNAP.length)} mm long, ${String(SNAP.thickness)} mm thick and ${String(SNAP.width)} mm wide, ${String(SNAP.gap)} mm off the wall, with a catch ${String(SNAP.catch)} mm deep that reaches ${String(hold)} mm over the window's edge. ` +
+      `Built ${String(count)} snap hook${count > 1 ? 's' : ''} "${spec.name}" on ${spec.fixed}, each with its window through the ${String(spec.wall)} mm wall of ${spec.moving}: an arm ${String(hook.length)} mm long, ${String(hook.thickness)} mm thick and ${String(hook.width)} mm wide, ${String(hook.gap)} mm off the wall, with a catch ${String(hook.catch)} mm deep that reaches ${String(hold)} mm over the window's edge${sized}. ` +
       `Pushed together the hooks snap in by themselves (the arm bends ${String(hold)} mm, about ${String(Math.round(strain * 10) / 10)} % strain at the root); to open, press each catch back through its window. It makes no joint. ` +
+      `That strain is within the ${limitWords(limit)}${strain > limit.often ? `; for a cover taken off often keep under ${String(limit.often)} % (${String(Math.round(SNAP_OFTEN * 100))} % of that, Bayer)` : ''}. ` +
+      `The arms meet their foot in a sharp edge (SolidCraft's hook has no radius, and one beside the wall would run into it), where the formula assumes a round one: count about ${String(Math.round(SHARP_ROOT * strain * 10) / 10)} % there (a sharp root about ${String(SHARP_ROOT)} times as strained, Bayer)${SHARP_ROOT * strain > limit.strain ? `, more than those ${String(limit.strain)} %: print a test piece first${limit.known && limit.type === 'PLA' ? ', or use PETG' : ''}` : ''}. ` +
       `PartBuddy measured that wall at each hook first: ${String(spec.wall)} mm thick behind from and whole round the window, from ${String(low)} to ${String(high)} mm above the foot and ${String(wide)} mm wide. ` +
-      `An arm printed standing breaks along its layers at about half the strain: where the part allows, lay ${spec.fixed} so that the arms lie flat, and use PETG or ABS rather than PLA for a part opened often. Put hooks on opposite walls so that they hold each other in their windows.${warnings}`
+      `${uprightSaid('an arm', standsUpright(spec.up) ? `As designed the arms stand upright: where the part allows, lay ${spec.fixed} so that they lie flat.` : `Keep ${spec.fixed} lying as designed, with the arms flat.`)} Put hooks on opposite walls so that they hold each other in their windows.${warnings}`
     );
   }
   if (args.kind === 'latch') {
-    const spec = latchOf(args, nozzle);
+    const spec = latchOf(args, nozzle, printer.material);
     if (typeof spec === 'string') throw new Error(spec);
-    const { deep, lid, box } = latchNeeds();
+    const { deep, lid, box } = latchNeeds(spec.arm);
     const warnings = await build(site, spec, latchSteps(spec), `Give from on the line where ${spec.moving} and ${spec.fixed} meet, on their outer wall, and to as a point straight out of that wall; both walls must lie in one plane there.`, false, async () => {
       // Audit R40, H-24: hook and bead touch, which holds only for a lid printed apart from its box.
       // SolidCraft's refusal said with what it stopped (review of BC-11: it reached the model bare).
@@ -1698,9 +1689,9 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     });
     const laid = await layOn(run, spec.moving, latchFrame(spec).up, keepFace);
     return (
-      `Built the latch "${spec.name}": an arm ${String(spec.width)} mm wide and ${String(LATCH.thick)} mm thick grows out of the wall of ${spec.moving} (the lid), hangs ${String(LATCH.off)} mm off the wall over the joint and snaps with its hook under a bead ${String(LATCH.bead)} mm high on ${spec.fixed} (the box); the two overlap by ${String(round2(LATCH.bead - LATCH.clear))} mm on 45° faces, and the arm meets its root in a ${String(LATCH.root)} mm radius. ` +
-      `Pressing the lid down snaps it shut (about ${String(Math.round(latchStrain() * 10) / 10)} % strain at the arm's root); pulling the arm's lower end away from the box opens it, and so does a strong pull on the lid. It makes no joint. ` +
-      `PartBuddy measured both walls first: flat and plastic ${String(deep)} mm deep across the latch, on ${spec.moving} from ${String(lid[0])} to ${String(lid[1])} mm above the joint and on ${spec.fixed} from ${String(-box[1])} to ${String(-box[0])} mm below it. The lid prints on its top, ${laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`}: ${overhang < 45 ? leans("the arm's foot and the bead's faces", overhang).replace(/\.$/, '') : 'the arm then grows out of it without support'}; the box prints standing. The arm stands upright that way and bends across its layers, the weak way: for a lid opened often use PETG or ABS rather than PLA. Not printed yet: how firmly it holds shows on the first print.${warnings}`
+      `Built the latch "${spec.name}": an arm ${String(spec.width)} mm wide and ${String(spec.arm.thick)} mm thick grows out of the wall of ${spec.moving} (the lid), hangs ${String(spec.arm.off)} mm off the wall over the joint and snaps with its hook under a bead ${String(spec.arm.bead)} mm high on ${spec.fixed} (the box); the two overlap by ${String(round2(spec.arm.bead - spec.arm.clear))} mm on 45° faces, and the arm meets its root in a ${String(spec.arm.root)} mm radius${spec.arm.thick === LATCH.thick && spec.arm.lever === LATCH.lever ? '' : ` (on the ${String(nozzle)} mm nozzle: an arm of two lines at the least, ${String(spec.arm.lever)} mm from its root to the hook)`}. ` +
+      `Pressing the lid down snaps it shut (about ${String(Math.round(latchStrain(spec.arm) * 10) / 10)} % strain at the arm's root); pulling the arm's lower end away from the box opens it, and so does a strong pull on the lid. It makes no joint. ` +
+      `PartBuddy measured both walls first: flat and plastic ${String(deep)} mm deep across the latch, on ${spec.moving} from ${String(lid[0])} to ${String(lid[1])} mm above the joint and on ${spec.fixed} from ${String(-box[1])} to ${String(-box[0])} mm below it. The lid prints on its top, ${laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`}: ${overhang < 45 ? leans("the arm's foot and the bead's faces", overhang).replace(/\.$/, '') : 'the arm then grows out of it without support'}; the box prints standing. ${uprightSaid('the arm', `Lying it would be within the ${limitWords(snapLimit(printer.material))}, but no way of printing the lid lays it flat: print a test piece first.`)} Not printed yet: how firmly it holds shows on the first print.${warnings}`
     );
   }
   if (args.kind === 'plug' && args.shape === 'dovetail') {

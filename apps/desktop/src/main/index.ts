@@ -1351,9 +1351,12 @@ if (!app.requestSingleInstanceLock()) {
       const printer = toolPrinter();
       const limit = blockLimit(block, printer);
       if (limit) throw new Error(limitSaid(limit));
-      await steps.recordUser(blockPhrase(block), () => supervisor.applyBlock(block, printer));
+      let built: { rootSharp: true } | null = null;
+      await steps.recordUser(blockPhrase(block), async () => {
+        built = await supervisor.applyBlock(block, printer);
+      });
       log(`built the function block ${block.block}`);
-      return undefined;
+      return built;
     });
     // Moving a placed logo from the selection dock: read, previewed, applied as one step of the work log.
     bridge.handle(invokeChannels.designLogoAt, ({ point }) => supervisor.logoAt(point));

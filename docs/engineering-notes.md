@@ -343,7 +343,14 @@ release candidate on 0.40.1 when a step touches it.
 - `plastic.snap_fit {position, hook, length, thickness, width, catch_depth, catch_length}` stands
   the arm out of the face; `length` includes the catch (a 10 mm arm on a 10 mm box reaches 20 mm).
   `hook` must lie in the face ("must point across the arm" otherwise). The strain shown in the form
-  uses the lever to the catch's middle.
+  uses the lever to the catch's middle. The arm stands from `position` against `hook` and meets the face
+  in sharp edges (0.40.1: 13 plane faces); `solid.fillet` on its two long root edges at `position` and one
+  thickness behind it rounds them (+0.869 mm³ each for 0.9 mm over 5 mm). With `fit: reduce` it makes the radius
+  smaller where the face ends closer and warns, but flush with the face's edge, or on a
+  wall as thin as the arm, it rounds the convex edges beside the arm instead (−0.204 mm³ at 0.1649 mm). The block rounds
+  one edge a step, measures the body around each and keeps the radius only where each edge adds w · r² · (1 − π/4) within
+  10 % (0.808 of 0.869 mm³ half a millimetre from the edge kept; 0.616 on a cylinder of r 15 and −0.453 flush with the edge
+  taken back; BC-17, `rootOutcome`).
 - `sketch.insert_svg {text, at, width, align: center}` takes the SVG as text (no file access needed)
   and keeps it upright (SVG's y runs down, the sketch's up). `solid.emboss` without `profiles`
   takes every region, so a ring's hole is filled; `solid.extrude` keeps a loop inside a hole as

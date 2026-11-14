@@ -223,7 +223,8 @@ export interface PartBuddyApi {
     /** Builds a function block (F1) on trial for the ghost preview. */
     previewBlock(block: FeatureBlock): Promise<ActionPreviewResult>;
     /** Builds a function block for real; one step of the work log. */
-    applyBlock(block: FeatureBlock): Promise<void>;
+    /** A snap fit whose root stays sharp answers `{ rootSharp: true }`. */
+    applyBlock(block: FeatureBlock): Promise<{ rootSharp: true } | null>;
     /** The placed logo at a picked point, or null. */
     logoAt(point: [number, number, number]): Promise<LogoSpot | null>;
     /** Moves a logo on trial for the ghost preview. */

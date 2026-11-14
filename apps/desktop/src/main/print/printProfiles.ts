@@ -15,6 +15,7 @@ import {
   type PrintSettings,
 } from '../../shared/contract';
 import { ENTRY_CHAMFER, STURDY, textDepth, textStroke } from '../../shared/blocks';
+import { snapHook, snapLength, snapLimit } from '../../shared/mechanisms';
 import { CLEARANCE_NOZZLE, ELEPHANT_FOOT, lineWidth, printInPlaceGap, scaleClearance, type FitPrinter } from '../../shared/designFit';
 import { MATERIAL_CATALOG } from '../../shared/materialCatalog';
 import { COMPENSATED_CIRCLE, holeAllowance, HOLE_SIZES, LARGEST_HOLE } from '../../shared/tolerances';
@@ -269,6 +270,12 @@ const RULE_NAMES: Record<DesignRule, string> = {
   economy: 'saving material and print time',
 };
 
+/** The least length of PartBuddy's snap arm on the printer in the material, bent by its whole catch, as the snapFit block checks it (audit H-17). */
+const snapArm = (printer: FitPrinter, material: MaterialProfile) => {
+  const hook = snapHook(printer, material);
+  return snapLength(hook.thickness, hook.catch, hook.catchLength, snapLimit(material).strain);
+};
+
 /**
  * What a careful FDM designer does without being asked (decided 2026-11-07), in five groups the user
  * can turn off: in the settings for every project, in the chat for one. The sizes come from the
@@ -299,7 +306,7 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
     );
   if (design.printInPlace)
     lines.push(
-      `- Hinges, guides, snap closures and clips: build them with partbuddy_mechanism (hinges print in place in one piece with this printer's gap; guides, closures and clips print as separate parts). Other joints you model yourself (a wheel on its axle, a lever): first look for a print-in-place solution that prints without support, with ${mm(gap)} gap all round the moving parts (one nozzle, at least ${mm(MOVING_GAP)}: Prusa), the pin lying flat with 45° cones or teardrop holes instead of flat ceilings, and a ${mm(layer * 2)} chamfer on the moving parts' bed edges so they do not fuse. Snap arms at least five times as long as thick, with a 30–45° lead-in (own choice). When print-in-place does not work (load, size, material), choose another joint on purpose and say why in one sentence.`,
+      `- Hinges, guides, snap closures and clips: build them with partbuddy_mechanism (hinges print in place in one piece with this printer's gap; guides, closures and clips print as separate parts). Other joints you model yourself (a wheel on its axle, a lever): first look for a print-in-place solution that prints without support, with ${mm(gap)} gap all round the moving parts (one nozzle, at least ${mm(MOVING_GAP)}: Prusa), the pin lying flat with 45° cones or teardrop holes instead of flat ceilings, and a ${mm(layer * 2)} chamfer on the moving parts' bed edges so they do not fuse. Snap arms long enough to bend within what the material takes, which ${BLOCK_TOOL} snapFit checks at the root (in this material on this nozzle at least ${mm(snapArm(printer, material))} for its ${mm(snapHook(printer, material).thickness)} arm with a ${mm(snapHook(printer, material).catch)} catch; a deeper catch or a thicker arm needs more), with a 30–45° lead-in (own choice). When print-in-place does not work (load, size, material), choose another joint on purpose and say why in one sentence.`,
     );
   if (design.details)
     lines.push(

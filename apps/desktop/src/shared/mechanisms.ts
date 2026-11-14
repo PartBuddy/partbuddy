@@ -5,7 +5,7 @@
  * in the tool (`mechanismTool.ts`).
  */
 
-import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
+import { BRIDGE_SPAN, minimumFloor, minimumWall, thinnestLine } from '@partbuddy/geometry';
 
 import { printInPlaceGap, type FitPrinter } from './designFit';
 import { CAP_HEAD, CLEARANCE_NORMAL, COUNTERSUNK_HEAD, HEAD_ALLOWANCE, INSERT, type BlockSize } from './screwSizes';
@@ -974,34 +974,173 @@ export interface SnapSpec {
   more: Vec3[];
   /** The wall's thickness in mm: the window goes that deep, so through it. */
   wall: number;
+  /** The hook's sizes on the printer and in the material ({@link snapHook}). */
+  hook: SnapHook;
   name: string;
 }
 
 /**
- * One cantilever hook, in mm: an arm 12 long, 1.5 thick and 5 wide (Hubs: no narrower) with a catch 0.8 deep on its
+ * The one table of PartBuddy's cantilever hook, for the snap block (blocks.ts) and the snap mechanism (audit G9: the
+ * block kept its own copy), in mm: an arm 12 long, 1.5 thick and 5 wide (Hubs: no narrower) with a catch 0.8 deep on its
  * last 1.5. The arm stands `gap` off the wall, so the catch reaches `catch − gap` (0.6) over the window's edge, and that
  * is also how far the arm bends as it snaps in ({@link snapHold}; audit T58, W23: 0.8 was said). The window is `side`
  * wider on each side, its edge lies `seat` under the catch and it leaves `air` over the tip ({@link snapWindow}).
- * Clearances are those of guides for printed parts, which run from 0.1 to 0.5.
+ * Clearances are those of guides for printed parts, which run from 0.1 to 0.5. These are the sizes for a 0.4 mm nozzle;
+ * {@link snapHook} raises them to the nozzle and the material.
  */
 export const SNAP = { length: 12, thickness: 1.5, width: 5, catch: 0.8, catchLength: 1.5, gap: 0.2, side: 0.3, seat: 0.2, air: 0.5 };
+export type SnapHook = typeof SNAP;
 
-/** How far a hook's catch reaches over its window's edge, and how far the arm bends to pass the wall: the catch less the room between arm and wall (mm). */
+/**
+ * How much more a sharp root strains than one rounded at {@link SNAP_ROOT}: Bayer's formula assumes the radius, and his Fig. 9
+ * puts the stress concentration at about 1.5 there and about 3 at a sharp corner (read off the curve in the review of BC-17,
+ * S5; one source). The mechanism's hooks have sharp roots (snapSteps).
+ */
+export const SHARP_ROOT = 2;
+
+/** The radius at an arm's root as a share of its thickness: Bayer's optimum R/h 0.6 (Snap-Fit Joints for Plastics, p. 8); Hubs asks at least 0.5, Sovol 0.5 to 1 (audit MV-10). */
+export const SNAP_ROOT = 0.6;
+/** The least radius at an arm's root, mm: Bayer, "not less than 0.015 in. in any instance" (p. 8). */
+export const ROOT_LEAST = 0.38;
+
+/**
+ * How far an arm may bend at its root for one snap-in, as a share of the yield strain: amorphous plastics up to about 70 %
+ * (Bayer, Snap-Fit Joints for Plastics, p. 11; partly crystalline ones nearly to the yield point, so 70 % is the safe side
+ * for both). For parts taken apart often Bayer takes about 60 % of that (table 2).
+ * shortcut: the 60 % has one source and is said in the answers, not checked; check it when a second source turns up.
+ */
+export const SNAP_ONCE = 0.7;
+export const SNAP_OFTEN = 0.6;
+
+/**
+ * The yield strain of printed test bars in per cent, flat and on their side, the lower of two makers' data sheets per
+ * material (audit MV-12, S-13, T18; read 2026-11-14), and a cap where a guide gives a lower allowed strain:
+ * PLA: Ultimaker PLA TDS v2.00 (2022-04-20) 3.4 % flat and on its side; Prusament PLA TDS v1.1 (2022-07-27) 2.9 % horizontal,
+ * 3.2 % vertical xz. PETG: Ultimaker PETG TDS v1.00 (2022-04-29) 5.9 / 6.0 %; Prusament PETG TDS (cdn.shopify.com/s/files/1/
+ * 1745/6181/files/PETG_TechSheet_ENG.pdf, PDF of 2020-01-24, no version on the sheet) 5.1 % horizontal and vertical x,y.
+ * PC: Ultimaker PC TDS v2.00 (2022-04-20) 6.1 / 5.9 % (70 % of it 4.1); Bayer's table 2 allows moulded PC 4 % once.
+ * Other materials have no two sources here (Ultimaker alone: ABS 4.1 %, nylon 6.1 %) and are held to PLA's, the lowest;
+ * fibre-filled ones to {@link SNAP_FIBRE}.
+ * shortcut: ABS, ASA, PA, PP, TPU take PLA's value, fibre-filled types SNAP_FIBRE; add each with a second data sheet.
+ */
+const SNAP_YIELD: Record<string, { yield: number; cap?: number }> = { PLA: { yield: 2.9 }, PETG: { yield: 5.1 }, PC: { yield: 5.9, cap: 4 } };
+/** The material whose allowed strain stands in for one without sources: the lowest. */
+const SNAP_FALLBACK = 'PLA';
+/**
+ * A fibre-filled material's allowed strain, per cent (review of BC-17, S1: "PETG CF" was taken for PETG): fibres lower what a
+ * plastic takes; Bayer allows glass-fibre grades about half their elongation at break (p. 11) and moulded PC with 10 and
+ * 20 % glass 2.2 and 2.0 % against 4 % unfilled (table 2). No source gives printed fibre types, so half of PLA's, own choice.
+ */
+export const SNAP_FIBRE = 1;
+/**
+ * A name that says fibres (second review of BC-17, S3): CF or GF as a word of their own, with a filler share or an r for
+ * recycled (PLA-CF, Bambu PETG CF, PA6-GF25, PETG-rCF08, XT-CF20), or the word fibre / fiber (PC Blend Carbon Fiber). Not
+ * carbon or glass alone, which name colours (PETG Carbon Black, PLA Glass Blue), nor Fiberlogy or FiberSilk.
+ */
+const FIBRE = /(^|[^A-Z])R?[CG]F\d*([^A-Z]|$)|\bFIB(RE|ER)S?\b/;
+
+/** The allowed strain of a material type in the table, rounded down to 0.1 %. */
+const allowedOf = (type: string) => {
+  const entry = SNAP_YIELD[type] ?? SNAP_YIELD[SNAP_FALLBACK] ?? { yield: 2.9 };
+  return Math.floor(Math.min(SNAP_ONCE * entry.yield, entry.cap ?? Infinity) * 10 + 1e-6) / 10;
+};
+
+/**
+ * Bars printed upright, across their layers, broke without yielding (Ultimaker data sheets 2022, review of BC-17 S3: bent is
+ * what an arm does): bent at 1.9 % (PLA), 1.5 % (ABS, PC), 3.6 % (PETG), 4.0 % (nylon); pulled at 2.0 % (PLA, ABS, PC),
+ * 1.8 % (PETG), 1.7 % (nylon). Prusament PETG's upright bars yield at 2.5 % pulled against 5.1 % flat (its sheet as above).
+ * PLA, ABS and PC give the range; an arm that bends across its layers takes far less than the table says (audit R31, H-21:
+ * "about half" had no source).
+ */
+export const UPRIGHT_BREAK = { least: 1.5, most: 2 };
+
+/** What an answer says of an arm that bends across its layers (audit R31, H-21: "at about half the strain" had no source); `then` follows as its own sentence. */
+export const uprightSaid = (arm: string, then: string) =>
+  `Printed standing, ${arm} bends across its layers, and upright test bars of PLA, ABS and PC broke at ${String(UPRIGHT_BREAK.least)} to ${String(UPRIGHT_BREAK.most)} % without yielding, bent or pulled (Ultimaker data sheets). ${then}`;
+
+/**
+ * How far a snap arm may bend at its root in the profile's material, per cent, and which entry that is: a word of the
+ * material's name that is a type in the table (`PLA`, `PLA Matte`, `Prusament PETG`); the lowest when several are, and
+ * PLA's, the lowest of all, when none is (`known` false: `ABS`). A name that says fibres is never known and takes {@link SNAP_FIBRE}
+ * (`fibre`: `PLA-CF`, `Bambu PETG CF`, `PC Blend Carbon Fiber`).
+ */
+export function snapLimit(material?: { name?: string | undefined }): { strain: number; often: number; type: string; known: boolean; fibre: boolean; name: string } {
+  // No material is PLA, as with every tool (toolFit.ts DEFAULT_MATERIAL).
+  const name = material?.name?.trim() || SNAP_FALLBACK;
+  const fibre = FIBRE.test(name.toUpperCase());
+  const types = fibre ? [] : name.toUpperCase().split(/\s+/).filter((word) => word in SNAP_YIELD);
+  const type = types.sort((a, b) => allowedOf(a) - allowedOf(b))[0];
+  const strain = fibre ? SNAP_FIBRE : allowedOf(type ?? SNAP_FALLBACK);
+  return { strain, often: Math.floor(strain * SNAP_OFTEN * 10 + 1e-6) / 10, type: type ?? SNAP_FALLBACK, known: type !== undefined, fibre, name };
+}
+
+/** What a fibre-filled material is allowed, in per cent of PLA's: from the constants, for the texts. */
+export const FIBRE_SHARE = Math.round((SNAP_FIBRE / allowedOf(SNAP_FALLBACK)) * 100);
+
+/** What an answer says of the allowed strain: the material's, that none is known and PLA's is taken, or that fibres take less. */
+export function limitWords(limit: ReturnType<typeof snapLimit>): string {
+  if (limit.fibre)
+    return `${String(limit.strain)} %: ${limit.name} is fibre-filled, and fibres lower what a plastic takes (Bayer: moulded PC with glass 2 to 2.2 % against 4 % without); with no value for it PartBuddy holds it to ${String(FIBRE_SHARE)} % of PLA's, its own choice`;
+  return limit.known
+    ? `${String(limit.strain)} %, what printed ${limit.type} takes for one snap-in (${String(Math.round(SNAP_ONCE * 100))} % of its yield strain)`
+    : `${String(limit.strain)} %: no allowed strain is known for ${limit.name}, so PartBuddy holds it to ${limit.type}'s, the lowest it knows`;
+}
+
+/**
+ * The bending strain at the arm's root when the catch is pushed aside by its depth, for a cantilever of constant section:
+ * 1.5 · thickness · deflection / lever², in per cent (Bayer, p. 9). SolidCraft's length includes the catch, so the lever
+ * runs to the catch's middle.
+ */
+export function snapStrain(block: { length: number; thickness: number; catchDepth: number; catchLength: number }): number {
+  const lever = Math.max(block.length - block.catchLength / 2, block.length / 4);
+  return (150 * block.thickness * block.catchDepth) / lever ** 2;
+}
+
+/** The least length, to 0.1 mm, at which an arm `thickness` thick bends at most `strain` per cent as its catch is pushed `bend` aside ({@link snapStrain} turned round). */
+export function snapLength(thickness: number, bend: number, catchLength: number, strain: number): number {
+  return Math.ceil((Math.sqrt((150 * thickness * bend) / strain) + catchLength / 2) * 10 - 1e-6) / 10;
+}
+
+/**
+ * The hook on the printer in the material (audit W15 rest, BC-16: refused on coarse nozzles before): the arm at least two
+ * lines, the catch at least the narrowest line a slicer lays, the arm standing that much further off the wall so that it
+ * still bends {@link snapHold}, and long enough to bend within what the material takes ({@link snapLimit}).
+ */
+export function snapHook(printer: FitPrinter, material?: { name?: string | undefined }): SnapHook {
+  const thickness = Math.max(SNAP.thickness, minimumWall(printer.nozzle));
+  const depth = Math.max(SNAP.catch, thinnestLine(printer.nozzle));
+  const length = Math.max(SNAP.length, snapLength(thickness, snapHold(), SNAP.catchLength, snapLimit(material).strain));
+  return { ...SNAP, length, thickness, catch: depth, gap: round(depth - snapHold()) };
+}
+
+/** How far a hook's catch reaches over its window's edge, and how far the arm bends to pass the wall: the catch less the room between arm and wall (mm), the same for every hook {@link snapHook} sizes. */
 export const snapHold = () => round(SNAP.catch - SNAP.gap);
 
 /** A hook's window in its wall: from `from` to `to` mm above the hook's foot, `half` to each side of the hook's middle. */
-export function snapWindow(): { from: number; to: number; half: number } {
-  const from = round(SNAP.length - SNAP.catchLength - SNAP.seat);
-  return { from, to: round(from + SNAP.catchLength + SNAP.seat + SNAP.air), half: round(SNAP.width / 2 + SNAP.side) };
+export function snapWindow(hook: SnapHook = SNAP): { from: number; to: number; half: number } {
+  const from = round(hook.length - hook.catchLength - hook.seat);
+  return { from, to: round(from + hook.catchLength + hook.seat + hook.air), half: round(hook.width / 2 + hook.side) };
+}
+
+/**
+ * Whether a part stands upright along `up` as it is designed: within 45° of Z.
+ * shortcut: the design's lay, not the print face (audit S-13 asks the print check, lane L1, to report an arm across its layers).
+ */
+export const standsUpright = (up: Vec3) => Math.abs(up[2]) / (Math.hypot(...up) || 1) >= Math.SQRT1_2;
+
+/** `up` of length 1 and `way` square to it, of length 1, and `across` = up × way: the frame of a snap hook and of a latch (one code; BC-11 review). */
+function frameOf(upward: Vec3, way: Vec3): { up: Vec3; way: Vec3; across: Vec3 } {
+  const up = upward.map((value) => value / Math.hypot(...upward)) as Vec3;
+  const along = way.reduce((sum, value, i) => sum + value * (up[i] ?? 0), 0);
+  const flat = way.map((value, i) => value - along * (up[i] ?? 0)) as Vec3;
+  const square = flat.map((value) => value / Math.hypot(...flat)) as Vec3;
+  return { up, way: square, across: cross(up, square) };
 }
 
 /** The ways of a snap hook, each of length 1: `up` as it stands, `toward` the wall square to it, `across` the hook. */
 export function snapFrame(spec: Pick<SnapSpec, 'up' | 'toward'>): { up: Vec3; toward: Vec3; across: Vec3 } {
-  const up = spec.up.map((value) => value / Math.hypot(...spec.up)) as Vec3;
-  const along = spec.toward.reduce((sum, value, i) => sum + value * (up[i] ?? 0), 0);
-  const flat = spec.toward.map((value, i) => value - along * (up[i] ?? 0)) as Vec3;
-  const toward = flat.map((value) => value / Math.hypot(...flat)) as Vec3;
-  return { up, toward, across: cross(up, toward) };
+  const { up, way, across } = frameOf(spec.up, spec.toward);
+  return { up, toward: way, across };
 }
 
 /** What is wrong with a snap hook before anything is built; null when it can be built. */
@@ -1016,6 +1155,9 @@ export function snapProblem(spec: SnapSpec): string | null {
 }
 
 /**
+ * shortcut: no radius at the hooks' roots (audit MV-10): on the side towards the wall, where the arm is pulled, one would run
+ * into the wall `gap` away; the snapFit block has it. Set the hook off the wall by the radius if a root cracks.
+ *
  * A snap hook on the fixed body and its window in the wall of the other: the catch's flat underside lies over the
  * window's edge and holds against pulling the parts apart; pressed back through the window it lets go. The window is
  * cut first and the hook built last, each with its own body's component active.
@@ -1025,7 +1167,8 @@ export function snapSteps(spec: SnapSpec): Step[] {
   const tidy = (vector: Vec3) => vector.map((value) => round(value) + 0) as Vec3;
   const mm = (value: number) => `${String(round(value))} mm`;
   const feet = [spec.from, ...spec.more];
-  const { from, to, half } = snapWindow();
+  const hook = spec.hook;
+  const { from, to, half } = snapWindow(hook);
   const high = round(to - from);
   const windows = feet.flatMap((foot, i): Step[] => {
     const name = `${spec.name} ${String(i + 1)} □`;
@@ -1033,22 +1176,22 @@ export function snapSteps(spec: SnapSpec): Step[] {
       // Sketch x across the hook, y up it: x × y points into the wall, so a positive distance cuts. The cut starts at the
       // arm's face, `gap` before the wall, so a round wall keeps no wedge at the window's sides (practice run BC-11: a
       // wall of 28 mm radius kept 0.14 mm there, a thin wall to the print check).
-      { command: 'sketch.create', params: { plane: { origin: foot.map((value, k) => round(value + (up[k] ?? 0) * from - (toward[k] ?? 0) * SNAP.gap)), x_dir: tidy(across), y_dir: tidy(up) }, project_edges: false, name } },
+      { command: 'sketch.create', params: { plane: { origin: foot.map((value, k) => round(value + (up[k] ?? 0) * from - (toward[k] ?? 0) * hook.gap)), x_dir: tidy(across), y_dir: tidy(up) }, project_edges: false, name } },
       { command: 'sketch.line', params: { points: [[-half, 0], [half, 0], [half, high], [-half, high]], closed: true } },
-      { command: 'solid.extrude', params: { distance: mm(spec.wall + SNAP.gap), operation: 'cut', targets: [spec.moving], name } },
+      { command: 'solid.extrude', params: { distance: mm(spec.wall + hook.gap), operation: 'cut', targets: [spec.moving], name } },
     ];
   });
   const hooks = feet.map((foot): Step => ({
     command: 'plastic.snap_fit',
     params: {
-      position: foot.map((value, k) => round(value - (toward[k] ?? 0) * SNAP.gap)),
+      position: foot.map((value, k) => round(value - (toward[k] ?? 0) * hook.gap)),
       direction: tidy(up),
       hook: tidy(toward),
-      length: mm(SNAP.length),
-      thickness: mm(SNAP.thickness),
-      width: mm(SNAP.width),
-      catch_depth: mm(SNAP.catch),
-      catch_length: mm(SNAP.catchLength),
+      length: mm(hook.length),
+      thickness: mm(hook.thickness),
+      width: mm(hook.width),
+      catch_depth: mm(hook.catch),
+      catch_length: mm(hook.catchLength),
       body: spec.fixed,
     },
   }));
@@ -1144,6 +1287,8 @@ export interface LatchSpec {
   out: Vec3;
   /** The latch's width along the wall in mm. */
   width: number;
+  /** The latch's sizes on the printer and in the material ({@link latchArm}). */
+  arm: LatchArm;
   name: string;
 }
 
@@ -1160,29 +1305,42 @@ export interface LatchSpec {
  * profile lies in its wall, which the tool measures ({@link latchStrain} for the bend).
  */
 export const LATCH = { thick: 1.6, off: 1.5, foot: 1, head: 5, lever: 12, bead: 1.2, clear: 0.4, seat: 0, tab: 2, into: 0.5, beside: 1, root: 0.8 };
+export type LatchArm = typeof LATCH;
 
 /** How much flat wall the latch needs: on the lid above the joint, and on the box below it. */
-export function latchReach(): { above: number; below: number } {
-  const hook = LATCH.off - LATCH.clear;
-  return { above: round(LATCH.head + LATCH.off + LATCH.thick), below: round(LATCH.lever - LATCH.foot + hook + LATCH.tab) };
+export function latchReach(arm: LatchArm = LATCH): { above: number; below: number } {
+  const hook = arm.off - arm.clear;
+  return { above: round(arm.head + arm.off + arm.thick), below: round(arm.lever - arm.foot + hook + arm.tab) };
 }
 
 /**
  * The strain at the arm's root as the hook passes the bead, in per cent: 1.5 · thick · (bead − clear) / lever², the
  * lever taken from where the root's radius starts, which is the shorter and the stricter (1.3 % from its flat underside).
  */
-export function latchStrain(): number {
-  return (150 * LATCH.thick * (LATCH.bead - LATCH.clear)) / (LATCH.lever - LATCH.root) ** 2;
+export function latchStrain(arm: LatchArm = LATCH): number {
+  return (150 * arm.thick * (arm.bead - arm.clear)) / (arm.lever - arm.root) ** 2;
+}
+
+/**
+ * The latch on the printer in the material (audit W15 rest, BC-16: refused on coarse nozzles before): the arm at least two
+ * lines thick, its root's radius half of that, and its lever long enough to bend within what the material takes
+ * ({@link snapLimit}), measured from where the radius starts as {@link latchStrain} does.
+ * shortcut: held to the strain of bars printed flat, though the arm prints upright and bends across its layers: 1.53 %, over
+ * the 1.5 % at which the weakest upright bars broke (UPRIGHT_BREAK); the answer says so. Lengthen the lever when a print cracks.
+ */
+export function latchArm(printer: FitPrinter, material?: { name?: string | undefined }): LatchArm {
+  const thick = Math.max(LATCH.thick, minimumWall(printer.nozzle));
+  const root = round(thick / 2);
+  const lever = Math.max(LATCH.lever, round(root + snapLength(thick, LATCH.bead - LATCH.clear, 0, snapLimit(material).strain)));
+  // The root's radius keeps the standard's distance above the joint, so a wider one does not reach into the box.
+  return { ...LATCH, thick, root, lever, foot: round(Math.max(LATCH.foot, root + LATCH.foot - LATCH.root)) };
 }
 
 /** The ways of a latch, each of length 1: `up` from box to lid, `out` of the wall square to it, `run` along the wall, the way its profiles are extruded. */
 export function latchFrame(spec: Pick<LatchSpec, 'up' | 'out'>): { up: Vec3; out: Vec3; run: Vec3 } {
-  const up = spec.up.map((value) => value / Math.hypot(...spec.up)) as Vec3;
-  const along = spec.out.reduce((sum, value, i) => sum + value * (up[i] ?? 0), 0);
-  const flat = spec.out.map((value, i) => value - along * (up[i] ?? 0)) as Vec3;
-  const out = flat.map((value) => value / Math.hypot(...flat)) as Vec3;
-  // x × y of the sketch: the profiles are extruded this way along the wall.
-  return { up, out, run: cross(out, up) };
+  const { up, way, across } = frameOf(spec.up, spec.out);
+  // x × y of the sketch, out × up: the profiles are extruded this way along the wall.
+  return { up, out: way, run: across.map((value) => -value + 0) as Vec3 };
 }
 
 /** What is wrong with a latch before anything is built; null when it can be built. */
@@ -1203,7 +1361,7 @@ export function latchProblem(spec: LatchSpec): string | null {
 export function latchSteps(spec: LatchSpec): Step[] {
   const { up, out, run } = latchFrame(spec);
   const tidy = (vector: Vec3) => vector.map((value) => round(value) + 0) as Vec3;
-  const { thick, off, foot, head, lever, bead, clear, seat, tab, into, beside, root } = LATCH;
+  const { thick, off, foot, head, lever, bead, clear, seat, tab, into, beside, root } = spec.arm;
   const hook = off - clear;
   const crest = foot - lever;
   const outer = off + thick;
