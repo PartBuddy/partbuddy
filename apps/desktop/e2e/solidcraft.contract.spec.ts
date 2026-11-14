@@ -3,6 +3,8 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { execFileSync } from 'node:child_process';
 
+import { COMMAND_GROUPS, GROUP_EXCEPTIONS, KNOWN_COMMANDS, KNOWN_COMMANDS_VERSION } from '../src/main/agents/knownCommands';
+import { cliBeside, findExecutable, systemEnvironment } from '../src/main/solidcraft/discovery';
 import { launchApp } from './launch';
 
 /**
@@ -37,6 +39,19 @@ function countProcesses(image: string): number {
 // PARTBUDDY_E2E_SOLIDCRAFT=1; CI has no SolidCraft.
 test.skip(process.env.PARTBUDDY_E2E_SOLIDCRAFT !== '1', 'needs SolidCraft; set PARTBUDDY_E2E_SOLIDCRAFT=1');
 
+test('knows every command of the allowed groups of the installed SolidCraft (BC-26, audit S-03)', () => {
+  // The SolidCraft the app finds (PARTBUDDY_SOLIDCRAFT_EXE in CI, else the automatic search), and its CLI.
+  const executable = findExecutable(systemEnvironment);
+  expect(executable, 'SolidCraft is installed').not.toBeNull();
+  const cli = cliBeside(executable ?? '');
+  // The catalogue list_commands reads from, with every command (list_commands pages it).
+  const catalogue = JSON.parse(execFileSync(cli, ['commands'], { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 })) as { id: string }[];
+  const allowed = catalogue.map(({ id }) => id.toLowerCase()).filter((id) => COMMAND_GROUPS.has(id.slice(0, id.indexOf('.'))) || GROUP_EXCEPTIONS.has(id));
+  // A new id runs only once someone has looked at it: refuse it in policy.ts or add it to knownCommands.ts (and its version).
+  // The list holds older versions' ids too (0.40.1 is the minimum), so only ids missing from it count.
+  expect(allowed.filter((id) => !KNOWN_COMMANDS.has(id)), `commands newer than SolidCraft ${KNOWN_COMMANDS_VERSION}`).toEqual([]);
+});
+
 test('connects to a SolidCraft window the user opened and shows its design', async () => {
   // Needs a SolidCraft window the user opened with a design that has a body; without one PartBuddy
   // starts its own headless engine (ADR 0016). Opt in with PARTBUDDY_E2E_OPEN_WINDOW=1.
@@ -59,20 +74,57 @@ test('starts SolidCraft without a window when none runs, and ends it on quit (AD
   const { mkdtempSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
+  /**
+   * The SolidCraft processes below the app's main process. Only those count: other SolidCraft runs on the
+   * machine (an audit, another session, a second test worker) turned the old machine-wide count red.
+   */
+  const startedBy = (root: number): { pid: number; image: string }[] => {
+    const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId),$($_.ParentProcessId),$($_.Name)" }'], {
+      encoding: 'utf8',
+      windowsHide: true,
+    });
+    const rows = out
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => {
+        const [pid = '', parent = '', ...name] = line.split(',');
+        return { pid: Number(pid), parent: Number(parent), image: name.join(',').toLowerCase() };
+      });
+    const tree = new Set([root]);
+    // The list is in no particular order: repeat until no further descendant turns up.
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const row of rows) {
+        if (tree.has(row.parent) && !tree.has(row.pid)) {
+          tree.add(row.pid);
+          grew = true;
+        }
+      }
+    }
+    return rows.filter((row) => row.pid !== root && tree.has(row.pid) && row.image.startsWith('solidcraft'));
+  };
+  const running = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === 'EPERM';
+    }
+  };
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-owned-'));
-  const windows = countProcesses('solidcraft.exe');
-  const engines = countProcesses('solidcraft-cli.exe');
   const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: '7881' } });
   try {
-    const { page } = launched;
+    const { page, app } = launched;
     await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 30_000 });
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless');
     await expect(page.getByText('Tell the assistant what you need.')).toBeVisible();
-    // No SolidCraft window was opened; the engine runs as solidcraft-cli.
-    expect(countProcesses('solidcraft.exe')).toBe(windows);
-    expect(countProcesses('solidcraft-cli.exe')).toBeGreaterThan(engines);
+    // No SolidCraft window was opened; the engine runs as solidcraft-cli, started by the app.
+    const started = startedBy(app.process().pid ?? 0);
+    expect(started.map((p) => p.image)).not.toContain('solidcraft.exe');
+    expect(started.map((p) => p.image)).toContain('solidcraft-cli.exe');
     await launched.close();
-    await expect.poll(() => countProcesses('solidcraft-cli.exe'), { timeout: 15_000 }).toBe(engines);
+    // On quit every SolidCraft the app started ends.
+    await expect.poll(() => started.filter((p) => running(p.pid)), { timeout: 15_000 }).toEqual([]);
   } finally {
     rmSync(controlDir, { recursive: true, force: true });
   }
@@ -178,6 +230,8 @@ test('the user undoes, exports and opens the headless design in the SolidCraft w
     await app.evaluate(({ dialog }, filePath) => {
       dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath });
     }, target);
+    // Checked first: until then the export asks (audit X-1).
+    await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-measuring', 'true', { timeout: 30_000 });
     await page.getByRole('button', { name: 'Export' }).click();
     await page.getByRole('menuitem', { name: /STL/ }).click();
     await expect(page.getByTestId('notice')).toHaveText('Saved as box.stl', { timeout: 30_000 });
@@ -189,7 +243,8 @@ test('the user undoes, exports and opens the headless design in the SolidCraft w
     // Open in SolidCraft: saved to the project folder, opened in the window, followed live.
     await page.getByRole('button', { name: 'Open in SolidCraft' }).click();
     await expect(status).toHaveAttribute('data-engine', 'window', { timeout: 90_000 });
-    expect(existsSync(join(projects, 'Untitled.sc'))).toBe(true);
+    // Saved as the project the first body named (B2).
+    expect(existsSync(join(projects, 'Part', 'Part.sc'))).toBe(true);
     expect(countProcesses('solidcraft.exe')).toBe(windows + 1);
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
     await page.screenshot({ path: test.info().outputPath('handoff-window.png') });
@@ -530,6 +585,8 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
     // The test double shows a plan for "plan" and then tries to build anyway (test/fakeClaude.mjs).
     PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+    // The plan before a new part (audit R14) end to end: the design is empty, so only Go lets the box through.
+    PARTBUDDY_PLAN_FIRST: '1',
   };
   const launched = await launchApp({ isolated: false, work, env });
   const { page } = launched;
@@ -539,6 +596,11 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     await page.getByTestId('chat-example').first().click();
     await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toHaveValue(/^A wall holder for a cordless drill/);
     await expect(page.getByTestId('chat-start')).toBeVisible();
+    // A box straight away in the empty design is refused: a new part waits for a plan with Go (audit R14).
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make a box');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('assistant-text').last()).toHaveText('Refused: This is a new part: show a plan with partbuddy_plan first and build after the user pressed Go.', { timeout: 30_000 });
+    await expect(page.getByTestId('step-card')).toHaveCount(0);
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make a plan first');
     await page.getByRole('button', { name: 'Send' }).click();
     const card = page.getByTestId('question-card');
@@ -647,6 +709,22 @@ test('a round of questions comes with the recommendation picked and answers in o
     await expect(card.getByRole('radio', { name: /Clamp/ })).not.toBeChecked();
     await mounting.fill('');
     await expect(card.getByRole('button', { name: 'Answer' })).toBeDisabled();
+    // A real click on a row focuses its hidden input: no clipped box may scroll for it, or the window goes blank (#326).
+    await card.getByRole('radio', { name: /Clamp/ }).locator('xpath=ancestor::label[1]').click();
+    await expect(card.getByRole('radio', { name: /Clamp/ })).toBeChecked();
+    const scrolled = await page.evaluate(() => {
+      const browser = globalThis as unknown as {
+        document: {
+          querySelectorAll(selector: string): ArrayLike<{ scrollTop: number; clientHeight: number; tagName: string; className: string; outerHTML: string }>;
+        };
+        getComputedStyle(element: unknown): { overflowY: string };
+      };
+      // The 1 px wrapper of the hidden input scrolls inside itself; nobody sees that.
+      return Array.from(browser.document.querySelectorAll('#root, #root *'))
+        .filter((element) => element.clientHeight > 1 && element.scrollTop > 0 && ['hidden', 'clip'].includes(browser.getComputedStyle(element).overflowY))
+        .map((element) => `${element.tagName}.${element.className} ↑${String(element.scrollTop)} ${element.outerHTML.slice(0, 160)}`);
+    });
+    expect(scrolled).toEqual([]);
     await card.getByRole('radio', { name: /Screws/ }).check({ force: true });
     const axe = await new AxeBuilder({ page }).setLegacyMode(true).include('aside').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
@@ -678,7 +756,8 @@ test('the user\'s Claude Code builds a part in SolidCraft through the gate proxy
   const { ControlClient } = await import('../src/main/solidcraft/controlClient');
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-spike-'));
   const port = '7882';
-  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port } });
+  // The test asks for a box straight away; the plan before a new part (questions.ts) is tested on its own.
+  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port, PARTBUDDY_PLAN_FIRST: '0' } });
   try {
     const { page } = launched;
     await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
@@ -720,7 +799,8 @@ test('ChatGPT builds a part in SolidCraft with the user\'s plan', async () => {
   const { ControlClient } = await import('../src/main/solidcraft/controlClient');
   const controlDir = mkdtempSync(join(tmpdir(), 'partbuddy-spike-'));
   const port = '7883';
-  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port } });
+  // The test asks for a box straight away; the plan before a new part (questions.ts) is tested on its own.
+  const launched = await launchApp({ isolated: false, env: { SOLIDCRAFT_CONTROL_DIR: controlDir, PARTBUDDY_SOLIDCRAFT_PORT: port, PARTBUDDY_PLAN_FIRST: '0' } });
   try {
     const { page } = launched;
     await expect(page.getByTestId('connection-status')).toHaveText(/SolidCraft · Revision \d+/, { timeout: 90_000 });
@@ -950,8 +1030,10 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     await page.getByTestId('dimensions-all').click();
     const slots = page.getByTestId('mark-slot');
     // Every input of the three boxes, the two countersunk holes and the two fillets has a place on
-    // the model: boxes on formula corners too, the countersink angle at its rim.
-    await expect(slots).toHaveCount(17, { timeout: 20_000 });
+    // the model: boxes on formula corners too, the countersink angle at its rim. The holes come from
+    // partbuddy_block (BC-13), whose measured depth through the wall is a dimension of each: 17 → 19
+    // (measured with SolidCraft 0.40.1 on 2026-11-13, supervisor.dimensionMarks rebuilt in the audit harness).
+    await expect(slots).toHaveCount(19, { timeout: 20_000 });
     await expect(page.getByTestId('loose-dimensions')).toHaveCount(0);
     await expect.poll(() => slots.evaluateAll((all) => (all as unknown as LooseElement[]).every((slot) => slot.getAttribute('data-shown') !== null)), { timeout: 10_000 }).toBe(true);
     await page.waitForTimeout(500);
@@ -982,8 +1064,8 @@ test('the dimensions of the wall holder neither cover each other nor show throug
     await page.getByTestId('dimensions').click();
 
     // The ready-to-print check (M7, R1, ADR 0010 amendment 2026-11-08): the upper halves of the
-    // lying 4.5 mm countersunk holes reach at most 1.6 mm past the bore's sides, a small overhang the
-    // slicers print without support, so the wall holder is ready to print.
+    // lying 4.5 mm countersunk holes (M4, ISO 273 normal, countersink 9.56 mm from the block) are a small overhang the
+    // slicers print without support, so the wall holder is ready to print (the harness's checkPrint gave ready on 0.40.1).
     await expect(page.getByTestId('print-check')).toHaveAttribute('data-status', 'ready', { timeout: 15_000 });
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('tidy-failed.png') }).catch(() => undefined);
@@ -1593,7 +1675,8 @@ test('function blocks are previewed and built at a face: tapped hole, screw hole
     await turnEnded(page);
     const top = (x: number, y: number) => ({ body: 'Body1', point: [x, y, 10] });
     const blocks = [
-      { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: true, more: [[5, 10, 10]] },
+      // Listed, to be tapped: a printed M4 strips, and the form refuses it modelled (review of BC-12).
+      { block: 'tappedHole', ...top(5, 5), size: 'M4', depth: 6, modeled: false, more: [[5, 10, 10]] },
       { block: 'screwHole', ...top(15, 5), size: 'M3', head: 'countersunk', fit: 'normal' },
       { block: 'insertSeat', ...top(5, 15), size: 'M3', diameter: 4, depth: 6.7 },
       { block: 'boss', ...top(15, 15), size: 'M2', diameter: 7.2, height: 6 },
@@ -1685,8 +1768,13 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     await page.getByTestId('block-tile-text').click();
     await expect(page.getByTestId('block-size')).toHaveCount(0);
     await page.getByTestId('block-text').getByRole('textbox').fill('UI');
+    // Bold capitals 3 mm high have strokes of 0.61 mm, under the two nozzle widths (0.8 mm) a stroke needs on the 0.4 mm
+    // nozzle (printProfiles.ts; stroke share of Arial bold measured 2026-11-13): the form refuses them and says why.
     await page.getByTestId('block-height').getByRole('textbox').fill('3');
-    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'false', { timeout: 60_000 });
+    await expect(page.getByTestId('block-status')).toContainText('Bold capitals 3 mm high have strokes 0.61 mm wide, under the 0.8 mm (two nozzle widths) a stroke needs on the 0.4 mm nozzle: give a height of 4 mm or more.');
+    await page.getByTestId('block-height').getByRole('textbox').fill('4');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
     await page.screenshot({ path: test.info().outputPath('block-form-text.png') });
     await page.getByTestId('block-apply').click();
     await expect(page.getByText('Text “UI”')).toBeVisible({ timeout: 30_000 });
@@ -1720,17 +1808,19 @@ test('a snap fit stands out of a face, its catch across the arm, with its strain
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 6 faces', { timeout: 30_000 });
     await turnEnded(page);
-    const snap = { block: 'snapFit', body: 'Body1', size: 'M3', length: 10, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5 };
+    // 12 and 11 mm: 1.42 and 1.71 % in PLA, within its 2 %; 10 and 8 mm (2.1, 3.42 %) are refused since audit BC-17 (T18).
+    const snap = { block: 'snapFit', body: 'Body1', size: 'M3', length: 12, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5 };
     // Up from the top face, and level out of a side face with the catch pointing up.
     for (const block of [
       { ...snap, point: [10, 10, 10], normal: [0, 0, 1], hook: 'y+' },
-      { ...snap, point: [20, 10, 5], normal: [1, 0, 0], hook: 'y+', length: 8 },
+      { ...snap, point: [20, 10, 5], normal: [1, 0, 0], hook: 'y+', length: 11 },
     ]) {
       expect(await preview(block)).toEqual({ ok: true, error: null });
       await apply(block);
     }
-    for (const line of ['Snap fit 10 mm', 'Snap fit 8 mm']) await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId('timeline-feature')).toHaveCount(3, { timeout: 30_000 });
+    for (const line of ['Snap fit 12 mm', 'Snap fit 11 mm']) await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
+    // The box and each hook with the fillets at its two root edges, one a step (audit MV-10, second review of BC-17).
+    await expect(page.getByTestId('timeline-feature')).toHaveCount(7, { timeout: 30_000 });
     await page.screenshot({ path: test.info().outputPath('blocks-snap-fit.png') });
 
     // Through the form: the strain warns on a short arm and is fine again on a longer one.
@@ -1749,17 +1839,26 @@ test('a snap fit stands out of a face, its catch across the arm, with its strain
     await page.getByTestId('block-kind').getByRole('button').click();
     await page.getByRole('option', { name: 'Snap fit' }).click();
     await expect(page.getByTestId('block-size')).toHaveCount(0);
-    await expect(page.getByTestId('block-strain')).toHaveText('About 1.4 % strain when it snaps in');
+    await expect(page.getByTestId('block-strain')).toHaveText('About 1.4 % strain when it snaps in; printed PLA takes 2 % once, about 1.2 % when it snaps often');
     await page.getByTestId('block-length').getByRole('textbox').fill('6');
-    await expect(page.getByTestId('block-strain')).toContainText('About 6.5 % strain when it snaps in – more than printed PLA takes');
+    await expect(page.getByTestId('block-strain')).toContainText('About 6.5 % strain when it snaps in');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'false', { timeout: 60_000 });
+    await expect(page.getByTestId('block-status')).toContainText('The arm bends 6.54 % at its root as the catch snaps in, more than the 2 % PartBuddy allows printed PLA: make it at least 10.3 mm long, or thinner, or the catch shallower.');
+    // A catch of 0.3 mm is under the narrowest line a slicer lays (thinnestLine, 0.42 mm at 0.4) and under the 0.5 to 1.2 mm undercut of the standard
+    // (audit Maßstab, Schnapphaken): the form refuses it and says why. 0.5 mm prints and holds.
     await page.getByTestId('block-catch-depth').getByRole('textbox').fill('0.3');
-    await expect(page.getByTestId('block-strain')).toContainText('About 2.4 % strain');
-    await page.getByTestId('block-length').getByRole('textbox').fill('8');
-    await expect(page.getByTestId('block-strain')).toHaveText('About 1.3 % strain when it snaps in');
-    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 30_000 });
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'false', { timeout: 60_000 });
+    await expect(page.getByTestId('block-status')).toContainText('A catch 0.3 mm deep does not print and holds nothing: give at least 0.42 mm, the narrowest line a slicer lays with the 0.4 mm nozzle.');
+    await page.getByTestId('block-catch-depth').getByRole('textbox').fill('0.5');
+    // 150 · 1.5 · 0.5 / (6 − 0.75)² = 4.08 %; on an arm of 9 mm, / (9 − 0.75)² = 1.65 %.
+    await expect(page.getByTestId('block-strain')).toContainText('About 4.1 % strain when it snaps in');
+    await expect(page.getByTestId('block-status')).toContainText('more than the 2 % PartBuddy allows printed PLA: make it at least 8.3 mm long', { timeout: 60_000 });
+    await page.getByTestId('block-length').getByRole('textbox').fill('9');
+    await expect(page.getByTestId('block-strain')).toHaveText('About 1.7 % strain when it snaps in; printed PLA takes 2 % once, about 1.2 % when it snaps often');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
     await page.screenshot({ path: test.info().outputPath('block-form-snap-fit.png') });
     await page.getByTestId('block-apply').click();
-    await expect(page.getByText('Snap fit 8 mm')).toHaveCount(2, { timeout: 30_000 });
+    await expect(page.getByText('Snap fit 9 mm')).toHaveCount(1, { timeout: 30_000 });
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
@@ -2683,17 +2782,18 @@ test('an SVG dropped on the chat goes along exactly: an "O" at 40 mm, 2 mm high,
     await expect(page.getByTestId('composer-drawing-backdrop')).toContainText('Background or frame around the drawing left out');
     await page.getByTestId('composer-drawing-remove').click();
     await expect(page.getByTestId('composer-drawing-backdrop')).toHaveCount(0);
-    // A bar 0.2 mm high at 20 mm wide is narrower than the 0.4 mm nozzle: shown, marked, and widened on a click.
+    // A bar 0.2 mm high at 20 mm wide is under the 0.9 mm of two lines on the 0.4 mm nozzle: shown, marked, and widened on a click.
     await drop('thin-bar.svg', fixture('thin-bar.svg'));
     const detail = page.getByTestId('drawing-detail');
-    await expect(detail).toContainText('One place is narrower than the nozzle (0.4 mm), the narrowest 0.2 mm');
+    await expect(detail).toContainText('One place is too fine for the 0.4 mm nozzle, the narrowest 0.2 mm: a stroke under 0.9 mm (two lines)');
     await page.getByTestId('drawing-detail-show').click();
     await expect(page.getByTestId('photo-large')).toBeVisible();
     await page.screenshot({ path: test.info().outputPath('svg-detail-marked.png') });
     await page.keyboard.press('Escape');
     await page.screenshot({ path: test.info().outputPath('svg-detail.png') });
     await page.getByTestId('drawing-detail-widen').click();
-    await expect(page.getByTestId('composer-drawing-width').getByRole('textbox')).toHaveValue('44');
+    // 0.9 mm and 10 % over for the 0.2 mm bar: 20 × 0.99 / 0.2 = 99 mm (drawingDetail.test.ts).
+    await expect(page.getByTestId('composer-drawing-width').getByRole('textbox')).toHaveValue('99');
     await expect(detail).toHaveCount(0, { timeout: 5_000 });
     await page.getByTestId('composer-drawing-remove').click();
     // The "O" says 20 mm in its file; the user makes it 40.
@@ -2935,7 +3035,7 @@ test('a local model builds a part in SolidCraft through the policy (F8)', async 
 
 test('the tolerance assistant has SolidCraft build its test pieces and shows a picture of them', async () => {
   test.setTimeout(240_000);
-  const { existsSync, mkdtempSync, rmSync } = await import('node:fs');
+  const { mkdtempSync, readdirSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-test-pieces-'));
@@ -2959,7 +3059,8 @@ test('the tolerance assistant has SolidCraft build its test pieces and shows a p
     const assistant = page.getByTestId('tolerance-assistant');
     await assistant.getByTestId('tolerance-next').click();
     await expect(assistant.getByTestId('tolerance-picture')).toBeVisible({ timeout: 120_000 });
-    expect(existsSync(join(work, 'cache', 'test-pieces', 'test-pieces-0.4-0.2.sc'))).toBe(true);
+    // Named after the printer and a hash of the pieces' steps (audit D43).
+    expect(readdirSync(join(work, 'cache', 'test-pieces')).filter((name) => /^test-pieces-0\.4-0\.2-[0-9a-f]{12}\.sc$/.test(name))).toHaveLength(1);
     await page.screenshot({ path: test.info().outputPath('tolerance-pieces.png') });
   } finally {
     await launched.close();
@@ -3265,14 +3366,21 @@ test('in the SolidCraft window the light measures a hinge once and then stays qu
       const hinge = listed.results?.[0]?.joints?.find((joint) => joint.name === 'Hinge');
       if (!hinge) throw new Error('no joint "Hinge" in the window');
       const checked = Number(await light.getAttribute('data-revision'));
+      const inspected = await client.request<{ results?: unknown[] }>('engine.batch', { commands: [{ command: 'document.inspect', params: { timeline: false, bodies: false } }], rollback: false });
+      const undoBefore = Number((inspected.results?.[0] as { undo?: unknown } | undefined)?.undo);
       const limited = await client.request<{ failed?: unknown }>('engine.batch', { commands: [{ command: 'joint.limits', params: { joint: hinge.id, min: -180, max: 30 } }], rollback: false });
       expect(limited.failed).toBeUndefined();
       // The new limit is mirrored and checked.
       await expect.poll(async () => Number(await light.getAttribute('data-revision')), { timeout: 30_000 }).toBeGreaterThan(checked);
+      await staysQuiet('a snap fit tried');
+      // The pose tried is taken back: the hinge stands as designed, and the undo history holds only the new limit.
+      const after = await client.request<{ results?: unknown[] }>('engine.batch', { commands: [{ command: 'joint.list', params: {} }, { command: 'document.inspect', params: { timeline: false, bodies: false } }], rollback: false });
+      const joints = (after.results?.[0] as { joints?: { id: number; values: { value: number }[] }[] } | undefined)?.joints;
+      expect(joints?.find((joint) => joint.id === hinge.id)?.values[0]?.value).toBeCloseTo(0, 6);
+      expect((after.results?.[1] as { undo?: unknown } | undefined)?.undo).toBe(undoBefore + 1);
     } finally {
       client.close();
     }
-    await staysQuiet('a snap fit tried');
     await page.screenshot({ path: test.info().outputPath('window-light-quiet.png') });
   } catch (error) {
     await page.screenshot({ path: test.info().outputPath('window-light-failed.png') }).catch(() => undefined);
@@ -3313,9 +3421,13 @@ test('a hinge plays in the view, stops where SolidCraft found the parts touching
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     // The light swept the joint in SolidCraft: upwards the flap's edge meets the base at 28.1°.
+    // The hinge comes in steps: the revision between joint.as_built and joint.limits has a joint without limits, whose
+    // free runs (BC-06) stop at 28.1° and at -180°, where the flap lies on the base. Its light may show for a moment;
+    // with the limits (-180° to 90°) one stop is left, -180° being the limit itself.
     await page.getByTestId('print-check').click({ timeout: 30_000 });
     const findings = page.getByTestId('print-check-panel');
-    await expect(findings.locator('[data-kind="blocked"]')).toContainText('Hinge: Flap and Base touch at 28.1°', { timeout: 30_000 });
+    await expect(findings.locator('[data-kind="blocked"]')).toHaveCount(1, { timeout: 30_000 });
+    await expect(findings.locator('[data-kind="blocked"]')).toContainText('Hinge: Flap and Base touch at 28.1° – the joint does not reach its limit of 90°', { timeout: 30_000 });
     await expect(async () => {
       await page.keyboard.press('Escape');
       await expect(findings).toBeHidden({ timeout: 1000 });
@@ -3380,7 +3492,7 @@ test('a hinge whose knuckles start above the bed carries them on webs at 45°: o
     await expect(page.getByText(/All 5 knuckles start above the bed and stand on webs at 45° that run from under the barrel down to their own wall, and the pin is flat underneath where it bridges from knuckle to knuckle, so the hinge prints as it stands, without support./)).toBeVisible();
     // With the webs the flap still folds all the way onto the base.
     await expect(page.getByText(/It turns from -179° to/)).toBeVisible();
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
     await page.getByTestId('print-check').click();
@@ -3529,14 +3641,14 @@ test('the assistant hangs a part on the wall with its blocks: keyhole slots on t
     // Each block says that the plastic it needs was measured at the real engine (audit R54): the 8 mm plate has it.
     // In the whole answer, not one element of it: the print check behind each block ends in a list of measures.
     await expect(page.getByTestId('assistant-text').last()).toContainText(
-      /Built 2 keyhole slots for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4\.5 mm wide running 8 mm up [\s\S]* PartBuddy measured that plastic before building, from 0\.5 mm under the face on: it is there\.[\s\S]* Built 2 countersunk holes for 4 mm wood screws in Plate: 4\.7 mm through, countersink 8\.8 mm at 90°[\s\S]* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\./,
+      /Built 2 keyhole slots for 4 mm wood screws in Plate: entry 9 mm for the head, a slot 4\.5 mm wide running 8 mm up [\s\S]* PartBuddy measured that plastic before building, from 0\.5 mm under the face on: it is there\.[\s\S]* Built 2 countersunk holes for 4 mm wood screws in Plate: 4\.5 mm through, countersink 8\.6 mm at 90° \(DIN 74; drawn 4\.65 and 8\.75 mm[\s\S]* PartBuddy measured that plastic, from 0\.5 mm under the face on: it is there\./,
       { timeout: 60_000 },
     );
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
     // Each block is one line of the work log, and no feature failed.
     await expect(page.getByText('Keyhole slot for a 4 mm screw, to hang on a wall')).toHaveCount(1);
     await expect(page.getByText('Countersunk hole for a 4 mm wood screw')).toHaveCount(1);
-    await expect(page.getByText(/Built 2 pockets for 6 × 2 mm disc magnets in Plate: 6\.3 mm wide and 2\.2 mm deep.* PartBuddy measured that plastic before building, from 0\.5 mm under the face on: it is there\./)).toBeVisible();
+    await expect(page.getByText(/Built 2 pockets for 6 × 2 mm disc magnets in Plate: 6\.3 mm wide as printed \(drawn 6\.45 mm, the material's hole allowance wider\) and 2\.2 mm deep.* PartBuddy measured that plastic before building, from 0\.5 mm under the face on: it is there\./)).toBeVisible();
     await expect(page.getByText('Pocket for a 6 × 2 mm magnet')).toHaveCount(1);
     await expect(page.getByText(/SolidCraft warns:/)).toHaveCount(0);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
@@ -3567,7 +3679,7 @@ test('the assistant makes a knob for a D shaft with one call: a part of its own 
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a volume knob');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built the knob "Volume" for a 6 mm D shaft \(flat at 4\.5 mm\): the bore is 6\.2 mm wide and 11 mm deep, flat over its last 7 mm .* with a chamfered mouth, to push on.* with 11 flutes to grip/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Built the knob "Volume" for a 6 mm D shaft \(flat at 4\.5 mm\): the bore is 6\.1 mm wide \(drawn 6\.25 mm\) and 11 mm deep, flat over its last 6 mm .* with a chamfered mouth, to push on.* with 12 flutes to grip/)).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/SolidCraft warns:/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
     await expect(page.getByText('Knob “Volume” for a shaft')).toHaveCount(1);
@@ -3600,7 +3712,7 @@ test('the assistant latches a lid onto its box: the arm grows out of the lid and
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a latched box');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText(/Built the latch "Front latch": an arm 10 mm wide and 1\.6 mm thick grows out of the wall of Lid \(the lid\), hangs 1\.5 mm off the wall over the joint and snaps with its hook under a bead 1\.2 mm high on Box/)).toBeVisible({ timeout: 90_000 });
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByText(/stand apart/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Snap latch “Front latch” outside, between lid and box')).toHaveCount(1);
@@ -3638,8 +3750,10 @@ test('the assistant plugs the halves of a split block together: pegs in their po
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a split block');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built 2 pegs "Alignment" on Left with their pockets in Right: 5 mm thick and 7\.5 mm long, 0\.2 mm clear per side/)).toBeVisible({ timeout: 90_000 });
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Built 2 pegs "Alignment" on Left with their pockets in Right: 5 mm thick and 7\.5 mm long, 0\.15 mm clear per side as printed \(the pocket drawn 5\.45 mm wide/)).toBeVisible({ timeout: 90_000 });
+    // BC-28: the parting face with its two pockets' mouths cut out fills the side (measured 2026-11-14: 534.65 mm², outer perimeter 100 mm).
+    await expect(page.getByTestId('assistant-text').last()).toContainText('Right prints on its parting face, the face where it meets Left, which is set as its print face, in place of any it had; Left prints on the face opposite its parting face, which is set as its print face, in place of any it had, so that the pegs stand upright and come out round.');
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Plugged connection “Alignment” between two parts')).toHaveCount(1);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
@@ -3679,7 +3793,9 @@ test('the assistant clips a cover onto its base with snap hooks: each hook catch
       /Built 1 snap hook "Back clip" on Base, each with its window through the 2 mm wall of Cover: an arm 12 mm long, 1\.5 mm thick and 5 mm wide, 0\.2 mm off the wall[\s\S]* Built 1 snap hook "Front clip" on Base/,
       { timeout: 90_000 },
     );
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    // BC-28: the hollow cover stands on its rim, whose middle is open (measured 2026-11-14), and the base's arms stand out of its parting face.
+    await expect(page.getByTestId('assistant-text').last()).toContainText("Cover was not laid on its parting face, the face where it meets Base (nothing flat of Cover lies at the middle of that side, [20,15,4]): set its print face there if it stands flat on it, else on a face from which nothing of it hangs. PartBuddy does not set a print face for Base: its arms stand out of its parting face");
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Snap hooks “Back clip” with their windows')).toHaveCount(1);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
@@ -3715,8 +3831,8 @@ test('the assistant makes a screw lid for a jar with one call: the threads mesh 
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a jar with a screw lid');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built the screw lid "Jar lid" for Jar: a thread with 45° flanks on the neck, pitch 4 mm, 1\.2 mm deep, 1 start, and the same inside the lid, 0\.3 mm clear; it closes in 1\.75 turns/)).toBeVisible({ timeout: 90_000 });
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Built the screw lid "Jar lid" for Jar: a thread with 45° flanks on the neck, pitch 4 mm, 1\.2 mm deep, 1 start, and the same inside the lid, 0\.3 mm clear radially \(0\.21 mm square to the 45° flanks\); it closes in 1\.75 turns/)).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText('Screw lid “Jar lid” with its thread on the container')).toHaveCount(1);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
@@ -3761,7 +3877,7 @@ test('the assistant builds a screw joint with one call: holes on one line in bot
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a screwed plate');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByText(/Built 2 screw joints "Plate screws" that hold Plate on Block: .* To buy: 2 × M3×8 socket head cap screws \(ISO 4762\) and 2 M3 heat-set inserts 5\.7 mm long/)).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     // Block, plate and two screws, which the tree knows as standard parts.
     await expect(page.getByTestId('mesh-summary')).toContainText('4 bodies', { timeout: 30_000 });
     // The screws count once SolidCraft has built one to hold them against, a mirror after the bodies show.
@@ -3800,8 +3916,8 @@ test('a flat plate as the lid gets the lip alone: one piece, nothing through its
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a snap plate');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built the closure "Plate closure" between Box \(the box\) and Plate \(the flat lid\): a lip 1\.2 mm thick and 4 mm high on the plate/)).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Built the closure "Plate closure" between Box \(the box\) and Plate \(the flat lid\): a lip 1\.4 mm thick and 4 mm high on the plate/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     // The lip grew onto the plate: a loose piece would have been taken back, with a message instead of "Built".
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
@@ -3836,8 +3952,8 @@ test('the assistant builds a snap closure with one call: a lip in the lid, its b
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a snap lid');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Built the closure "Lid closure" between Box \(the box\) and Lid \(the lid\): a lip 1\.2 mm thick and 4 mm high inside the lid, 0\.25 mm clear of the box's wall, a bead that snaps 0\.25 mm into a rille/)).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(/Warning:/)).toHaveCount(0);
+    await expect(page.getByText(/Built the closure "Lid closure" between Box \(the box\) and Lid \(the lid\): a lip 1\.4 mm thick and 4 mm high inside the lid, 0\.25 mm clear of the box's wall, a bead that snaps 0\.25 mm into a rille/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Warning:|SolidCraft warns/)).toHaveCount(0);
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     // The closure is one step of the work log, and no feature of it failed.
     await expect(page.getByText('Snap closure “Lid closure” between lid and box')).toHaveCount(1);
@@ -3857,7 +3973,7 @@ test('the assistant builds a snap closure with one call: a lip in the lid, its b
   }
 });
 
-test('a hinge whose line is out of reach of the bodies is taken back, with where the line goes (G3)', async () => {
+test('a hinge whose line is out of reach of the bodies is refused before anything is built, with where the line goes (G3)', async () => {
   test.setTimeout(240_000);
   const { mkdtempSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
@@ -3876,7 +3992,8 @@ test('a hinge whose line is out of reach of the bodies is taken back, with where
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a flap out of reach');
     await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.getByText(/Not built: 5 piece\(s\) did not touch their body and stand apart from it\. Put the hinge line within 2\.5 mm of both bodies .* Everything was taken back./)).toBeVisible({ timeout: 60_000 });
+    // Audit W8: measured on trial before anything is built, the line 5 mm from either plate.
+    await expect(page.getByText(/Not built: the hinge line lies 5 mm from Base, outside the barrel's radius of 3 mm, so its knuckles would not touch it\. Put the hinge line within 2\.5 mm of both bodies /)).toBeVisible({ timeout: 60_000 });
     // The two plates are as they were: no knuckle, no cut, no joint.
     await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies · 12 faces', { timeout: 30_000 });
     await expect(page.getByTestId('joints')).toHaveCount(0);

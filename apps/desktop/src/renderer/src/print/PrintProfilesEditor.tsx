@@ -16,7 +16,7 @@ import {
   TextField,
 } from 'react-aria-components';
 
-import { FIT_KINDS, MAX_MATERIALS, MAX_PRINTERS, type MaterialProfile, type PrinterProfile, type PrintSettings } from '../../../shared/contract';
+import { FIT_KINDS, fitsInOrder, layerFitsNozzle, MAX_MATERIALS, MAX_PRINTERS, printSettingsProblem, type MaterialProfile, type PrinterProfile, type PrintSettings } from '../../../shared/contract';
 import { platform } from '../platform';
 import { useStudio, type ProfilesTab } from '../state/store';
 import { Button } from '../ui/Button';
@@ -24,7 +24,9 @@ import { FieldMessage, fieldLabelClass, inputClass, UnitInput } from '../ui/Fiel
 import { CheckMark, choiceInlineClass } from '../ui/Choice';
 import { MATERIAL_CATALOG } from '../../../shared/materialCatalog';
 import { PRINTER_CATALOG } from '../../../shared/printerCatalog';
+import { fitsSource } from '../../../shared/toolFit';
 import { CatalogPicker, type CatalogSection } from './CatalogPicker';
+import { withProfiles } from './settingsMerge';
 import { ToleranceAssistant } from './ToleranceAssistant';
 import { listRowClass, tabClass, tabListClass } from '../ui/Navigation';
 
@@ -57,6 +59,7 @@ function Measure({
   step,
   unit,
   testId,
+  error = null,
 }: {
   label: string;
   value: number;
@@ -66,6 +69,7 @@ function Measure({
   step: number;
   unit: string;
   testId: string;
+  error?: string | null;
 }) {
   return (
     <NumberField
@@ -77,11 +81,13 @@ function Measure({
       onChange={(next) => {
         if (Number.isFinite(next)) onChange(next);
       }}
+      isInvalid={error !== null}
       className="flex flex-col gap-1"
       data-testid={testId}
     >
       <Label className={fieldLabelClass}>{label}</Label>
       <UnitInput unit={unit} />
+      <FieldMessage error={error} />
     </NumberField>
   );
 }
@@ -206,7 +212,17 @@ function PrinterForm({ printer, onChange }: { printer: PrinterProfile; onChange:
       </fieldset>
       <div className="grid grid-cols-2 gap-2">
         <Measure label={t('print.nozzle')} value={printer.nozzle} min={0.1} max={2} step={0.05} unit="mm" testId="printer-nozzle" onChange={(nozzle) => onChange({ ...printer, nozzle })} />
-        <Measure label={t('print.layer')} value={printer.layer} min={0.04} max={1.2} step={0.02} unit="mm" testId="printer-layer" onChange={(layer) => onChange({ ...printer, layer })} />
+        <Measure
+          label={t('print.layer')}
+          value={printer.layer}
+          min={0.04}
+          max={1.2}
+          step={0.02}
+          unit="mm"
+          testId="printer-layer"
+          error={layerFitsNozzle(printer) ? null : t('print.layerOverNozzle')}
+          onChange={(layer) => onChange({ ...printer, layer })}
+        />
       </div>
       <p className="text-xs text-text-subtle">{t('print.printerHint')}</p>
     </>
@@ -249,6 +265,16 @@ function MaterialForm({
             />
           ))}
         </div>
+        {fitsSource(material) === 'olderComb' ? (
+          <p className="text-xs text-text-subtle" data-testid="material-fits-older-comb">
+            {t('print.fitsOlderComb')}
+          </p>
+        ) : null}
+        {fitsInOrder(material.clearance) ? null : (
+          <p role="alert" className="text-xs text-danger" data-testid="material-fit-order">
+            {t('print.fitOrder')}
+          </p>
+        )}
       </fieldset>
       <CheckboxField isSelected={isDefault} isDisabled={isDefault} onChange={onDefault} data-testid="material-default">
         <CheckboxButton className={`${choiceInlineClass} disabled:opacity-100`}>
@@ -266,7 +292,8 @@ const SAVE_DELAY_MS = 400;
 
 /**
  * The printer and material profiles; every change applies at once, as in the other settings
- * (audit A-23). A profile without a name is held back and says so until it has one again.
+ * (audit A-23). A profile without a name, a layer over its nozzle or fits that do not grow from clamp to turn are held
+ * back and say so until fixed (`printSettingsProblem`).
  */
 export function PrintProfilesEditor() {
   const { t } = useTranslation();
@@ -308,8 +335,10 @@ export function PrintProfilesEditor() {
       printers: next.printers.map((item) => ({ ...item, name: item.name.trim() })),
       materials: next.materials.map((item) => ({ ...item, name: item.name.trim() })),
     };
+    // The design rules and the check's hints are switched beside the editor (BC-24): kept as saved, not as loaded here.
     platform()
-      .print.saveSettings(trimmed)
+      .print.settings()
+      .then((stored) => platform().print.saveSettings(withProfiles(trimmed, stored)))
       .then(() => {
         setError(null);
       })
@@ -319,7 +348,9 @@ export function PrintProfilesEditor() {
       });
   };
   const writeRef = useRef(write);
-  writeRef.current = write;
+  useEffect(() => {
+    writeRef.current = write;
+  });
   // Closing the settings saves what is still waiting.
   useEffect(
     () => () => {
@@ -338,12 +369,12 @@ export function PrintProfilesEditor() {
   const setMaterial = (next: MaterialProfile) => {
     setDraft({ ...draft, materials: draft.materials.map((item) => (item.id === next.id ? next : item)) });
   };
-  const invalid = [...draft.printers, ...draft.materials].some((item) => item.name.trim() === '');
+  const invalid = printSettingsProblem(draft);
   function setDraft(next: PrintSettings) {
     setLoaded(next);
     if (timer.current) clearTimeout(timer.current);
-    // A missing name keeps the last saved profiles; the field says why.
-    if ([...next.printers, ...next.materials].some((item) => item.name.trim() === '')) {
+    // A missing name, a layer over the nozzle or fits out of order keep the last saved profiles; the field says why.
+    if (printSettingsProblem(next)) {
       pending.current = null;
       return;
     }
@@ -480,7 +511,7 @@ export function PrintProfilesEditor() {
       </Tabs>
       {error || invalid ? (
         <p role="alert" className="text-sm text-danger" data-testid="print-unsaved">
-          {error ?? t('print.nameMissing')}
+          {error ?? t(`print.${invalid?.problem ?? 'nameMissing'}`, { name: invalid?.name ?? '' })}
         </p>
       ) : null}
     </>

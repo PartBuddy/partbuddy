@@ -466,10 +466,12 @@
         "failed": "The assistant stopped with an error.",
         "error_during_execution": "An error stopped the assistant while it worked.",
         "error_max_turns": "The assistant took too many steps and stopped.",
+        "rounds": "The assistant used all tool rounds of this answer and stopped; the part may be unfinished. Continue picks up where it stopped.",
         "signedOut": "Your Claude Code sign-in has expired. Sign in again, then send the message again.",
         "other": "The assistant stopped before it finished."
       },
       "retry": "Send again",
+      "continue": "Continue",
       "openLog": "Show log file"
     },
     "examples": {
@@ -539,18 +541,19 @@
     "format": {
       "3mf": {
         "name": "3MF",
-        "hint": "For the slicer, such as OrcaSlicer or Bambu Studio"
+        "hint": "For the slicer: the visible printed parts, each on its print face where one is set, round faces fine (off by {chord, number} mm per 100 mm of part size at most)"
       },
       "stl": {
         "name": "STL",
-        "hint": "For any slicer and older programs"
+        "hint": "One mesh for any slicer: the visible printed parts, finely meshed; laid on its print face only a single part, several as designed"
       },
       "step": {
         "name": "STEP",
-        "hint": "For other CAD programs"
+        "hint": "The visible printed parts as designed, for other CAD programs"
       }
     },
     "exported": "Saved as {file}",
+    "hiddenLeftOut": "Hidden, so left out: {bodies}.",
     "openInSolidCraft": "Open in SolidCraft",
     "openedInSolidCraft": "The design is in Documents\\PartBuddy and opens in SolidCraft. PartBuddy shows your changes there live.",
     "failed": "That did not work: {detail}",
@@ -563,15 +566,22 @@
     },
     "share": {
       "name": "Sharing package …",
-      "hint": "3MF, STEP, four pictures and a description for Printables or MakerWorld",
+      "hint": "3MF (each part on its print face where one is set), STEP, four pictures and a description for Printables or MakerWorld; hidden bodies stay out",
       "done": "Sharing package saved in exports\\{folder}"
     }
   },
   "drawingDetail": {
-    "fine": "{places, plural, one {One place is} other {# places are}} narrower than the nozzle ({nozzle, number} mm), the narrowest {thinnest, number} mm: they will not print cleanly or will close up. From {fineFrom, number} mm wide everything fits.",
+    "fine": "{places, plural, one {One place is} other {# places are}} too fine for the {nozzle, number} mm nozzle, the narrowest {thinnest, number} mm: a stroke under {stroke, number} mm (two lines) does not print solid, a gap under {gap, number} mm closes up. From {fineFrom, number} mm wide everything fits.",
+    "coarse": "At this size the details are checked on a raster of {mmPerPx, number} mm: a place of about {gap, number} mm can go unseen.",
     "widen": "Make it {width, number} mm wide",
     "show": "Show the places",
-    "backdrop": "Background or frame around the drawing left out – it is not part of the logo."
+    "backdrop": "Background or frame around the drawing left out – it is not part of the logo.",
+    "otherwise": {
+      "colours": "{count, plural, one {One shape has} other {# shapes have}} a colour or gradient PartBuddy cannot read: built black.",
+      "clips": "{count, plural, one {A clip path or mask is} other {# clip paths or masks are}} not applied: what they hide is built too.",
+      "dashes": "{count, plural, one {A dashed line is} other {# dashed lines are}} built as one line.",
+      "views": "{count, plural, one {An inner drawing is} other {# inner drawings are}} built without its own view and clipping."
+    }
   },
   "logoMove": {
     "title": "Logo “{name}”",
@@ -673,6 +683,19 @@
       "radius": "New radius",
       "diameter": "New diameter",
       "spacing": "New distance"
+    },
+    "rule": {
+      "downFillet": "{count, plural, one {The edge faces} other {# of the edges face}} down: a fillet there starts flat, so it needs support.",
+      "downFilletBed": "On the bed it also curls up.",
+      "chamferFree": "A 45° chamfer of {chamfer} mm prints without support.",
+      "chamferSteep": "A 45° chamfer of {chamfer} mm leans past the {overhang}° that {material} prints without support, but sags less than the fillet.",
+      "toChamfer": "Chamfer instead",
+      "holeAllowance": "Drilled at {drilled} mm: holes in {material} print about {allowance} mm smaller.",
+      "lyingHole": "The hole lies across the layers: wider than {most} mm, its roof needs support. Ask the assistant for a teardrop roof, or lay the part so the hole stands upright.",
+      "wallNoPrint": "Too thin to print: the narrowest line a slicer lays with this nozzle is {least} mm. {better} mm prints.",
+      "wallThin": "Under two lines ({least} mm) the wall prints poorly; {better} mm prints solid.",
+      "wallLines": "Not a whole number of {line} mm lines; {better} mm prints cleaner.",
+      "floorThin": "A flat floor or lid keeps this thickness too: under {least} mm ({layers} layers) it prints poorly; for it {better} mm prints solid."
     }
   },
   "structure": {
@@ -686,8 +709,8 @@
     "show": "Show {name}",
     "mesh": "mesh",
     "convert": "Convert {name} to faces",
-    "convertHint": "Turns the mesh into faces you can edit. Works for closed meshes of mechanical parts.",
-    "convertDone": "{name} now has faces you can edit.",
+    "convertHint": "Rebuilds the mesh within 0.05 mm as faces you can edit: flat and round faces SolidCraft recognises as real faces, everything else as facets. Works for closed meshes.",
+    "convertDone": "{name} now has faces you can edit, within 0.05 mm of the mesh; what SolidCraft does not recognise as flat or round stays faceted.",
     "openMesh": "{name} is not closed, so SolidCraft cannot turn it into faces. It can still be exported; the slicer repairs small holes itself.",
     "standardPart": "standard part",
     "bodiesTitle": "Bodies",
@@ -896,7 +919,8 @@
         "design": "Design",
         "view": "3D view",
         "sketch": "Sketch"
-      }
+      },
+      "checks": "Print check hints"
     },
     "intro": {
       "general": "How PartBuddy looks and where it keeps your projects.",
@@ -927,9 +951,9 @@
       "what": {
         "general": "Language, appearance, interface size, start behaviour, the update check and the project folder go back to the defaults. Another project folder applies after a restart.",
         "solidcraft": "PartBuddy finds SolidCraft itself again. This applies after a restart.",
-        "assistant": "Web research, designing without support, the design rules and model and effort per assistant go back to the defaults. Sign-ins stay.",
-        "print": "Printers and materials go back to the starting profiles; your own profiles are removed. The assistant's design rules stay.",
-        "all": "All settings go back to the defaults. Printer and material profiles, projects and sign-ins stay."
+        "assistant": "Web research, the design rules and model and effort per assistant go back to the defaults. Sign-ins stay.",
+        "print": "Printers and materials go back to the starting profiles; your own profiles are removed. The print check's hints are all turned on again. The assistant's design rules stay.",
+        "all": "All settings go back to the defaults, the print check's hints too. Printer and material profiles, projects and sign-ins stay."
       }
     },
     "zoom": {
@@ -1011,9 +1035,12 @@
     "defaultMaterial": "Default for new parts",
     "materialHint": "Starting values, not measured on your printer. Measure them with »Measure tolerances …« on three small test pieces; the assistant designs with these clearances.",
     "nameMissing": "Every profile needs a name. Until then the last saved profiles stay.",
+    "layerOverNozzle": "Thicker than the nozzle: slicers do not print that. Make it at most the nozzle.",
+    "layerUnsaved": "The layer height of {name} is thicker than its nozzle. Until it is fixed the last saved profiles stay.",
+    "fitOrder": "The clearances have to grow from clamp to turn.",
+    "fitsOlderComb": "These clearances were read off the older fit comb, drilled without the hole allowance: PartBuddy's blocks and mechanisms now add the allowance on top, so they come out too loose. Read the fits again with the tolerance assistant.",
+    "fitOrderUnsaved": "The clearances of {name} do not grow from clamp to turn. Until they do the last saved profiles stay.",
     "saveFailed": "The profiles could not be saved.",
-    "supportFree": "Design without support",
-    "supportFreeHint": "The assistant chamfers edges facing the bed instead of rounding them, gives wide lying holes a teardrop roof and bridges countersinks that open downwards, so the slicer needs no support.",
     "cancel": "Cancel",
     "design": {
       "title": "Design well on its own",
@@ -1090,6 +1117,8 @@
       "notRead": "not read",
       "holesTitle": "Hole plate",
       "holes": "Measure each hole with a caliper. Leave empty what you do not measure.",
+      "piecesTooLarge": "A test piece is {length} × {width} mm and does not fit this printer's bed of {x} × {y} mm, not even turned. Print it on a larger printer with the same nozzle, or check the bed in the printer profile.",
+      "holesSmall": "Where the caliper does not fit in (such as at {size} mm), find the thickest drill bit whose shank goes in and measure the shank. Always measure above the chamfer at the bottom edge.",
       "hole": "Ø {size} mm",
       "overhangTitle": "Overhang staircase",
       "overhang": "Steepest step with a clean underside",
@@ -1103,9 +1132,21 @@
         "fit": "{fit}: not a step of the comb.",
         "hole": "Ø {size} mm: the reading is more than 1 mm off.",
         "overhang": "Overhang: not a step of the staircase.",
-        "order": "The clearances must grow from clamp to turn. Check the steps you picked."
+        "order": "The clearances must grow from clamp to turn. Check the steps you picked.",
+        "oversize": "The holes came out {by, number} mm larger than drawn on average, so the hole allowance stays 0. Measure them again; if they really are larger, the slicer's hole compensation is likely widening them."
       },
-      "backToMaterials": "Back to materials"
+      "backToMaterials": "Back to materials",
+      "layerOverNozzle": "The layer height of this printer, {layer} mm, is thicker than its nozzle, {nozzle} mm: slicers do not print that, so there are no test pieces for it. Set the layer height to at most the nozzle in the printer profile first."
+    },
+    "hints": {
+      "smallHole": {
+        "label": "Holes under 2 mm",
+        "hint": "Says where a hole is narrower than 2 mm: it closes up or comes out well under size, so drill it out after printing. A hint, never a block."
+      },
+      "narrowGap": {
+        "label": "Slots that print closed",
+        "hint": "Says where two walls of one part come closer than one nozzle (at least 0.3 mm): an engraved stroke, a kerf or a slit between letters prints closed there. A hint, never a block."
+      }
     }
   },
   "check": {
@@ -1119,7 +1160,7 @@
     },
     "none": "No problems found: the part fits the build volume, the walls are thick enough, nothing leans past the overhang angle.",
     "noneSoFar": "No problems found so far.",
-    "basis": "Checked after every change, as designed (standing on its lowest point), with the printer and material of this part. Supports, bridges and the orientation are up to the slicer.",
+    "basis": "Checked after every change, each body on its print face, else as designed (standing on its lowest point), with the printer and material of this part. Hidden bodies are not checked. Supports and bridges are up to the slicer.",
     "measuring": "The check is still running. Overlaps, gaps that are too tight or a blocked joint may still turn up.",
     "unmeasured": "Not measured, or not all of it: {what}. Findings there may be missing.",
     "unchecked": "Not checked for gaps (mesh bodies): {bodies}",
@@ -1137,20 +1178,28 @@
     "finding": {
       "size": "Too large for the build volume: {body}, {size} mm, the printer takes {bed} mm",
       "sizeLying": "Too large for the build volume: {body}, {size} mm, the printer takes {bed} mm. Laid on another side it would fit.",
-      "wallTooThin": "Walls only {thickness} mm, thinner than the nozzle ({nozzle} mm): they do not print",
+      "wallTooThin": "Walls only {thickness} mm, thinner than one line of the {nozzle} mm nozzle: they do not print",
       "wallThin": "Walls only {thickness} mm, at least {minimum} mm (two lines)",
       "floorTooThin": "Floors or lids only {thickness} mm, thinner than one layer: they do not print",
       "floorThin": "Floors or lids only {thickness} mm, at least {minimum} mm{layers, select, none {} other { ({layers} layers)}}",
-      "overhang": "{area} mm² lean beyond {limit}°: the slicer decides whether they need support",
-      "contact": "{count, plural, one {Only {area} mm² of {bodies} lie on the bed: may come loose or tip over} other {# bodies have little on the bed ({bodies}), the least {area} mm²: they may come loose or tip over}}",
+      "overhang": "{area} mm² lean beyond {limit}°: they need support",
+      "roundBedEdge": "{area} mm² of rounded bed edges lean beyond {limit}°: their foot curls up – a chamfer of at most {chamfer}° prints clean",
+      "contact": "{count, plural, one {Only {area} mm² of {bodies} lie on the bed for its height: it may come loose or tip over – a brim holds it} other {# bodies have little on the bed for their height ({bodies}), the least {area} mm²: they may come loose or tip over – a brim holds them}}",
+      "suppressed": "{count, plural, one {{features} is suppressed} other {{features}{more, plural, =0 {} one { and one more} other { and # more}} are suppressed}}: not in the part as checked and exported",
+      "rolledBack": "The timeline is rolled back: {features}{more, plural, =0 {} one { and one more} other { and # more}} {count, plural, one {is} other {are}} not in the part as checked and exported",
       "open": "{count, plural, one {{bodies} is no closed solid} other {{bodies} are no closed solids}}: an open surface without volume does not print",
+      "faceLost": "{count, plural, one {The print face of {bodies} is no flat face of it any more} other {The print faces of {bodies} are no flat faces of them any more}} (renamed or changed): {count, plural, one {checked without it. Set it again} other {checked without them. Set them again}} where the part should lie.",
       "separate": "{bodies} touch but are separate bodies: the slicer lays each on the bed by itself. Combine them if they are one part.",
       "fused": "{bodies} print as one piece and touch: they fuse there, and the mechanism between them does not move. Leave a gap there.",
       "feature": "{feature}: {message}",
       "overlap": "{a} and {b} overlap by {volume} mm³ – as separate parts they do not go together; combine them if they are one part",
       "tight": "{a} and {b} come within {gap} mm without touching – under the push fit of {minimum} mm per side, they only go together with force",
+      "tightInPlace": "{a} and {b} print as one piece and move against each other, but come within {gap} mm – under the print-in-place gap of {minimum} mm they fuse there in the print",
       "blocked": "{joint}: {a} and {b} touch at {at} – the joint does not reach its limit of {limit}",
-      "posed": "{joint} stands at {value}, not as designed – the part is exported and checked the way it stands"
+      "blockedFree": "{joint}: {a} and {b} touch at {at} – the joint has no limit that way and stops there",
+      "posed": "{joint} stands at {value}, not as designed – the part is exported and checked the way it stands",
+      "smallHole": "{count, plural, one {A hole under {minimum} mm across ({diameter} mm)} other {# holes under {minimum} mm across, the smallest {diameter} mm}}: holes that small close up or come out under size – drill them out after printing",
+      "narrowGap": "Slots down to {gap} mm, under the {minimum} mm that stay open with this nozzle: the walls beside them squeeze together and close them"
     },
     "confirm": {
       "title": "Export anyway?",
@@ -1370,6 +1419,7 @@
     "families": {
       "socket_head_cap_screw": "Socket head cap screw",
       "button_head_cap_screw": "Button head screw",
+      "countersunk_socket_screw": "Countersunk screw",
       "hex_bolt": "Hex bolt",
       "set_screw": "Set screw",
       "hex_nut": "Hex nut",
@@ -1380,8 +1430,8 @@
   },
   "printFace": {
     "action": "Print on this face",
-    "hint": "The slicer lays the body on this face. One face per body; choosing another replaces it.",
-    "done": "{name} lies on this face in the slicer."
+    "hint": "The check, the 3MF export and the slicer lay the body on this face. One face per body; choosing another replaces it.",
+    "done": "{name} lies on this face when printed."
   },
   "firstStart": {
     "title": "Welcome to PartBuddy",
@@ -1476,8 +1526,13 @@
       "down": "Down (−Z)",
       "other": "Direction {n}"
     },
-    "strain": "About {strain} % strain when it snaps in",
-    "strainHigh": "About {strain} % strain when it snaps in – more than printed PLA takes (about 2 %, PETG about 3 %): make the arm longer or thinner, or the catch shallower",
+    "strain": "About {strain} % strain when it snaps in; printed {material} takes {most, number} % once, about {often, number} % when it snaps often",
+    "strainFibre": "About {strain} % strain when it snaps in; {material} is fibre-filled, and fibres lower what a plastic takes: with no value for it PartBuddy allows {most, number} % ({share, number} % of PLA's, its own choice), about {often, number} % when it snaps often",
+    "snapUpright": "As designed the arm stands upright: printed so, it bends across its layers, and upright test bars of PLA, ABS and PC broke at {least, number} to {most, number} %, bent or pulled (Ultimaker data sheets). Lay the part so that the arm lies flat.",
+    "rootSharp": "SolidCraft cannot round the arm's root here: it stays sharp and cracks sooner. Move it to a flat stretch of the face.",
+    "rootSmall": "SolidCraft rounds the arm's root only {applied, number} mm of {wanted, number} mm here, as the face ends close to it.",
+    "rootTooSmall": "SolidCraft rounds the arm's root only {applied, number} mm here, under the {least, number} mm a root needs at the least: move it away from the face's edge.",
+    "strainUnknown": "About {strain} % strain when it snaps in; no value is known for {material}, so {fallback}'s {most, number} % applies (about {often, number} % when it snaps often)",
     "logoChoose": "Choose SVG file …",
     "logoOther": "Other file …",
     "logoWaiting": "Choose an SVG file for the logo",
@@ -1514,13 +1569,13 @@
       "loose": "Loose"
     },
     "hint": {
-      "tappedHole": "A hole with SolidCraft's thread of this size, drilled with the tap drill.",
-      "screwHole": "Clearance after ISO 273 with room for the head after ISO 4762 or ISO 10642, plus 0.6 mm for printing.",
-      "insertSeat": "Typical values for ruthex inserts, one millimetre deeper than the insert. Check your insert's data sheet.",
+      "tappedHole": "A modelled thread of this size with {thread, number} mm more on its diameter for printing, its mouth chamfered; not modelled, it is drilled with the tap drill to be tapped after printing.",
+      "screwHole": "Clearance hole from PartBuddy's ISO 273 table (drawn {shrink, number} mm wider, the hole allowance of the part's material, so that it comes out at its size), with room for the head after ISO 4762 or ISO 10642 plus {head, number} mm for printing (on each side of a counterbore, once on a countersink's diameter). A counterbore gets two bridge layers of {layer, number} mm under its floor, so it prints facing the bed.",
+      "insertSeat": "Typical values for ruthex inserts, one millimetre deeper than the insert. Check your insert's data sheet. Drawn at that size, without the material's hole allowance: the insert melts into it.",
       "boss": "A boss with a seat for a heat-set insert of this size and at least 2 mm of wall.",
-      "nutTrap": "A hexagonal pocket after ISO 4032 with 0.3 mm of room and 0.4 mm of extra depth, with a clearance hole after ISO 273 below.",
+      "nutTrap": "A hexagonal pocket after ISO 4032 with {room, number} mm of room (the push fit of the part's material) and 0.4 mm of extra depth, with a clearance hole after ISO 273 below. Older DIN nuts are wider at M10 (17 mm): give flats {din, number} for those.",
       "slot": "A slot as wide as the normal clearance hole, centred on the point, to adjust the screw.",
-      "text": "Text centred on the point, reading level. Engraved from 0.6 mm and embossed from 0.4 mm depth prints cleanly; letters from about 5 mm high.",
+      "text": "Text centred on the point, reading level. Engraved or embossed {depth, number} mm deep reads well on this printer, strokes {stroke, number} mm wide too; under two nozzle widths a stroke does not print. Engraved, 7 mm capitals (the default) leave enough plastic between the letters.",
       "lip": "For a shelled case: pick the face on the rim. The lip goes on the base, the groove with its gap into the lid.",
       "snapFit": "A flexible arm with a catch, standing out of the face. Print it lying down so the layers run along the arm: standing upright it breaks along a layer. The other part needs an opening as deep as the catch.",
       "logo": "An SVG file centred on the point, as wide as given. Filled areas and lines at their stroke width are built; turn text into paths first (in Inkscape: Path › Object to Path)."
@@ -1540,7 +1595,23 @@
       "insertSeat": "A hole for a heat-set insert, also as a row"
     },
     "font": "Font",
-    "fontBuiltIn": "Default (Liberation Sans)"
+    "fontBuiltIn": "Default (Liberation Sans)",
+    "limit": {
+      "printedThread": "A printed {size} thread strips: untick the modelled thread to drill it for tapping, use an insert seat, or a thread from M{from, number}.",
+      "stroke": "Capitals {value, number} mm high have strokes {stroke, number} mm wide, under the {needed, number} mm (two nozzle widths) a stroke needs on the {nozzle, number} mm nozzle: give a height of {least, number} mm or more.",
+      "strokeBold": "Bold capitals {value, number} mm high have strokes {stroke, number} mm wide, under the {needed, number} mm (two nozzle widths) a stroke needs on the {nozzle, number} mm nozzle: give a height of {least, number} mm or more.",
+      "lipWall": "A lip {value, number} mm wide does not print solid: two lines on the {nozzle, number} mm nozzle are {least, number} mm – give at least that.",
+      "grooveWall": "A groove {value, number} mm wide takes no lip that prints solid: two lines on the {nozzle, number} mm nozzle are {least, number} mm – give at least that.",
+      "armWall": "An arm {value, number} mm thick or wide does not print solid: two lines on the {nozzle, number} mm nozzle are {least, number} mm – give at least that.",
+      "catch": "A catch {value, number} mm deep does not print and holds nothing: give at least {least, number} mm, the narrowest line a slicer lays with the {nozzle, number} mm nozzle.",
+      "layer": "{value, number} mm is under one layer ({least, number} mm): nothing prints – give at least that.",
+      "screw": "A slot {value, number} mm wide does not let an {size} screw ({thread, number} mm) pass: the standard is {standard, number} mm.",
+      "nutFlats": "An {size} nut is {least, number} mm across its flats and does not go into {value, number} mm: the standard pocket is {standard, number} mm.",
+      "nutCorners": "An {size} nut is {most, number} mm across its corners and would turn in a pocket {value, number} mm wide: give less than that.",
+      "nutHeight": "An {size} nut is {least, number} mm high and would stand out of a pocket {value, number} mm deep: the standard is {standard, number} mm.",
+      "strain": "The arm bends {strain, number} % at its root as the catch snaps in, more than the {most, number} % PartBuddy allows printed {material}: make it at least {least, number} mm long, or thinner, or the catch shallower."
+    },
+    "strokeUnchecked": "The strokes of this font were not checked: PartBuddy knows them for Arial and its built-in font alone."
   },
   "assembly": {
     "title": "Assembly",

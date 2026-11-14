@@ -4,8 +4,8 @@ import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 /**
  * What the assistant learns about PartBuddy's 3D view (decided 2026-11-04): the selected face,
  * edge or vertex goes with each message as one line of text, and the `partbuddy_view` tool answers what the user
- * is looking at in about a hundred tokens. Both replace screenshots, which cost far more and show
- * SolidCraft's window instead of PartBuddy's view.
+ * is looking at as text (no token count: the body and sketch lists grow with the design, audit R43). Both replace
+ * screenshots, which cost far more, show SolidCraft's window instead of PartBuddy's view and reach only Claude Code (R24).
  */
 
 export const VIEW_TOOL = 'partbuddy_view';
@@ -159,13 +159,33 @@ export function describeView(state: ViewState | null, notes?: ViewNotes | null):
   });
 }
 
+/**
+ * How many bodies a `partbuddy_view` answer shows: 0 when PartBuddy shows no design yet, null when the answer is not
+ * one of {@link describeView}'s.
+ */
+export function bodiesInView(result: ToolResult): number | null {
+  const text = result.content[0]?.text;
+  if (result.isError === true || typeof text !== 'string') return null;
+  try {
+    const view = JSON.parse(text) as { view?: unknown; bodies?: unknown };
+    if (Array.isArray(view.bodies)) return view.bodies.length;
+    return typeof view.view === 'string' ? 0 : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `partbuddy_view` without a check (audit R18): not checked is not the same as nothing found. */
+export const NO_CHECK_VIEW = '[PartBuddy: no ready-to-print check is available yet; do not call the part ready to print.]';
+
 const viewTool: UpstreamTool = {
   name: VIEW_TOOL,
   description:
     "What the user sees in PartBuddy's 3D view right now: the selected face, edge or vertex, the direction the camera looks from, " +
     'the bodies and sketches shown, what the last step changed, the user\'s notes on the model and PartBuddy\'s latest ' +
-    'ready-to-print check. Text only, about 100 tokens plus the notes and the findings. Use it instead of ' +
-    "a screenshot to know what the user selected or looks at; SolidCraft's own window selection is not PartBuddy's.",
+    // audit R43: no token count, the body and sketch lists grow with the design; R24: the own loops have no screenshot.
+    'ready-to-print check, as text. Use it to know what the user selected or looks at; ' +
+    "SolidCraft's own window selection is not PartBuddy's.",
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   annotations: { readOnlyHint: true },
 };
@@ -182,8 +202,7 @@ export function withViewTool(
     listTools: async () => [...(await upstream.listTools()), viewTool],
     callTool: async (name, args, callId): Promise<ToolResult> => {
       if (name === VIEW_TOOL) {
-        const findings = check();
-        return { content: [{ type: 'text', text: describeView(state(), notes()) }, ...(findings ? [{ type: 'text', text: findings }] : [])] };
+        return { content: [{ type: 'text', text: describeView(state(), notes()) }, { type: 'text', text: check() ?? NO_CHECK_VIEW }] };
       }
       return upstream.callTool(name, args, callId);
     },
@@ -195,5 +214,7 @@ export const VIEW_GUIDANCE =
   'A message may start with a [PartBuddy: …] note naming the face, edge or vertex the user selected in PartBuddy’s view; ' +
   `that is what "this face", "this edge" or "the marked one" means. Call ${VIEW_TOOL} to see what the user looks at. ` +
   'PartBuddy checks the part for printing after every change and shows the result to the user as a light; the findings come ' +
-  `behind the answer of each tool call that changed the design, and ${VIEW_TOOL} gives the latest ones. ` +
-  'Take a screenshot only when the look of the part matters: it costs many tokens.';
+  `behind the answer of each tool call that changed the design, and ${VIEW_TOOL} gives the latest ones.`;
+
+/** Only for Claude Code (audit R24): the own loops pass no picture from a tool answer, so they have no screenshot tool. */
+export const SCREENSHOT_GUIDANCE = 'Take a screenshot only when the look of the part matters: it costs many tokens.';

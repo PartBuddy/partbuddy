@@ -1,0 +1,16 @@
+{
+  "commands": [
+    { "command": "parameters.add", "params": { "name": "plate_height", "expression": "100 mm" } },
+    { "command": "parameters.add", "params": { "name": "plate_width", "expression": "50 mm" } },
+    { "command": "parameters.add", "params": { "name": "wall", "expression": "6 mm" } },
+    { "command": "parameters.add", "params": { "name": "hook_width", "expression": "40 mm" } },
+    { "command": "parameters.add", "params": { "name": "lip_height", "expression": "25 mm" } },
+    { "command": "solid.box", "params": { "length": "plate_width", "width": "wall", "height": "plate_height", "name": "Wandplatte", "operation": "new", "body_name": "Wandhalter" } },
+    { "command": "solid.box", "params": { "length": "plate_width", "width": "hook_width + wall", "height": "wall", "center": ["plate_width/2", "wall + (hook_width+wall)/2", "wall/2"], "name": "Hakenboden", "operation": "join" } },
+    { "command": "solid.box", "params": { "length": "plate_width", "width": "wall", "height": "lip_height", "corner": [0, "wall + hook_width",0], "name": "Hakenlippe", "operation": "join" } },
+    { "command": "solid.hole", "params": { "position": [25,0,80], "direction": [0,1,0], "diameter": "4.5 mm", "type": "countersink", "cs_diameter": "9 mm", "cs_angle": "90 deg", "name": "Senkbohrung oben" } },
+    { "command": "solid.hole", "params": { "position": [25,0,40], "direction": [0,1,0], "diameter": "4.5 mm", "type": "countersink", "cs_diameter": "9 mm", "cs_angle": "90 deg", "name": "Senkbohrung" } },
+    { "command": "solid.fillet", "params": { "edges": [[25,6,6]], "radius": "2 mm", "name": "Innenradien" } },
+    { "command": "solid.fillet", "params": { "edges": [[0,3,100],[50,3,100]], "radius": "5 mm", "name": "Aussenkanten" } }
+  ]
+}

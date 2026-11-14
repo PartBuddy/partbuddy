@@ -309,9 +309,10 @@ export function describeToolCall(tool: string, args: Params): StepPhrase[] {
   // PartBuddy's own tool builds a mechanism from many commands: one line names it.
   // A function block the assistant built from the standard tables: one line names it.
   if (tool === 'partbuddy_block') {
-    if (args.block === 'keyhole') return [{ key: 'keyhole', values: { screw: (typeof args.screw === 'number' ? args.screw : 4) } }];
-    if (args.block === 'woodScrew') return [{ key: 'woodScrewHole', values: { screw: (typeof args.screw === 'number' ? args.screw : 4) } }];
-    if (args.block === 'magnet') return [{ key: 'magnetPocket', values: { diameter: typeof args.diameter === 'number' ? args.diameter : 6, height: typeof args.height === 'number' ? args.height : 2 } }];
+    // Sizes only as the call gave them: the block assumes none (audit R15), and a call without them is refused.
+    if (args.block === 'keyhole' && typeof args.screw === 'number') return [{ key: 'keyhole', values: { screw: args.screw } }];
+    if (args.block === 'woodScrew' && typeof args.screw === 'number') return [{ key: 'woodScrewHole', values: { screw: args.screw } }];
+    if (args.block === 'magnet' && typeof args.diameter === 'number' && typeof args.height === 'number') return [{ key: 'magnetPocket', values: { diameter: args.diameter, height: args.height } }];
     if (args.block === 'knob') return [{ key: 'knob', values: { name: text(args.body, 'Knob').slice(0, 60) } }];
     return [{ key: 'blockByAssistant', values: { block: text(args.block, 'block').slice(0, 20), body: text(args.body, '').slice(0, 60) } }];
   }
@@ -385,6 +386,11 @@ export function blockPhrase(block: FeatureBlock): StepPhrase {
       return { key: 'textBlock', values: { text: block.text.slice(0, 40) } };
     case 'nutTrap':
       return { key: 'nutTrap', values: { size: block.size } };
+    // By the screw, not by the diameter or the print size of the thread the step drills (audit BC-12).
+    case 'tappedHole':
+      return { key: 'tappedHole', values: { thread: block.size } };
+    case 'screwHole':
+      return { key: 'screwHole', values: { size: block.size } };
     case 'slot':
       return { key: 'slot', values: { length: round(block.length) } };
     case 'lip':

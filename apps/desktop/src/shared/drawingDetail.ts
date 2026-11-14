@@ -1,16 +1,23 @@
+import { minimumWall, thinnestLine } from '@partbuddy/geometry';
+
 import { drawingSize, flatten, type Drawing, type Pt } from './svgDrawing';
 
 /**
- * Details of a drawing too fine to print at a width: strokes narrower than the nozzle (lost or
- * broken in the slicer) and gaps narrower than it (they close up). The drawing is rasterised, and
- * a part counts as too fine where no disc of the nozzle's width fits (a morphological opening
- * through exact distance transforms). Rounded-off corners are no detail: only places larger than a
- * few nozzle discs count.
+ * Details of a drawing too fine to print at a width: strokes narrower than two lines (`minimumWall`: thinner ones do not
+ * print solid, lost or broken in the slicer) and gaps narrower than the narrowest line a slicer lays (`thinnestLine`: they
+ * close up), the design rules' wall and detail (audit T52: before, both against one nozzle width). The drawing is
+ * rasterised, and a part counts as too fine where no disc of that width fits (a morphological opening through exact
+ * distance transforms). Rounded-off corners are no detail: only places larger than a few nozzle discs count.
+ * Built into a face it swaps: engraved, a stroke is a groove (the narrowest line) and a gap a rib left standing (two lines);
+ * inlaid, both are walls of the pocket or of the piece in it (two lines). Unknown how it is built (the composer), as built up.
+ * Text is held to STURDY for legibility (blocks.ts textStroke); a drawing to two lines, for printability alone.
  */
 
 /** Finer rasters give little for a warning and cost time on every change of the width. */
 const MAX_EDGE_PX = 1600;
-/** A place counts from this many nozzle-radius squares; a square corner loses about 0.2 of one. */
+/** Pixels across the narrowest gap that is still told: below that the raster is too coarse, and it is said ({@link detailCoarse}). */
+const TOLD_PX = 4;
+/** A place counts from this many nozzle-radius squares (of the nozzle, not of the disc it is held to: two lines made it ~5 times more and the thinnest strokes fell through, review of BC-23); a square corner loses about 0.2 of a disc's. */
 const MIN_PLACE = 3;
 
 export interface DrawingDetail {
@@ -18,8 +25,11 @@ export interface DrawingDetail {
   places: number;
   /** The thinnest of them, in mm. */
   thinnest: number;
-  /** The width from which every place is a little over a nozzle wide, in mm. */
+  /** The width from which every place is a little over what it needs, in mm. */
   fineFrom: number;
+  /** What a stroke and a gap need, in mm, for the nozzle and how it is built ({@link detailNeeds}). */
+  stroke: number;
+  gap: number;
   /** Where they are, for a marked picture: 1 per too-fine pixel; the drawing's top left at (pad, pad). */
   mask: { width: number; height: number; pad: number; mmPerPx: number; fine: Uint8Array };
 }
@@ -103,8 +113,8 @@ function rasterise(drawing: Drawing, pxPerUnit: number, pad: number) {
   return { mask, width, height };
 }
 
-/** The too-fine places of `inside`: where no disc of radius `r` px fits; each place with its thinnest width in px. */
-function finePlaces(inside: Uint8Array, width: number, height: number, r: number, into: Uint8Array): number[] {
+/** The too-fine places of `inside`: where no disc of radius `r` px fits, each of at least `least` pixels; each place with its thinnest width in px. */
+function finePlaces(inside: Uint8Array, width: number, height: number, r: number, least: number, into: Uint8Array): number[] {
   const n = width * height;
   const outside = new Uint8Array(n);
   for (let i = 0; i < n; i += 1) outside[i] = inside[i] ? 0 : 1;
@@ -138,7 +148,7 @@ function finePlaces(inside: Uint8Array, width: number, height: number, r: number
         stack.push(j);
       }
     }
-    if (place.length < MIN_PLACE * r * r) continue;
+    if (place.length < least) continue;
     for (const i of place) into[i] = 1;
     ridge.sort((a, b) => a - b);
     // The centre pixel of a stroke w px wide lies w / 2 + 0.5 from the nearest pixel outside.
@@ -147,27 +157,55 @@ function finePlaces(inside: Uint8Array, width: number, height: number, r: number
   return widths;
 }
 
-/** The details of a drawing too fine for `nozzle` mm at `width` mm, or null when all print. */
-export function drawingDetail(drawing: Drawing, width: number, nozzle: number): DrawingDetail | null {
+/** mm per pixel of the raster a drawing `width` mm wide is checked on: a tenth of the nozzle, coarser for a large drawing. */
+function rasterOf(drawing: Drawing, width: number, nozzle: number): number {
+  const size = drawingSize(drawing);
+  return Math.max(nozzle / 10, Math.max(width, (size.height / size.width) * width) / MAX_EDGE_PX);
+}
+
+/** How a drawing is built: standing on a face or on its own, cut into a face, or inlaid flush in a pocket of its shape. */
+export type DetailBuild = 'raised' | 'engraved' | 'inlaid';
+
+/** What a stroke and a gap of the drawing need, in mm, built so (see the file head). */
+export function detailNeeds(nozzle: number, build: DetailBuild = 'raised'): { stroke: number; gap: number } {
+  const [wall, line] = [minimumWall(nozzle), thinnestLine(nozzle)];
+  return build === 'engraved' ? { stroke: line, gap: wall } : build === 'inlaid' ? { stroke: wall, gap: wall } : { stroke: wall, gap: line };
+}
+
+/** The details of a drawing too fine for `nozzle` mm at `width` mm, built as `build`, or null when all print. */
+export function drawingDetail(drawing: Drawing, width: number, nozzle: number, build: DetailBuild = 'raised'): DrawingDetail | null {
   const size = drawingSize(drawing);
   if (!(size.width > 0) || !(width > 0) || !(nozzle > 0)) return null;
-  const heightMm = (size.height / size.width) * width;
-  const mmPerPx = Math.max(nozzle / 10, Math.max(width, heightMm) / MAX_EDGE_PX);
-  const r = nozzle / 2 / mmPerPx;
-  // Outside the drawing is open ground, wider than any nozzle.
-  const pad = Math.ceil(2 * r) + 2;
-  const { mask, width: w, height: h } = rasterise(drawing, size.width > 0 ? width / size.width / mmPerPx : 1, pad);
+  const mmPerPx = rasterOf(drawing, width, nozzle);
+  const { stroke, gap } = detailNeeds(nozzle, build);
+  const least = MIN_PLACE * (nozzle / 2 / mmPerPx) ** 2;
+  // Outside the drawing is open ground, wider than any stroke or gap needs.
+  const pad = Math.ceil(Math.max(stroke, gap) / mmPerPx) + 2;
+  const { mask, width: w, height: h } = rasterise(drawing, width / size.width / mmPerPx, pad);
   const fine = new Uint8Array(w * h);
   const gaps = new Uint8Array(w * h);
   for (let i = 0; i < mask.length; i += 1) gaps[i] = mask[i] ? 0 : 1;
-  const widths = [...finePlaces(mask, w, h, r, fine), ...finePlaces(gaps, w, h, r, fine)];
-  if (widths.length === 0) return null;
-  const thinnest = Math.min(...widths) * mmPerPx;
+  const places = [...finePlaces(mask, w, h, stroke / 2 / mmPerPx, least, fine).map((px) => ({ mm: px * mmPerPx, need: stroke })), ...finePlaces(gaps, w, h, gap / 2 / mmPerPx, least, fine).map((px) => ({ mm: px * mmPerPx, need: gap }))];
+  if (places.length === 0) return null;
   return {
-    places: widths.length,
-    thinnest: Math.round(thinnest * 100) / 100,
-    // 10 % over a nozzle wide: exactly one is a coin toss in the raster and in the slicer.
-    fineFrom: Math.ceil((width * nozzle * 1.1) / thinnest),
+    places: places.length,
+    thinnest: Math.round(Math.min(...places.map((place) => place.mm)) * 100) / 100,
+    // 10 % over what each needs: exactly that is a coin toss in the raster and in the slicer.
+    fineFrom: Math.ceil(Math.max(...places.map((place) => (width * place.need * 1.1) / place.mm))),
+    stroke,
+    gap,
     mask: { width: w, height: h, pad, mmPerPx, fine },
   };
+}
+
+/**
+ * mm per pixel when the raster of {@link drawingDetail} is too coarse to tell the narrowest gap ({@link TOLD_PX} pixels
+ * across it), as on a large drawing: a detail near the limit can then go unseen, and the caller says so (audit T52: over
+ * 64 mm on a 0.4 mm nozzle the raster grew coarser, at 640 mm the nozzle disc was half a pixel). Null when it can tell.
+ * shortcut: a coarse raster is said, not refined; check in tiles if large drawings with fine detail turn up.
+ */
+export function detailCoarse(drawing: Drawing, width: number, nozzle: number): number | null {
+  if (!(drawingSize(drawing).width > 0) || !(width > 0) || !(nozzle > 0)) return null;
+  const mmPerPx = rasterOf(drawing, width, nozzle);
+  return mmPerPx > thinnestLine(nozzle) / TOLD_PX + 1e-12 ? Math.round(mmPerPx * 1000) / 1000 : null;
 }

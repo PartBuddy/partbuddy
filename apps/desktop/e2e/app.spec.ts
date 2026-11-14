@@ -8,7 +8,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
 import { FakeSolidCraft } from '../test/fakeSolidCraft';
 import { countViewportPixels } from './pixels';
-import { cameraOf, cameraSettled } from './view';
+import { cameraOf, cameraSettled, watchWebGl } from './view';
 import { launchApp, lookAgain, type LaunchedApp } from './launch';
 
 /**
@@ -45,6 +45,7 @@ async function connectedApp(): Promise<{ app: LaunchedApp; fake: FakeSolidCraft 
 test('the mirrored model appears and follows design changes', async () => {
   const { app, fake: solidcraft } = await connectedApp();
   const { page } = app;
+  const webGl = await watchWebGl(page);
   await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 1');
   await expect(page.getByTestId('design-name')).toHaveText('Cable clip');
   await expect(page.getByTestId('mesh-summary')).toContainText('1 body · 41 faces');
@@ -56,7 +57,7 @@ test('the mirrored model appears and follows design changes', async () => {
   await expect(async () => {
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await expect(page.getByTestId('selected-face')).toHaveAttribute('data-name', /^F\d+:/, { timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   // The selection goes with the next message to the assistant, as a short note.
   // A readable name; SolidCraft's name stays on hover and goes to the assistant (polish round 2).
   await expect(page.getByTestId('composer-selection')).toHaveText(/Selected face goes with the message: (Plane|Cylinder Ø [\d.]+ mm|Surface) · CableClip/);
@@ -64,6 +65,20 @@ test('the mirrored model appears and follows design changes', async () => {
   solidcraft.change();
   await expect(page.getByTestId('connection-status')).toHaveText('SolidCraft · Revision 2');
   await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+
+  // A further revision draws with the shaders it has: the edges and the start page picture compiled theirs
+  // again for each one, which held up the renderer for seconds on a loaded runner (13 November 2026).
+  // Once a picture is drawn, both have made theirs.
+  await expect.poll(async () => (await webGl()).pictures, { timeout: 30_000 }).toBeGreaterThan(0);
+  const before = await webGl();
+  solidcraft.change();
+  await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '3', { timeout: 15_000 });
+  // The picture follows the new model after a quiet time (`PREVIEW_DELAY_MS`, useProjectPreview): one drawn now is of revision 3.
+  const shown = await webGl();
+  await expect.poll(async () => (await webGl()).pictures, { timeout: 30_000 }).toBeGreaterThan(shown.pictures);
+  const after = await webGl();
+  // A lost context links everything again: named apart, so that is not taken for this.
+  expect({ linked: after.linked - before.linked, lost: after.lost - before.lost }).toEqual({ linked: 0, lost: 0 });
 });
 
 test('the user undoes, redoes and exports without the assistant (ADR 0016)', async () => {
@@ -250,7 +265,7 @@ test('a sketch without a body is drawn in the view (#21)', async () => {
   // The sketch is drawn: the canvas shows sketch-coloured pixels (software WebGL, so wait for frames).
   await expect(async () => {
     expect(await countViewportPixels(page, '--cs-viewer-sketch')).toBeGreaterThan(200);
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   await page.screenshot({ path: test.info().outputPath('sketch-only.png') });
 
   // Finishing the sketch and consuming it in a feature hides it, as SolidCraft does.
@@ -275,14 +290,19 @@ test('the camera keeps a growing design in view until the user moves it', async 
   const { page } = launched;
   await lookAgain(page);
   await expect(page.getByTestId('viewer')).toHaveAttribute('data-sketches', '1');
-  // Curves of a new revision are drawn in the colour of changes.
-  const sketchPixels = async (border?: number) =>
-    (await countViewportPixels(page, '--cs-viewer-sketch', 40, { border })) + (await countViewportPixels(page, '--cs-viewer-changed', 40, { border }));
+  // Curves of a new revision are drawn in the colour of changes. One shot of the view per look, counted twice:
+  // a shot took seconds on a loaded runner, and four per look let one look use up the 30 s (13 November 2026).
+  const curves = ['--cs-viewer-sketch', '--cs-viewer-changed'];
+  const sketchPixels = async () => {
+    const png = await page.getByTestId('viewport').screenshot();
+    return { all: await countViewportPixels(page, curves, 40, { png }), edge: await countViewportPixels(page, curves, 40, { png, border: 8 }) };
+  };
 
   // The small first sketch fills the view instead of sitting as a speck in its middle.
   await expect(async () => {
-    expect(await sketchPixels()).toBeGreaterThan(1500);
-    expect(await sketchPixels(8)).toBe(0);
+    const pixels = await sketchPixels();
+    expect(pixels.all).toBeGreaterThan(1500);
+    expect(pixels.edge).toBe(0);
   }).toPass({ timeout: 30_000 });
   await page.getByTestId('viewport').screenshot({ path: test.info().outputPath('small-sketch.png') });
 
@@ -291,8 +311,9 @@ test('the camera keeps a growing design in view until the user moves it', async 
   fake.change();
   await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '2');
   await expect(async () => {
-    expect(await sketchPixels()).toBeGreaterThan(1500);
-    expect(await sketchPixels(8)).toBe(0);
+    const pixels = await sketchPixels();
+    expect(pixels.all).toBeGreaterThan(1500);
+    expect(pixels.edge).toBe(0);
   }).toPass({ timeout: 30_000 });
   await page.getByTestId('viewport').screenshot({ path: test.info().outputPath('grown-sketch.png') });
 
@@ -309,7 +330,7 @@ test('the camera keeps a growing design in view until the user moves it', async 
   fake.change();
   await expect(page.getByTestId('viewer')).toHaveAttribute('data-revision', '3');
   await page.waitForTimeout(1500);
-  expect(await sketchPixels(8)).toBeGreaterThan(0);
+  expect((await sketchPixels()).edge).toBeGreaterThan(0);
 });
 
 test('the parameter panel lists the design parameters and changes a length with a preview first', async () => {
@@ -513,7 +534,7 @@ test('a joint moves with its slider and goes back to as designed (ADR 0027)', as
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(findings).toBeHidden({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   // The lower limit is the slider's end; SolidCraft is driven once, when the key is let go.
   await slider().focus();
   await page.keyboard.press('Home');
@@ -527,7 +548,7 @@ test('a joint moves with its slider and goes back to as designed (ADR 0027)', as
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(findings).toBeHidden({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   await page.getByTestId('joint-reset').click();
   await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(0);
   await expect(slider()).toHaveValue('0');
@@ -574,8 +595,15 @@ test('a joint plays in the view only, keeps its position when asked and stays as
   const first = await shown();
   await expect.poll(shown).not.toBe(first);
   // Paused, it stays where the view shows it, and the design is as it was: the panel says so.
-  await play.click();
-  await expect(play).toHaveAttribute('data-playing', 'false');
+  // Starting over, the joint stands one frame where it started (JointPanel, one after the other): paused just then
+  // it is as designed and the panel rightly says nothing, so it plays on and pauses again (red 3 of 10 times locally).
+  for (let tries = 1; ; tries += 1) {
+    await play.click();
+    await expect(play).toHaveAttribute('data-playing', 'false');
+    if ((await shown()) !== 0 || tries === 3) break;
+    await play.click();
+    await expect.poll(shown).toBeLessThan(-5);
+  }
   await expect(panel.getByTestId('joint-view-only')).toBeVisible();
   const paused = await shown();
   expect(paused).toBeLessThan(0);
@@ -598,7 +626,7 @@ test('a joint plays in the view only, keeps its position when asked and stays as
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(findings).toBeHidden({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   await panel.getByTestId('joint-reset').click();
   await expect.poll(() => fake?.joints[0]?.values[0]?.value).toBe(0);
   await expect(panel.getByRole('slider', { name: 'Hinge' })).toHaveValue('0');
@@ -642,7 +670,7 @@ test('the playback stops where the check found parts in the joint\'s way, and go
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(findings).toBeHidden({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   await page.getByTestId('joints-play').click();
   const panel = page.getByTestId('joint-panel');
   const play = panel.getByTestId('joint-play');
@@ -818,7 +846,7 @@ test('a gear\'s mate follows its driver in the panel, the playback and what is k
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(findings).toBeHidden({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   await panel.getByTestId('joint-reset').click();
   await expect.poll(() => fake?.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
   await expect(panel.getByTestId('joint-error')).toHaveCount(0);
@@ -1083,7 +1111,6 @@ test('an old profile opens with its settings, and reset puts a section back to t
     await again.getByTestId('settings-reset-assistant').click();
     await page.getByTestId('settings-reset-go').click();
     await expect(again.getByTestId('research').getByRole('switch')).toBeChecked();
-    await expect(again.getByTestId('support-free').getByRole('switch')).toBeChecked();
     await expect(again.getByTestId('design-rounding').getByRole('switch')).toBeChecked();
   } finally {
     await launched?.close();
@@ -1401,14 +1428,10 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await expect(dialog).toHaveCount(0);
   await expect(chip).toContainText('Werkstatt');
 
-  // Designing without support is on from the start (M7f); it sits with the assistant (B6) and is turned off there.
+  // The design rule groups sit with the assistant (B6).
   await page.getByTestId('settings').click();
   await page.getByTestId('settings-assistant').click();
   const assistant = page.getByTestId('settings-assistant-panel');
-  const supportFree = assistant.getByTestId('support-free').getByRole('switch', { name: 'Design without support' });
-  await expect(supportFree).toBeChecked();
-  await supportFree.press('Space');
-  await expect(supportFree).not.toBeChecked();
   // The design rule groups (2026-11-07) are on from the start; each turns off on its own.
   for (const rule of ['rounding', 'printInPlace', 'details', 'snap', 'economy']) await expect(assistant.getByTestId(`design-${rule}`).getByRole('switch')).toBeChecked();
   const rounding = assistant.getByTestId('design-rounding').getByRole('switch', { name: 'Fillets and chamfers' });
@@ -1425,7 +1448,6 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await expect(chip).toContainText('Werkstatt');
   await page.getByTestId('settings').click();
   await page.getByTestId('settings-assistant').click();
-  await expect(page.getByTestId('settings-assistant-panel').getByTestId('support-free').getByRole('switch')).not.toBeChecked();
   await expect(page.getByTestId('settings-assistant-panel').getByTestId('design-rounding').getByRole('switch')).not.toBeChecked();
   await expect(page.getByTestId('settings-assistant-panel').getByTestId('design-details').getByRole('switch')).toBeChecked();
   await page.keyboard.press('Escape');
@@ -1462,12 +1484,23 @@ test('a printer from the catalog becomes an ordinary profile that can be changed
   await expect(nozzle).toHaveValue('0.4');
   await nozzle.fill('0.6');
   await nozzle.press('Tab');
+  // A layer thicker than the nozzle is not saved and the field says why (audit D28, T32).
+  const layer = dialog.getByTestId('printer-layer').getByRole('textbox');
+  await layer.fill('0.8');
+  await layer.press('Tab');
+  await expect(dialog.getByTestId('printer-layer')).toContainText('Thicker than the nozzle');
+  await expect(dialog.getByTestId('print-unsaved')).toContainText('The layer height of Prusa MK4S is thicker than its nozzle');
+  await layer.fill('0.6');
+  await layer.press('Tab');
+  await expect(dialog.getByTestId('print-unsaved')).toHaveCount(0);
+  await layer.fill('0.2');
+  await layer.press('Tab');
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
-  const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ printer: string; printers: { id: string; name: string; nozzle: number }[] }> } } }).partbuddy.print.settings());
+  const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ printer: string; printers: { id: string; name: string; nozzle: number; layer: number }[] }> } } }).partbuddy.print.settings());
   expect(saved.printers).toHaveLength(2);
-  expect(saved.printers.find((item) => item.id === saved.printer)).toMatchObject({ name: 'Prusa MK4S', nozzle: 0.6 });
+  expect(saved.printers.find((item) => item.id === saved.printer)).toMatchObject({ name: 'Prusa MK4S', nozzle: 0.6, layer: 0.2 });
 
   // Resetting the section brings back the starting printer only (audit A-23).
   await page.getByTestId('settings').click();
@@ -1526,7 +1559,9 @@ test('the tolerance assistant reads the test pieces into the material in place o
   await pick('tolerance-fit-clamp', '-0.05 mm');
   await pick('tolerance-fit-push', '0.1 mm');
   await pick('tolerance-fit-slide', '0.2 mm');
-  await pick('tolerance-fit-turn', '0.3 mm');
+  // The comb was drilled with PLA's 0.15 mm allowance and the plate reads 0.25: each step is 0.05 mm a side less room (BC-16
+  // review S3), so turn read at 0.35 stays PLA's 0.3.
+  await pick('tolerance-fit-turn', '0.35 mm');
   for (const [size, measured] of [['3', '2.75'], ['5', '4.75'], ['8', '7.75'], ['10', '9.75']] as const) {
     const field = assistant.getByTestId(`tolerance-hole-${size}`).getByRole('textbox');
     await field.fill(measured);
@@ -1545,11 +1580,36 @@ test('the tolerance assistant reads the test pieces into the material in place o
 
   await expect(dialog.getByTestId('material-overhang').getByRole('textbox')).toHaveValue('50');
   await expect(dialog.getByTestId('material-hole').getByRole('textbox')).toHaveValue('0.25');
-  await expect(dialog.getByTestId('material-fit-clamp').getByRole('textbox')).toHaveValue('-0.05');
+  await expect(dialog.getByTestId('material-fit-clamp').getByRole('textbox')).toHaveValue('-0.1');
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   const saved = await page.evaluate(() => (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ materials: { id: string; overhang: number; holeShrink: number; clearance: Record<string, number> }[] }> } } }).partbuddy.print.settings());
-  expect(saved.materials.find((item) => item.id === 'pla')).toMatchObject({ overhang: 50, holeShrink: 0.25, clearance: { clamp: -0.05, push: 0.1, slide: 0.2, turn: 0.3 } });
+  expect(saved.materials.find((item) => item.id === 'pla')).toMatchObject({ overhang: 50, holeShrink: 0.25, clearance: { clamp: -0.1, push: 0.05, slide: 0.15, turn: 0.3 }, fitsAfterPrint: true });
+});
+
+test('a printer saved before with a layer over its nozzle gets no test pieces and is told why (BC-14 review S1)', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  // As a file saved before the editor held such a layer back: it still loads and saves.
+  await page.evaluate(async () => {
+    const print = (globalThis as unknown as { partbuddy: { print: { settings: () => Promise<{ printers: { layer: number }[] }>; saveSettings: (settings: unknown) => Promise<unknown> } } }).partbuddy.print;
+    const settings = await print.settings();
+    await print.saveSettings({ ...settings, printers: settings.printers.map((printer) => ({ ...printer, layer: 0.8 })) });
+  });
+  await page.getByTestId('settings').click();
+  await page.getByTestId('settings-print').click();
+  const dialog = page.getByTestId('print-profiles');
+  await expect(dialog.getByTestId('printer-layer')).toContainText('Thicker than the nozzle');
+  await expect(dialog.getByTestId('print-unsaved')).toContainText('thicker than its nozzle');
+  await dialog.getByTestId('print-tab-material').click();
+  await dialog.getByTestId('tolerance-start').click();
+  const assistant = page.getByTestId('tolerance-assistant');
+  await assistant.getByTestId('tolerance-next').click();
+  await expect(assistant).toHaveAttribute('data-step', 'pieces');
+  await expect(assistant.getByTestId('tolerance-layer')).toContainText('0.8 mm, is thicker than its nozzle, 0.4 mm');
+  await expect(assistant.getByTestId('tolerance-save')).toBeDisabled();
+  await expect(assistant.getByTestId('tolerance-picture')).toHaveCount(0);
+  await expect(assistant.getByTestId('tolerance-status')).toHaveCount(0);
 });
 
 test('a material from the catalog becomes an ordinary profile with its starting values', async () => {
@@ -1582,6 +1642,14 @@ test('a material from the catalog becomes an ordinary profile with its starting 
   const slide = dialog.getByTestId('material-fit-slide').getByRole('textbox');
   await slide.fill('0.45');
   await slide.press('Tab');
+  // Looser than turn: not saved until the fits grow again from clamp to turn (audit T33).
+  await expect(dialog.getByTestId('material-fit-order')).toBeVisible();
+  await expect(dialog.getByTestId('print-unsaved')).toContainText('clamp to turn');
+  const turn = dialog.getByTestId('material-fit-turn').getByRole('textbox');
+  await turn.fill('0.5');
+  await turn.press('Tab');
+  await expect(dialog.getByTestId('material-fit-order')).toHaveCount(0);
+  await expect(dialog.getByTestId('print-unsaved')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
@@ -1589,7 +1657,7 @@ test('a material from the catalog becomes an ordinary profile with its starting 
   const added = saved.materials.filter((item) => item.name === 'PETG-CF');
   expect(added).toHaveLength(2);
   expect(added[0]?.id).toBe('petg-cf');
-  expect(added[1]).toMatchObject({ overhang: entry.overhang, holeShrink: entry.holeShrink, clearance: { ...entry.clearance, slide: 0.45 } });
+  expect(added[1]).toMatchObject({ overhang: entry.overhang, holeShrink: entry.holeShrink, clearance: { ...entry.clearance, slide: 0.45, turn: 0.5 } });
 });
 
 test('the ready-to-print light follows the printer, points at its findings and asks before a red export (M7)', async () => {
@@ -1651,7 +1719,10 @@ test('the light says when it still measures or a measure failed, and an export a
   const light = page.getByTestId('print-check');
   const confirm = page.getByTestId('export-confirm');
   await expect(light).toHaveAttribute('data-measuring', 'true', { timeout: 15_000 });
-  await expect(light).toHaveText('Checking');
+  // The label follows by a timer, 500 ms after the measure began so that a quick check does not blink. A loaded runner
+  // delays timers: measured under load, the 500 ms one fired after up to 1.4 s and the check's own 250 ms one after
+  // 4.3 s; on CI the light stayed "Ready to print" with data-measuring set past 5 s. The state is asserted above.
+  await expect(light).toHaveText('Checking', { timeout: 45_000 });
 
   // An export now asks: a blocked joint may still turn up.
   await page.getByTestId('export').click();
@@ -1694,7 +1765,7 @@ test('the light says when it still measures or a measure failed, and an export a
   await expect(async () => {
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('print-check-panel')).toBeHidden({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
+  }).toPass({ timeout: 45_000 });
   await page.getByTestId('export').click();
   await page.getByTestId('export-share').click();
   await expect(confirm).toContainText('The print check did not run in full. Not measured, or not all of it: the travel of the joints.');

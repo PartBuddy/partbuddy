@@ -4,6 +4,8 @@ import { eventChannels, invokeChannels, type EventChannel, type InvokeChannel } 
 import { keptSketchSchema, sketchStateSchema } from './sketch';
 import { drawingSvg, naturalWidth, parseDrawing } from './svgDrawing';
 import { assemblyPlanSchema } from './assembly';
+import { LOGO_DEPTH_MAX, LOGO_WIDTH_MAX } from './drawingPlacement';
+import { BLOCK_SIZES } from './screwSizes';
 import { MAX_PHRASES_PER_STEP, STEP_PHRASE_KEYS } from './stepPhrases';
 import { TEMPLATE_IDS } from './templates';
 
@@ -364,9 +366,9 @@ export const updateStateSchema = z.discriminatedUnion('state', [
 
 /** The language of the interface (B6): follow Windows, German or English. */
 export const languageSchema = z.enum(['system', 'de', 'en']);
-/** The size of the whole interface (2026-11-07): 90 % to 150 %, as Electron's zoom factor. */
+/** The size of the whole interface (2026-11-07): 90 % to 150 %, as Electron's zoom factor; the schema takes the same range (audit T47). */
 export const ZOOM_STEPS = [0.9, 1, 1.1, 1.25, 1.5] as const;
-export const zoomSchema = z.number().min(0.8).max(1.5);
+export const zoomSchema = z.number().min(Math.min(...ZOOM_STEPS)).max(Math.max(...ZOOM_STEPS));
 /** What PartBuddy shows when it starts: the start page or the last project. */
 export const startPageSchema = z.enum(['home', 'last']);
 /** The app-wide settings without a channel of their own, read and changed together. */
@@ -778,8 +780,8 @@ export const designActionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('hole'), body: bodyName, points: z.array(point3).length(1), size: length, depth: length.optional() }).strict(),
   z.object({ action: z.literal('shell'), body: bodyName, points: actionPoints, size: length }).strict(),
 ]);
-/** The standard part families PartBuddy offers (B7), metric, from SolidCraft's library. */
-export const partFamilySchema = z.enum(['socket_head_cap_screw', 'button_head_cap_screw', 'hex_bolt', 'set_screw', 'hex_nut', 'washer', 'dowel_pin', 'bearing']);
+/** The standard part families PartBuddy offers (B7), metric, from SolidCraft's library, in the order of the menu; the countersunk screw since audit S-30. */
+export const partFamilySchema = z.enum(['socket_head_cap_screw', 'button_head_cap_screw', 'countersunk_socket_screw', 'hex_bolt', 'set_screw', 'hex_nut', 'washer', 'dowel_pin', 'bearing']);
 export const partsLibrarySchema = z
   .array(
     z
@@ -806,7 +808,8 @@ export const printFaceSchema = z.object({ body: bodyName, point: point3.nullable
 /** The print face of each body as PartBuddy set it, by face name. */
 export const printFacesSchema = z.record(bodyName, z.string().max(300));
 /** A function block at a picked flat face (F1); `shared/blocks.ts` turns it into SolidCraft's command. */
-const blockSize = z.enum(['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10']);
+// The sizes of shared/screwSizes.ts, not a second list (audit T48).
+const blockSize = z.enum(BLOCK_SIZES);
 const blockLength = finite.positive().max(500);
 /** Further points of a row of the same hole (the first is `point`). */
 const morePoints = z.array(point3).max(99).optional();
@@ -882,13 +885,15 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
       width: blockLength,
       catchDepth: blockLength,
       catchLength: blockLength,
+      // shared/blocks.ts HOOK_DIRECTIONS; not imported, so contract.ts does not load the blocks (and the geometry) with it; a test holds them equal.
       hook: z.enum(['y+', 'y-', 'x+', 'x-']),
     })
     .strict(),
 ]);
 export const actionPreviewSchema = z.discriminatedUnion('ok', [
   // `unmeasured`: a function block's cut goes through all of its body, as its reach could not be measured (audit W2).
-  z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable(), unmeasured: z.literal(true).optional() }).strict(),
+  // `root`: the radius a snap fit's root gets on trial, null where SolidCraft refuses it, and the radius asked (review of BC-17 S4).
+  z.object({ ok: z.literal(true), preview: z.instanceof(Uint8Array).nullable(), unmeasured: z.literal(true).optional(), root: z.object({ applied: finite.nullable(), wanted: finite }).strict().optional() }).strict(),
   z.object({ ok: z.literal(false), error: z.string().max(300) }).strict(),
 ]);
 /** A placed logo at a picked point (sketches named "SVG-Logo <name>"), and where it sits from its face's middle. */
@@ -902,11 +907,11 @@ export const logoMoveSchema = z
     by: z.tuple([finite, finite]).nullable(),
     centre: z.enum(['x', 'y', 'both']).nullable(),
     /** How deep or high, in mm; every extrusion of the logo gets it. */
-    depth: finite.positive().max(50).nullable().optional(),
+    depth: finite.positive().max(LOGO_DEPTH_MAX).nullable().optional(),
     /** Degrees to turn it counter-clockwise (looking at the face) about its middle. */
     rotate: finite.min(-360).max(360).nullable().optional(),
     /** How wide in mm, aspect kept, about its middle. */
-    width: finite.positive().max(1000).nullable().optional(),
+    width: finite.positive().max(LOGO_WIDTH_MAX).nullable().optional(),
     /** A placed text's words, capital height, font ("" the built-in one) and boldness; left out keeps each. */
     text: z
       .object({ words: z.string().trim().min(1).max(80).optional(), height: finite.positive().max(500).optional(), font: z.string().max(100).optional(), bold: z.boolean().optional(), boldFace: z.string().max(100).optional() })
@@ -1071,9 +1076,22 @@ export const printerProfileSchema = z
   })
   .strict();
 
+/**
+ * A layer no thicker than the nozzle (audit T32, D28). The nozzle is the limit a slicer refuses beyond: PrusaSlicer
+ * "Layer height can't be greater than nozzle diameter" (DisplayStrings.cpp, commit e6c85c5). What prints well is less,
+ * a recommendation and not refused here: Bambu Studio's machine profiles stop at 0.28 mm for 0.4 mm, 70 %
+ * (`max_layer_height`, fdm_machine_common.json, commit 930fe93). Checked where profiles are entered (the editor, through
+ * `printSettingsProblem`) and for the test pieces, not when they are read, so a file saved before still opens and the
+ * editor says what to fix.
+ */
+export const layerFitsNozzle = (printer: { nozzle: number; layer: number }) => printer.layer <= printer.nozzle + 1e-9;
+
 /** Fits from tightest to loosest: held by clamping, pushed together and apart, sliding, turning. */
 export const fitKindSchema = z.enum(['clamp', 'push', 'slide', 'turn']);
 export const FIT_KINDS = fitKindSchema.options;
+
+/** Each fit at least as loose as the one before it, clamp to turn (audit T33); checked where profiles are entered, as the layer. */
+export const fitsInOrder = (clearance: Record<FitKind, number>) => FIT_KINDS.every((fit, i) => i === 0 || clearance[fit] >= clearance[FIT_KINDS[i - 1] ?? fit] - 1e-9);
 
 export const materialProfileSchema = z
   .object({
@@ -1087,6 +1105,11 @@ export const materialProfileSchema = z
     clearance: z.object({ clamp: range(-0.5, 2), push: range(-0.5, 2), slide: range(-0.5, 2), turn: range(-0.5, 2) }).strict(),
     /** The nozzle the clearances were read on with the tolerance pieces; without it they are starting values for 0.4 mm. */
     measuredNozzle: range(0.1, 2).optional(),
+    /**
+     * The fits were read off a fit comb drilled with the hole allowance (BC-16), so they are the room after printing. Missing on
+     * fits read before, where the comb's shrink is in them: the tools would count it twice. Optional, so older files load.
+     */
+    fitsAfterPrint: z.literal(true).optional(),
   })
   .strict();
 
@@ -1106,6 +1129,17 @@ export const designRulesSchema = z
 export type DesignRules = z.infer<typeof designRulesSchema>;
 export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true, details: true, snap: true, economy: true };
 
+/**
+ * The print check's hints of audit BC-24 (Manuel, 2026-11-13): yellow only, never a block, each turned off here on its own;
+ * on unless turned off. The names are `PrintHint` of the geometry package.
+ */
+export const PRINT_HINTS = ['smallHole', 'narrowGap'] as const;
+const HINTS_ON = { smallHole: true, narrowGap: true };
+// Not strict, and each value falls back to on: a hint of a newer or older PartBuddy must not lose the printers and materials (BC-24 review).
+export const printHintsSchema = z.object({ smallHole: z.boolean().catch(true).default(true), narrowGap: z.boolean().catch(true).default(true) }).catch(HINTS_ON);
+export type PrintHints = z.infer<typeof printHintsSchema>;
+export const HINT_DEFAULTS: PrintHints = HINTS_ON;
+
 export const printSettingsSchema = z
   .object({
     version: z.literal(1),
@@ -1115,21 +1149,35 @@ export const printSettingsSchema = z
     materials: z.array(materialProfileSchema).min(1).max(MAX_MATERIALS).refine(uniqueIds, 'material ids must be unique'),
     /** The material of a part that has none of its own. */
     material: profileId,
-    /**
-     * Design to print without support (M7f, decided 2026-11-05): the assistant gets the rules for it
-     * with the profile. On unless the user turns it off; files from before it have it on.
-     */
-    supportFree: z.boolean().default(true),
     /** The design rules the assistant applies on its own (decided 2026-11-07); every group on unless turned off. */
     design: designRulesSchema.default(DESIGN_DEFAULTS),
+    /** The print check's hints (BC-24); missing in files saved before, so every one is on. */
+    hints: printHintsSchema.default(HINT_DEFAULTS),
   })
   .strict()
   .refine((settings) => settings.printers.some((printer) => printer.id === settings.printer), 'the printer in use must exist')
   .refine((settings) => settings.materials.some((material) => material.id === settings.material), 'the default material must exist');
 
+/**
+ * Why the profiles the user edits cannot be kept as they are, or null (audit T32, D28, T33). The editor holds them back
+ * until fixed. Not part of `printSettingsSchema` and its save request: a file saved before must still open, and the
+ * assistant settings save the whole profiles with every switch, which would then fail without a word.
+ */
+export function printSettingsProblem(settings: PrintSettings): { problem: 'nameMissing' | 'layerUnsaved' | 'fitOrderUnsaved'; name: string } | null {
+  if ([...settings.printers, ...settings.materials].some((item) => item.name.trim() === '')) return { problem: 'nameMissing', name: '' };
+  // Named, as it may be a profile other than the one on screen (BC-14 review K5).
+  const printer = settings.printers.find((item) => !layerFitsNozzle(item));
+  if (printer) return { problem: 'layerUnsaved', name: printer.name };
+  const material = settings.materials.find((item) => !fitsInOrder(item.clearance));
+  if (material) return { problem: 'fitOrderUnsaved', name: material.name };
+  return null;
+}
+
 /** The tolerance assistant's test pieces for a nozzle and layer; to a 3MF file (slicer null) or into a slicer. */
-const testPiecesForSchema = z.object({ nozzle: range(0.1, 2), layer: range(0.04, 1.2) }).strict();
-export const testPiecesExportSchema = testPiecesForSchema.extend({ slicer: z.string().min(1).max(80).nullable() }).strict();
+/** `holeShrink`: the measured material's, so the fit comb's holes are drawn with it (BC-16 review B1). */
+const testPiecesFor = z.object({ nozzle: range(0.1, 2), layer: range(0.04, 1.2), holeShrink: range(0, 1).optional() }).strict();
+const testPiecesForSchema = testPiecesFor.refine(layerFitsNozzle, 'a layer height must not exceed the nozzle');
+export const testPiecesExportSchema = testPiecesFor.extend({ slicer: z.string().min(1).max(80).nullable() }).strict().refine(layerFitsNozzle, 'a layer height must not exceed the nozzle');
 
 /** What the open part is printed with: the printer in use and the part's material. */
 export const partPrintSchema = z
@@ -1138,10 +1186,10 @@ export const partPrintSchema = z
     material: materialProfileSchema,
     /** False while the part uses the default material. */
     chosen: z.boolean(),
-    /** Whether the assistant designs to print without support. */
-    supportFree: z.boolean(),
     /** The design rule groups in force for this part: the project's choice over the setting. */
     design: designRulesSchema,
+    /** The print check's hints in force (BC-24): the setting; every one on where left out. */
+    hints: printHintsSchema.optional(),
   })
   .strict();
 export const partMaterialRequestSchema = z.object({ material: profileId }).strict();
@@ -1160,15 +1208,20 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('size'), severity: findingSeveritySchema, body: bodyName, size: z.tuple([mmValue, mmValue, mmValue]), bed: z.tuple([mmValue, mmValue, mmValue]), lying: z.boolean() }).strict(),
   z.object({ kind: z.literal('thinWall'), severity: findingSeveritySchema, floor: z.boolean(), layers: finite.positive().max(1000).optional(), thickness: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('overhang'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('roundBedEdge'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('smallHole'), severity: findingSeveritySchema, holes: z.number().int().positive().max(100_000), diameter: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('narrowGap'), severity: findingSeveritySchema, gap: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('contact'), severity: findingSeveritySchema, area: finite.nonnegative(), bodies: z.number().int().positive().max(100_000), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('feature'), severity: findingSeveritySchema, feature: z.string().max(200), message: z.string().max(500) }).strict(),
   z.object({ kind: z.literal('separate'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
   z.object({ kind: z.literal('fused'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(2).max(20) }).strict(),
   z.object({ kind: z.literal('open'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(1).max(20) }).strict(),
+  z.object({ kind: z.literal('faceLost'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(1).max(20) }).strict(),
   z.object({ kind: z.literal('overlap'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), volume: finite.nonnegative(), places: findingPlacesSchema }).strict(),
-  z.object({ kind: z.literal('tight'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), gap: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),
-  z.object({ kind: z.literal('blocked'), severity: findingSeveritySchema, joint: z.string().max(200), bodies: z.tuple([bodyName, bodyName]), at: finite, limit: finite, unit: z.enum(['deg', 'mm']), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('tight'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), gap: mmValue, minimum: mmValue, inPlace: z.literal(true).optional(), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('blocked'), severity: findingSeveritySchema, joint: z.string().max(200), bodies: z.tuple([bodyName, bodyName]), at: finite, limit: finite, unit: z.enum(['deg', 'mm']), free: z.literal(true).optional(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('posed'), severity: findingSeveritySchema, joint: z.string().max(200), value: finite, unit: z.enum(['deg', 'mm']) }).strict(),
+  z.object({ kind: z.literal('leftOut'), severity: findingSeveritySchema, rolledBack: z.boolean(), features: z.array(z.string().max(200)).min(1).max(40) }).strict(),
 ]);
 export const printCheckReportSchema = z
   .object({
@@ -1186,6 +1239,8 @@ export const printCheckReportSchema = z
     unmeasured: z.array(z.enum(['clearance', 'joints'])).max(2).optional(),
     /** Mesh bodies whose clearance SolidCraft does not measure: the check says nothing of them until they are converted to faces. */
     unchecked: z.array(bodyName).max(40).optional(),
+    /** The hints turned off in the print settings (BC-24): not looked for, so the note does not claim them. */
+    off: z.array(z.enum(PRINT_HINTS)).max(PRINT_HINTS.length).optional(),
     /**
      * Per printed body, as it lies on the bed: solid volume and the shell estimate in mm³ (two wall lines on every
      * surface, 15 % infill inside), height in mm and its layers, mm² of surface, on the bed and leaning past the
@@ -1284,7 +1339,8 @@ export const invokeContract = {
   [invokeChannels.designSweepJoints]: { request: jointSweepRequestSchema, response: jointSweepResultSchema },
   [invokeChannels.designPartsLibrary]: { request: none, response: partsLibrarySchema },
   [invokeChannels.designPreviewBlock]: { request: featureBlockSchema, response: actionPreviewSchema },
-  [invokeChannels.designApplyBlock]: { request: featureBlockSchema, response: none },
+  // A snap fit whose root stays sharp says so, for the form to tell (second review of BC-17).
+  [invokeChannels.designApplyBlock]: { request: featureBlockSchema, response: z.object({ rootSharp: z.literal(true) }).strict().nullable() },
   [invokeChannels.designLogoAt]: { request: z.object({ point: point3 }).strict(), response: logoSpotSchema.nullable() },
   [invokeChannels.designPreviewLogoMove]: { request: logoMoveSchema, response: actionPreviewSchema },
   [invokeChannels.designMoveLogo]: { request: logoMoveSchema, response: none },

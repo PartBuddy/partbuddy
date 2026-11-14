@@ -65,10 +65,11 @@ export function boxesBody(name: string, boxes: readonly (readonly [Point, Point]
 }
 
 /**
- * A tube lying along X on the bed: outer radius `outer`, a hole of radius `inner`, `length` long.
- * Faces: `F1:outer`, `F1:hole`, `F1:-x`, `F1:+x`.
+ * A tube lying along X on the bed: outer radius `outer`, a hole of radius `inner`, `length` long, its outside and its
+ * hole cut into `segments` and `innerSegments` pieces round (SolidCraft meshes a large and a small circle finer or
+ * coarser alike only by chance). Faces: `F1:outer`, `F1:hole`, `F1:-x`, `F1:+x`.
  */
-export function lyingTube(name: string, outer: number, inner: number, length: number, segments = 48) {
+export function lyingTube(name: string, outer: number, inner: number, length: number, segments = 48, innerSegments = segments) {
   const built: Built = {
     positions: [],
     indices: [],
@@ -78,28 +79,73 @@ export function lyingTube(name: string, outer: number, inner: number, length: nu
     cylinders: [{ origin: [0, 0, outer], axis: [1, 0, 0], radius: outer }, { origin: [0, 0, outer], axis: [1, 0, 0], radius: inner }],
   };
   // Rings: outer at x=0, outer at x=length, inner at x=0, inner at x=length; angle 0 points down.
-  const ring = (radius: number, x: number) => {
+  const ring = (radius: number, x: number, count: number) => {
     const start = built.positions.length / 3;
-    for (let i = 0; i < segments; i += 1) {
-      const angle = (i * 2 * Math.PI) / segments;
+    for (let i = 0; i < count; i += 1) {
+      const angle = (i * 2 * Math.PI) / count;
       built.positions.push(x, radius * Math.sin(angle), outer - radius * Math.cos(angle));
     }
     return start;
   };
-  const o0 = ring(outer, 0);
-  const o1 = ring(outer, length);
-  const i0 = ring(inner, 0);
-  const i1 = ring(inner, length);
+  const o0 = ring(outer, 0, segments);
+  const o1 = ring(outer, length, segments);
+  const i0 = ring(inner, 0, innerSegments);
+  const i1 = ring(inner, length, innerSegments);
+  /** A triangle of `face`, turned so it faces along `x` (the end caps). */
+  const facing = (a: number, b: number, c: number, face: number, x: number) => {
+    const p = (v: number) => [built.positions[v * 3 + 1] ?? 0, built.positions[v * 3 + 2] ?? 0];
+    const [[ay, az], [by, bz], [cy, cz]] = [p(a), p(b), p(c)] as [[number, number], [number, number], [number, number]];
+    const nx = (by - ay) * (cz - az) - (bz - az) * (cy - ay);
+    built.indices.push(...(nx * x >= 0 ? [a, b, c] : [a, c, b]));
+    built.triangleFaces.push(face);
+  };
   const quad = (a: number, b: number, c: number, d: number, face: number) => {
     built.indices.push(a, b, c, a, c, d);
     built.triangleFaces.push(face, face);
   };
+  for (let i = 0; i < segments; i += 1) quad(o0 + i, o0 + ((i + 1) % segments), o1 + ((i + 1) % segments), o1 + i, 0); // outside, normals away from the axis
+  for (let i = 0; i < innerSegments; i += 1) quad(i0 + i, i1 + i, i1 + ((i + 1) % innerSegments), i0 + ((i + 1) % innerSegments), 1); // the hole, normals towards the axis
+  // The ends: the two rings zipped by angle.
+  for (const [o, n, face, x] of [[o0, i0, 2, -1], [o1, i1, 3, 1]] as const) {
+    let [i, j] = [0, 0];
+    while (i < segments || j < innerSegments) {
+      const outerNext = (i + 1) / segments;
+      const innerNext = (j + 1) / innerSegments;
+      if (j >= innerSegments || (i < segments && outerNext <= innerNext)) {
+        facing(o + (i % segments), o + ((i + 1) % segments), n + (j % innerSegments), face, x);
+        i += 1;
+      } else {
+        facing(o + (i % segments), n + ((j + 1) % innerSegments), n + (j % innerSegments), face, x);
+        j += 1;
+      }
+    }
+  }
+  return finish(name, built);
+}
+
+/** A solid rod lying along X on the bed, `radius` round, `length` long: faces `F1:side` (a cylinder), `F1:-x`, `F1:+x`. */
+export function lyingRod(name: string, radius: number, length: number, segments = 24) {
+  const built: Built = {
+    positions: [0, 0, radius, length, 0, radius],
+    indices: [],
+    triangleFaces: [],
+    names: ['F1:side', 'F1:-x', 'F1:+x'],
+    normals: [undefined, [-1, 0, 0], [1, 0, 0]],
+    cylinders: [{ origin: [0, 0, radius], axis: [1, 0, 0], radius }],
+  };
+  for (const x of [0, length]) {
+    for (let i = 0; i < segments; i += 1) {
+      const angle = (i * 2 * Math.PI) / segments;
+      built.positions.push(x, radius * Math.sin(angle), radius - radius * Math.cos(angle));
+    }
+  }
+  const [r0, r1] = [2, 2 + segments];
   for (let i = 0; i < segments; i += 1) {
     const j = (i + 1) % segments;
-    quad(o0 + i, o0 + j, o1 + j, o1 + i, 0); // outside, normals away from the axis
-    quad(i0 + i, i1 + i, i1 + j, i0 + j, 1); // the hole, normals towards the axis
-    quad(o0 + i, i0 + i, i0 + j, o0 + j, 2); // end at x=0, facing -x
-    quad(o1 + i, o1 + j, i1 + j, i1 + i, 3); // end at x=length, facing +x
+    built.indices.push(r0 + i, r0 + j, r1 + j, r0 + i, r1 + j, r1 + i);
+    built.triangleFaces.push(0, 0);
+    built.indices.push(0, r0 + j, r0 + i, 1, r1 + i, r1 + j);
+    built.triangleFaces.push(1, 2);
   }
   return finish(name, built);
 }
@@ -287,4 +333,81 @@ export function lathe(profile: readonly (readonly [number, number])[], n = 48): 
     }
   });
   return soup(triangles);
+}
+
+/**
+ * The same body placed otherwise: mirrored in X if asked, turned about Z by `degrees` and lifted by `lift` mm. The
+ * corners of its faces are joined again by position, so the body stays a closed shell; planes and cylinders turn with it.
+ */
+export function posed<T extends { name: string; model: ViewerModel }>(body: T, degrees: number, mirrored = false, lift = 0): T {
+  const cos = Math.cos((degrees * Math.PI) / 180);
+  const sin = Math.sin((degrees * Math.PI) / 180);
+  const turn = ([x, y, z]: Point, shift: number): Point => {
+    const mx = mirrored ? -x : x;
+    return [cos * mx - sin * y, sin * mx + cos * y, z + shift];
+  };
+  const source = body.model.geometry.getAttribute('position').array;
+  const index = body.model.geometry.index?.array ?? [];
+  const welded = new Map<string, number>();
+  const positions: number[] = [];
+  const of = (v: number) => {
+    const point: Point = [source[v * 3] ?? 0, source[v * 3 + 1] ?? 0, source[v * 3 + 2] ?? 0];
+    const key = point.join(',');
+    let at = welded.get(key);
+    if (at === undefined) {
+      at = positions.length / 3;
+      welded.set(key, at);
+      positions.push(...turn(point, lift));
+    }
+    return at;
+  };
+  const indices: number[] = [];
+  for (let t = 0; t < index.length; t += 3) {
+    const [a, b, c] = [of(index[t] ?? 0), of(index[t + 1] ?? 0), of(index[t + 2] ?? 0)];
+    // Mirrored, the triangles turn the other way round.
+    indices.push(...(mirrored ? [a, c, b] : [a, b, c]));
+  }
+  const table: FaceTable = {
+    ...body.model.table,
+    faces: body.model.table.faces.map((face) => ({
+      ...face,
+      ...(face.planeNormal ? { planeNormal: turn(face.planeNormal, 0) } : {}),
+      ...(face.cylinder ? { cylinder: { ...face.cylinder, origin: turn(face.cylinder.origin, lift), axis: turn(face.cylinder.axis, 0) } } : {}),
+    })),
+  };
+  const mesh: TaggedMesh = { name: body.name, faceCount: table.faces.length, positions: Float64Array.from(positions), indices: Uint32Array.from(indices), triangleFaces: Uint32Array.from(body.model.triangleFaces) };
+  return { ...body, model: buildViewerModel(buildRenderMesh(mesh, table), table) };
+}
+
+/**
+ * A closed mesh as one body, for shapes that come as triangles; corners that meet are joined. What lies flat facing down
+ * or up is a face of its own (`F1:-z`, `F1:+z`), the rest `F1:skin`: SolidCraft splits the corners between faces, so a
+ * base keeps its own normals and is not rounded into the side.
+ */
+export function rawBody(name: string, mesh: RawMesh) {
+  const built: Built = { positions: [], indices: [], triangleFaces: [], names: ['F1:skin', 'F1:-z', 'F1:+z'], normals: [undefined, [0, 0, -1], [0, 0, 1]] };
+  const seen = new Map<string, number>();
+  const at = (v: number) => {
+    const point = [0, 1, 2].map((k) => Math.round((mesh.positions[v * 3 + k] ?? 0) * 1e6) / 1e6);
+    const key = point.join(',');
+    let w = seen.get(key);
+    if (w === undefined) {
+      w = built.positions.length / 3;
+      seen.set(key, w);
+      built.positions.push(...point);
+    }
+    return w;
+  };
+  for (let t = 0; t < mesh.index.length; t += 3) {
+    const [a, b, c] = [at(mesh.index[t] ?? 0), at(mesh.index[t + 1] ?? 0), at(mesh.index[t + 2] ?? 0)];
+    // Triangles drawn to a point on the axis are dropped: they have no area and no edge to share.
+    if (a === b || b === c || a === c) continue;
+    built.indices.push(a, b, c);
+    const z = (v: number) => built.positions[v * 3 + 2] ?? 0;
+    const flat = z(a) === z(b) && z(b) === z(c);
+    const [ax, ay, bx, by, cx, cy] = [a, b, c].flatMap((v) => [built.positions[v * 3] ?? 0, built.positions[v * 3 + 1] ?? 0]) as [number, number, number, number, number, number];
+    const up = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax) > 0;
+    built.triangleFaces.push(flat ? (up ? 2 : 1) : 0);
+  }
+  return finish(name, built);
 }

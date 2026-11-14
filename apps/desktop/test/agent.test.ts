@@ -7,7 +7,8 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentService } from '../src/main/agents/agentService';
-import { findClaudeCode, parseStreamLine } from '../src/main/agents/claudeCode';
+import { findClaudeCode, parseStreamLine, roleOf } from '../src/main/agents/claudeCode';
+import { instructionsFor, MAX_STEPS, REFUSAL_GUIDANCE } from '../src/main/agents/loop';
 import { GateProxy, REPEAT_REASON, type ToolCallRecord, type UpstreamTools } from '../src/main/agents/gateProxy';
 import { photoFile, photoNote } from '../src/main/agents/photoNote';
 import { decide, TOOL_ARGUMENTS } from '../src/main/agents/policy';
@@ -120,15 +121,17 @@ describe('tool policy', () => {
     expect(Object.keys(TOOL_ARGUMENTS).sort()).toEqual([...tools].sort());
     const steps = ['set_parameter', 'list_commands', 'describe_command', 'execute', 'measure', 'compare_picture', 'inspect_design', 'undo', 'redo'];
     for (const tool of tools) {
-      expect(decide(tool, {}), tool).toEqual({ allow: true });
+      // execute and batch need their command or steps in a form the policy can read (audit H-30).
+      const base: Record<string, unknown> = tool === 'execute' ? { command: 'solid.box' } : tool === 'batch' ? { commands: [] } : {};
+      expect(decide(tool, base), tool).toEqual({ allow: true });
       for (const argument of TOOL_ARGUMENTS[tool] ?? []) {
         if (['reference', 'file', 'commands', 'command', 'params'].includes(argument)) continue;
-        expect(decide(tool, { [argument]: 1 }), `${tool} ${argument}`).toEqual({ allow: true });
+        expect(decide(tool, { ...base, [argument]: 1 }), `${tool} ${argument}`).toEqual({ allow: true });
       }
       // An argument that is not listed is refused, whatever it is called: a later SolidCraft may write a file with it.
       for (const argument of ['path', 'file', 'reference', 'output', 'out', 'filename', 'dest', 'image', 'dir', 'depth']) {
         if ((TOOL_ARGUMENTS[tool] ?? []).includes(argument)) continue;
-        const decision = decide(tool, { [argument]: cache });
+        const decision = decide(tool, { ...base, [argument]: cache });
         expect(decision.allow, `${tool} ${argument}`).toBe(false);
         // The same as a batch step, for the tools SolidCraft runs as steps.
         if (steps.includes(tool)) expect(decide('batch', { commands: [{ command: tool, params: { [argument]: cache } }] }).allow, `batch step ${tool} ${argument}`).toBe(false);
@@ -214,7 +217,7 @@ describe('tool policy', () => {
     expect(decide('BATCH', { commands: [] }).allow).toBe(false);
     // What was allowed stays allowed in any case, the photo canvas too.
     expect(decide('execute', { command: 'Solid.Extrude', params: {} })).toEqual({ allow: true });
-    expect(decide('batch', { commands: [{ command: 'SOLID.BOX', params: {} }, { id: 'document.revision' }] })).toEqual({ allow: true });
+    expect(decide('batch', { commands: [{ command: 'SOLID.BOX', params: {} }, { id: 'Sketch.Finish' }] })).toEqual({ allow: true });
     expect(decide('execute', { command: 'Construct.Point.Along_Path', params: { path: 'l1', t: 0.5 } }).allow).toBe(true);
     // Parameter keys SolidCraft reads only as written: `Path` writes no file (measured), so it is not taken for one.
     expect(decide('execute', { command: 'parameters.export', params: { Path: 'out.json' } }).allow).toBe(true);
@@ -240,11 +243,12 @@ describe('gate proxy', () => {
     return client;
   }
 
-  it('lists SolidCraft tools unchanged and forwards allowed calls', async () => {
+  it('lists the SolidCraft tools the policy offers and forwards allowed calls (audit S-04)', async () => {
     const { proxy, calls, records } = await startProxy();
     const client = await connect(proxy);
     const { tools } = await client.listTools();
-    expect(tools.map((tool) => tool.name)).toEqual(['inspect_design', 'export']);
+    // export is refused whatever its arguments, so it is not offered.
+    expect(tools.map((tool) => tool.name)).toEqual(['inspect_design']);
     expect(client.getInstructions()).toBe(`SolidCraft drives the app.\n\n${TOOL_NOTES}`);
     const result = await client.callTool({ name: 'inspect_design', arguments: {} });
     expect(result.isError).not.toBe(true);
@@ -346,6 +350,24 @@ describe('Claude Code adapter', () => {
     expect(parseStreamLine('{"type":"assistant","message":{"content":[],"usage":{"input_tokens":2,"cache_read_input_tokens":70,"cache_creation_input_tokens":18,"output_tokens":4}}}')).toEqual([{ type: 'context', used: 94 }]);
     expect(parseStreamLine('{"type":"assistant","message":{"content":[],"usage":{"input_tokens":2,"output_tokens":-1}}}')).toEqual([]);
     expect(parseStreamLine('{"type":"result","subtype":"success","modelUsage":{"a":{"contextWindow":200000},"b":{"contextWindow":1000000},"c":{"contextWindow":"x"}}}')[0]).toEqual({ type: 'context', size: 1000000 });
+    // Compacting (audit H-11): the boundary, with or without a usable size.
+    expect(parseStreamLine('{"type":"system","subtype":"compact_boundary","compact_metadata":{"trigger":"auto","pre_tokens":180000}}')).toEqual([{ type: 'compacted', tokens: 180000 }]);
+    expect(parseStreamLine('{"type":"system","subtype":"compact_boundary","compact_metadata":{"pre_tokens":-1}}')).toEqual([{ type: 'compacted', tokens: null }]);
+    expect(parseStreamLine('{"type":"system","subtype":"compact_boundary"}')).toEqual([{ type: 'compacted', tokens: null }]);
+    expect(parseStreamLine('{"type":"system","subtype":"status"}')).toEqual([]);
+  });
+
+  it('tells every route alike what to do when a block or mechanism was not built, and the own loops their rounds (audit R22, R57)', () => {
+    const upstream: UpstreamTools = { instructions: () => undefined, listTools: () => Promise.resolve([]), callTool: () => Promise.reject(new Error('unused')) };
+    for (const role of [roleOf(false), roleOf(true), instructionsFor(upstream, false)]) {
+      expect(role).toContain(REFUSAL_GUIDANCE);
+      // The old rule made "continue without it" cover "Not built" too.
+      expect(role).not.toContain('If PartBuddy refuses a tool, tell the user why');
+    }
+    expect(REFUSAL_GUIDANCE).toContain('When partbuddy_block or partbuddy_mechanism answers "Not built", correct what it names and call it again; never model that feature yourself instead.');
+    expect(instructionsFor(upstream, false)).toContain(`You have ${String(MAX_STEPS)} tool rounds per turn`);
+    // Claude Code has no such limit.
+    expect(roleOf(false)).not.toContain('tool rounds per turn');
   });
 
   it('finds the native install in the user folder', () => {
@@ -362,7 +384,9 @@ describe('Claude Code adapter', () => {
   });
 });
 
-describe('agent service with a fake Claude Code', () => {
+// Every test starts the fake Claude Code as a real process and waits up to 15 s for it (vi.waitFor below); the
+// default 5 s cut that short on a loaded runner (CI of pull request 376).
+describe('agent service with a fake Claude Code', { timeout: 20_000 }, () => {
   function setup(env: Record<string, string> = {}) {
     const workDir = mkdtempSync(join(tmpdir(), 'partbuddy-agent-'));
     cleanups.push(() => {
@@ -499,6 +523,22 @@ describe('agent service with a fake Claude Code', () => {
     await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 15_000 });
     expect(calls).toEqual(['inspect_design']);
     expect(events.filter((e) => e.type === 'tool').at(-1)).toMatchObject({ name: 'export', decision: 'denied' });
+  }, 30_000);
+
+  it('counts a compacted session as fresh once, so the print profile goes along again (audit H-11)', async () => {
+    const { service, events } = setup();
+    await service.refresh();
+    expect(service.freshConversation()).toBe(true);
+    await service.send('How many bodies?');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true), { timeout: 15_000 });
+    expect(service.freshConversation()).toBe(false);
+    await service.send('Compact now');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 15_000 });
+    expect(service.freshConversation()).toBe(true);
+    // The next message carried the notes: the session is no longer fresh.
+    await service.send('How many bodies?');
+    expect(service.freshConversation()).toBe(false);
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(3), { timeout: 15_000 });
   }, 30_000);
 
   it('removes its MCP configuration with the token on dispose', async () => {

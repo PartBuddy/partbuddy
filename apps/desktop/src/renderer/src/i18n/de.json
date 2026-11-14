@@ -466,10 +466,12 @@
         "failed": "Der Assistent hat mit einem Fehler aufgehört.",
         "error_during_execution": "Ein Fehler hat den Assistenten mitten in der Arbeit gestoppt.",
         "error_max_turns": "Der Assistent hat zu viele Schritte gebraucht und aufgehört.",
+        "rounds": "Der Assistent hat alle Werkzeugrunden dieser Antwort verbraucht und aufgehört; das Teil ist vielleicht unfertig. „Weiter“ macht dort weiter, wo er aufgehört hat.",
         "signedOut": "Die Anmeldung bei Claude Code ist abgelaufen. Melde dich neu an, dann sende die Nachricht erneut.",
         "other": "Der Assistent hat aufgehört, bevor er fertig war."
       },
       "retry": "Erneut senden",
+      "continue": "Weiter",
       "openLog": "Logdatei zeigen"
     },
     "examples": {
@@ -539,18 +541,19 @@
     "format": {
       "3mf": {
         "name": "3MF",
-        "hint": "Für den Slicer, z. B. OrcaSlicer oder Bambu Studio"
+        "hint": "Für den Slicer: die sichtbaren Druckteile, jedes auf seiner Druckfläche, wo eine gesetzt ist, Rundungen fein (Abweichung höchstens {chord, number} mm je 100 mm Teilgröße)"
       },
       "stl": {
         "name": "STL",
-        "hint": "Für jeden Slicer und ältere Programme"
+        "hint": "Ein Netz für jeden Slicer: die sichtbaren Druckteile, fein vernetzt; auf die Druckfläche gelegt nur ein einzelnes Teil, mehrere wie konstruiert"
       },
       "step": {
         "name": "STEP",
-        "hint": "Für andere CAD-Programme"
+        "hint": "Die sichtbaren Druckteile wie konstruiert, für andere CAD-Programme"
       }
     },
     "exported": "Gespeichert als {file}",
+    "hiddenLeftOut": "Ausgeblendet und deshalb nicht dabei: {bodies}.",
     "openInSolidCraft": "In SolidCraft öffnen",
     "openedInSolidCraft": "Das Design liegt in Dokumente\\PartBuddy und öffnet sich in SolidCraft. PartBuddy zeigt deine Änderungen dort live.",
     "failed": "Das hat nicht geklappt: {detail}",
@@ -563,15 +566,22 @@
     },
     "share": {
       "name": "Teilen-Paket …",
-      "hint": "3MF, STEP, vier Bilder und eine Beschreibung für Printables oder MakerWorld",
+      "hint": "3MF (jedes Teil auf seiner Druckfläche, wo eine gesetzt ist), STEP, vier Bilder und eine Beschreibung für Printables oder MakerWorld; ausgeblendete Körper bleiben draußen",
       "done": "Teilen-Paket gespeichert in exports\\{folder}"
     }
   },
   "drawingDetail": {
-    "fine": "{places, plural, one {Eine Stelle ist} other {# Stellen sind}} schmaler als die Düse ({nozzle, number} mm), die schmalste {thinnest, number} mm: Sie drucken nicht sauber oder schließen sich. Ab {fineFrom, number} mm Breite passt alles.",
+    "fine": "{places, plural, one {Eine Stelle ist} other {# Stellen sind}} zu fein für die Düse ({nozzle, number} mm), die schmalste {thinnest, number} mm: Ein Strich unter {stroke, number} mm (zwei Bahnen) druckt nicht fest, ein Spalt unter {gap, number} mm schließt sich. Ab {fineFrom, number} mm Breite passt alles.",
+    "coarse": "Bei dieser Größe werden die Details auf einem Raster von {mmPerPx, number} mm geprüft: Eine Stelle um {gap, number} mm kann dabei übersehen werden.",
     "widen": "Auf {width, number} mm vergrößern",
     "show": "Stellen zeigen",
-    "backdrop": "Hintergrund bzw. Rahmen um die Zeichnung weggelassen – er gehört nicht zum Logo."
+    "backdrop": "Hintergrund bzw. Rahmen um die Zeichnung weggelassen – er gehört nicht zum Logo.",
+    "otherwise": {
+      "colours": "{count, plural, one {Eine Form hat} other {# Formen haben}} eine Farbe oder einen Verlauf, den PartBuddy nicht lesen kann: schwarz gebaut.",
+      "clips": "{count, plural, one {Ein Beschneidungspfad oder eine Maske wird} other {# Beschneidungspfade oder Masken werden}} nicht angewandt: Was sie verdecken, wird mitgebaut.",
+      "dashes": "{count, plural, one {Eine gestrichelte Linie wird} other {# gestrichelte Linien werden}} durchgehend gebaut.",
+      "views": "{count, plural, one {Eine innere Zeichnung wird} other {# innere Zeichnungen werden}} ohne eigenen Ausschnitt gebaut."
+    }
   },
   "logoMove": {
     "title": "Logo „{name}“",
@@ -673,6 +683,19 @@
       "radius": "Neuer Radius",
       "diameter": "Neuer Durchmesser",
       "spacing": "Neuer Abstand"
+    },
+    "rule": {
+      "downFillet": "{count, plural, one {Die Kante zeigt} other {# der Kanten zeigen}} nach unten: Eine Verrundung beginnt dort flach und braucht deshalb Stützen.",
+      "downFilletBed": "Am Bett biegt sie sich zudem hoch.",
+      "chamferFree": "Eine 45°-Fase von {chamfer} mm druckt ohne Stützen.",
+      "chamferSteep": "Eine 45°-Fase von {chamfer} mm neigt sich weiter als die {overhang}°, die {material} ohne Stützen druckt, hängt aber weniger durch als die Verrundung.",
+      "toChamfer": "Stattdessen Fase",
+      "holeAllowance": "Gebohrt mit {drilled} mm: Löcher in {material} drucken etwa {allowance} mm kleiner.",
+      "lyingHole": "Das Loch liegt quer zu den Schichten: Breiter als {most} mm braucht seine Decke Stützen. Bitte den Assistenten um eine Tropfenform oder leg das Teil so, dass das Loch senkrecht steht.",
+      "wallNoPrint": "Zu dünn zum Drucken: Die schmalste Linie, die ein Slicer mit dieser Düse legt, ist {least} mm. {better} mm druckt.",
+      "wallThin": "Unter zwei Linien ({least} mm) druckt die Wand schlecht; {better} mm druckt massiv.",
+      "wallLines": "Keine ganze Zahl an Linien von {line} mm; {better} mm druckt sauberer.",
+      "floorThin": "Ein flacher Boden oder Deckel bekommt dieselbe Dicke: unter {least} mm ({layers} Schichten) druckt er schlecht; für ihn druckt {better} mm massiv."
     }
   },
   "structure": {
@@ -686,8 +709,8 @@
     "show": "{name} einblenden",
     "mesh": "Mesh",
     "convert": "{name} in Flächen umwandeln",
-    "convertHint": "Macht aus dem Mesh bearbeitbare Flächen. Geht bei geschlossenen Meshes technischer Teile.",
-    "convertDone": "{name} hat jetzt bearbeitbare Flächen.",
+    "convertHint": "Baut das Mesh auf 0,05 mm genau als bearbeitbare Flächen nach: ebene und runde Flächen, die SolidCraft erkennt, als echte Flächen, alles andere als Facetten. Geht bei geschlossenen Meshes.",
+    "convertDone": "{name} hat jetzt bearbeitbare Flächen, auf 0,05 mm genau nach dem Mesh; was SolidCraft nicht als eben oder rund erkennt, bleibt facettiert.",
     "openMesh": "{name} ist nicht geschlossen, deshalb kann SolidCraft es nicht in Flächen umwandeln. Exportieren geht trotzdem; kleine Löcher repariert der Slicer selbst.",
     "standardPart": "Normteil",
     "bodiesTitle": "Körper",
@@ -896,7 +919,8 @@
         "design": "Konstruktion",
         "view": "3D-Ansicht",
         "sketch": "Skizze"
-      }
+      },
+      "checks": "Hinweise der Druckprüfung"
     },
     "intro": {
       "general": "Wie PartBuddy aussieht und wo es deine Projekte ablegt.",
@@ -927,9 +951,9 @@
       "what": {
         "general": "Sprache, Darstellung, Oberflächengröße, Startverhalten, Update-Suche und Projektordner kommen auf die Standardwerte zurück. Ein anderer Projektordner gilt nach einem Neustart.",
         "solidcraft": "PartBuddy sucht SolidCraft wieder selbst. Das gilt nach einem Neustart.",
-        "assistant": "Web-Recherche, stützfreies Konstruieren, die Konstruktionsregeln sowie Modell und Aufwand je Assistent kommen auf die Standardwerte zurück. Anmeldungen bleiben.",
-        "print": "Drucker und Materialien kommen auf die Startprofile zurück; eigene Profile werden entfernt. Die Konstruktionsregeln des Assistenten bleiben.",
-        "all": "Alle Einstellungen kommen auf die Standardwerte zurück. Drucker- und Materialprofile, Projekte und Anmeldungen bleiben."
+        "assistant": "Web-Recherche, die Konstruktionsregeln sowie Modell und Aufwand je Assistent kommen auf die Standardwerte zurück. Anmeldungen bleiben.",
+        "print": "Drucker und Materialien kommen auf die Startprofile zurück; eigene Profile werden entfernt. Die Hinweise der Druckprüfung werden alle wieder eingeschaltet. Die Konstruktionsregeln des Assistenten bleiben.",
+        "all": "Alle Einstellungen kommen auf die Standardwerte zurück, auch die Hinweise der Druckprüfung. Drucker- und Materialprofile, Projekte und Anmeldungen bleiben."
       }
     },
     "zoom": {
@@ -1011,8 +1035,11 @@
     "defaultMaterial": "Standard für neue Teile",
     "materialHint": "Startwerte, nicht für deinen Drucker gemessen. Miss sie mit „Toleranzen einmessen …“ an drei kleinen Prüfkörpern nach; der Assistent baut mit diesen Spielen.",
     "nameMissing": "Jedes Profil braucht einen Namen. Bis dahin bleibt der zuletzt gespeicherte Stand.",
-    "supportFree": "Stützfrei konstruieren",
-    "supportFreeHint": "Der Assistent gibt Kanten zum Druckbett eine Fase statt einer Rundung, gibt breiten liegenden Bohrungen ein Tropfendach und überbrückt Senkungen, die nach unten zeigen. So braucht der Slicer keine Stützen.",
+    "layerOverNozzle": "Dicker als die Düse: das drucken Slicer nicht. Höchstens die Düse angeben.",
+    "layerUnsaved": "Die Schichthöhe von {name} ist dicker als ihre Düse. Bis das behoben ist, bleibt der zuletzt gespeicherte Stand.",
+    "fitOrder": "Die Spiele müssen von Klemmen bis Drehen wachsen.",
+    "fitsOlderComb": "Diese Spiele wurden am älteren Passungskamm abgelesen, der ohne Lochaufmaß gebohrt war: PartBuddys Bausteine und Mechaniken geben das Aufmaß jetzt dazu, sie fallen so zu locker aus. Lies die Passungen mit dem Toleranz-Assistenten neu ab.",
+    "fitOrderUnsaved": "Bei {name} wachsen die Spiele nicht von Klemmen bis Drehen. Bis dahin bleibt der zuletzt gespeicherte Stand.",
     "saveFailed": "Die Profile konnten nicht gespeichert werden.",
     "cancel": "Abbrechen",
     "design": {
@@ -1090,6 +1117,8 @@
       "notRead": "nicht ermittelt",
       "holesTitle": "Lochplatte",
       "holes": "Miss jede Bohrung mit dem Messschieber. Leer lassen, was du nicht misst.",
+      "piecesTooLarge": "Ein Prüfkörper ist {length} × {width} mm groß und passt auch gedreht nicht auf das Druckbett dieses Druckers ({x} × {y} mm). Druck es auf einem größeren Drucker mit derselben Düse, oder prüf das Druckbett im Druckerprofil.",
+      "holesSmall": "Passt der Messschieber nicht hinein (etwa bei {size} mm), den dicksten Bohrer suchen, dessen Schaft hineingeht, und den Schaft messen. Immer oberhalb der Fase am unteren Rand messen.",
       "hole": "Ø {size} mm",
       "overhangTitle": "Überhang-Treppe",
       "overhang": "Steilste Stufe mit sauberer Unterseite",
@@ -1103,9 +1132,21 @@
         "fit": "{fit}: keine Stufe des Kamms.",
         "hole": "Ø {size} mm: der Messwert liegt mehr als 1 mm daneben.",
         "overhang": "Überhang: keine Stufe der Treppe.",
-        "order": "Die Spiele müssen von Klemmen bis Drehen wachsen. Prüfe die gewählten Stufen."
+        "order": "Die Spiele müssen von Klemmen bis Drehen wachsen. Prüfe die gewählten Stufen.",
+        "oversize": "Die Löcher sind im Mittel {by, number} mm größer als gezeichnet; die Lochzugabe bleibt deshalb 0. Miss sie noch einmal nach; sind sie wirklich größer, weitet sie wahrscheinlich der Lochausgleich des Slicers."
       },
-      "backToMaterials": "Zurück zu Material"
+      "backToMaterials": "Zurück zu Material",
+      "layerOverNozzle": "Die Schichthöhe dieses Druckers, {layer} mm, ist dicker als seine Düse, {nozzle} mm: das drucken Slicer nicht, deshalb gibt es dafür keine Prüfkörper. Zuerst im Druckerprofil die Schichthöhe auf höchstens die Düse setzen."
+    },
+    "hints": {
+      "smallHole": {
+        "label": "Bohrungen unter 2 mm",
+        "hint": "Zeigt Bohrungen, die schmaler als 2 mm sind: Sie wachsen zu oder werden deutlich zu klein, also nach dem Druck aufbohren. Nur ein Hinweis, nie eine Sperre."
+      },
+      "narrowGap": {
+        "label": "Schlitze, die zuwachsen",
+        "hint": "Zeigt, wo zwei Wände eines Teils näher als eine Düsenbreite (mindestens 0,3 mm) beieinander liegen: Eine gravierte Linie, ein Schnitt oder ein Spalt zwischen Buchstaben druckt dort zu. Nur ein Hinweis, nie eine Sperre."
+      }
     }
   },
   "check": {
@@ -1119,7 +1160,7 @@
     },
     "none": "Keine Probleme gefunden: Das Teil passt in den Bauraum, die Wände sind dick genug, nichts neigt sich über den Überhangwinkel.",
     "noneSoFar": "Bisher keine Probleme gefunden.",
-    "basis": "Geprüft nach jeder Änderung, wie konstruiert (auf der untersten Stelle stehend), mit Drucker und Material dieses Teils. Stützen, Brücken und die Lage entscheidet der Slicer.",
+    "basis": "Geprüft nach jeder Änderung, jeder Körper auf seiner Druckfläche, sonst wie konstruiert (auf der untersten Stelle stehend), mit Drucker und Material dieses Teils. Ausgeblendete Körper sind nicht geprüft. Stützen und Brücken entscheidet der Slicer.",
     "measuring": "Die Prüfung läuft noch. Überschneidungen, zu enge Spalte oder ein blockiertes Gelenk können noch dazukommen.",
     "unmeasured": "Nicht oder nicht vollständig gemessen: {what}. Befunde dazu können fehlen.",
     "unchecked": "Nicht auf Abstände geprüft (Netzkörper): {bodies}",
@@ -1137,20 +1178,28 @@
     "finding": {
       "size": "Zu groß für den Bauraum: {body}, {size} mm, Platz ist {bed} mm",
       "sizeLying": "Zu groß für den Bauraum: {body}, {size} mm, Platz ist {bed} mm. Auf eine andere Seite gelegt würde es passen.",
-      "wallTooThin": "Wände nur {thickness} mm, dünner als die Düse ({nozzle} mm): werden nicht gedruckt",
+      "wallTooThin": "Wände nur {thickness} mm, dünner als eine Linie der {nozzle}-mm-Düse: werden nicht gedruckt",
       "wallThin": "Wände nur {thickness} mm, mindestens {minimum} mm (zwei Linien)",
       "floorTooThin": "Böden oder Deckel nur {thickness} mm, dünner als eine Schicht: werden nicht gedruckt",
       "floorThin": "Böden oder Deckel nur {thickness} mm, mindestens {minimum} mm{layers, select, none {} other { ({layers} Schichten)}}",
-      "overhang": "{area} mm² neigen sich über {limit}°: Ob sie Stütze brauchen, entscheidet der Slicer",
-      "contact": "{count, plural, one {Nur {area} mm² von {bodies} liegen auf dem Druckbett: kann sich lösen oder kippen} other {# Körper liegen kaum auf dem Druckbett ({bodies}), am wenigsten {area} mm²: können sich lösen oder kippen}}",
+      "overhang": "{area} mm² neigen sich über {limit}°: Sie brauchen Stützen",
+      "roundBedEdge": "{area} mm² gerundete Bettkanten neigen sich über {limit}°: Der Fuß der Kanten wölbt sich auf – eine Fase mit höchstens {chamfer}° druckt sauber",
+      "contact": "{count, plural, one {Nur {area} mm² von {bodies} liegen auf dem Druckbett, zu wenig für die Höhe: kann sich lösen oder kippen – ein Brim hält es} other {# Körper liegen für ihre Höhe kaum auf dem Druckbett ({bodies}), am wenigsten {area} mm²: können sich lösen oder kippen – ein Brim hält sie}}",
+      "suppressed": "{count, plural, one {{features} ist unterdrückt} other {{features}{more, plural, =0 {} one { und eins mehr} other { und # weitere}} sind unterdrückt}}: nicht im geprüften und exportierten Teil",
+      "rolledBack": "Der Verlauf ist zurückgesetzt: {features}{more, plural, =0 {} one { und eins mehr} other { und # weitere}} {count, plural, one {fehlt} other {fehlen}} im geprüften und exportierten Teil",
       "open": "{count, plural, one {{bodies} ist kein geschlossener Körper} other {{bodies} sind keine geschlossenen Körper}}: eine offene Fläche ohne Volumen wird nicht gedruckt",
+      "faceLost": "{count, plural, one {Die Druckfläche von {bodies} ist keine ebene Fläche des Körpers mehr} other {Die Druckflächen von {bodies} sind keine ebenen Flächen der Körper mehr}} (umbenannt oder geändert): ohne sie geprüft. Leg sie dort neu fest, wo das Teil liegen soll.",
       "separate": "{bodies} berühren sich, sind aber getrennte Körper: Der Slicer legt jeden für sich aufs Druckbett. Vereinige sie, wenn sie ein Teil sind.",
       "fused": "{bodies} werden in einem Stück gedruckt und berühren sich: Dort verschmelzen sie, und der Mechanismus zwischen ihnen bewegt sich nicht. Lass dort einen Spalt.",
       "feature": "{feature}: {message}",
       "overlap": "{a} und {b} überschneiden sich um {volume} mm³ – als getrennte Teile passen sie so nicht zusammen; gehören sie zu einem Teil, vereinen",
       "tight": "{a} und {b} kommen sich bis auf {gap} mm nahe, ohne sich zu berühren – unter der Steckpassung von {minimum} mm je Seite gehen sie nur mit Kraft zusammen",
+      "tightInPlace": "{a} und {b} werden in einem Stück gedruckt und bewegen sich gegeneinander, kommen sich aber bis auf {gap} mm nahe – unter dem Print-in-Place-Spalt von {minimum} mm verschmelzen sie dort im Druck",
       "blocked": "{joint}: {a} und {b} stoßen bei {at} aneinander – das Gelenk erreicht seine Grenze von {limit} nicht",
-      "posed": "{joint} steht auf {value}, nicht wie konstruiert – exportiert und geprüft wird diese Stellung"
+      "blockedFree": "{joint}: {a} und {b} stoßen bei {at} aneinander – das Gelenk hat in diese Richtung keine Grenze und bleibt dort stehen",
+      "posed": "{joint} steht auf {value}, nicht wie konstruiert – exportiert und geprüft wird diese Stellung",
+      "smallHole": "{count, plural, one {Eine Bohrung unter {minimum} mm ({diameter} mm)} other {# Bohrungen unter {minimum} mm, die kleinste {diameter} mm}}: So kleine Bohrungen wachsen zu oder werden zu klein – nach dem Druck aufbohren",
+      "narrowGap": "Schlitze bis {gap} mm, unter den {minimum} mm, die mit dieser Düse offen bleiben: Die Wände daneben drücken sich zusammen und schließen sie"
     },
     "confirm": {
       "title": "Trotzdem exportieren?",
@@ -1370,6 +1419,7 @@
     "families": {
       "socket_head_cap_screw": "Zylinderschraube",
       "button_head_cap_screw": "Linsenkopfschraube",
+      "countersunk_socket_screw": "Senkschraube",
       "hex_bolt": "Sechskantschraube",
       "set_screw": "Gewindestift",
       "hex_nut": "Sechskantmutter",
@@ -1380,8 +1430,8 @@
   },
   "printFace": {
     "action": "Auf dieser Fläche drucken",
-    "hint": "Der Slicer legt den Körper auf diese Fläche. Eine Fläche je Körper; eine andere ersetzt sie.",
-    "done": "{name} liegt im Slicer auf dieser Fläche."
+    "hint": "Prüfung, 3MF-Export und Slicer legen den Körper auf diese Fläche. Eine Fläche je Körper; eine andere ersetzt sie.",
+    "done": "{name} liegt beim Drucken auf dieser Fläche."
   },
   "firstStart": {
     "title": "Willkommen bei PartBuddy",
@@ -1476,8 +1526,13 @@
       "down": "Nach unten (−Z)",
       "other": "Richtung {n}"
     },
-    "strain": "Etwa {strain} % Dehnung beim Einrasten",
-    "strainHigh": "Etwa {strain} % Dehnung beim Einrasten – mehr, als gedrucktes PLA verträgt (etwa 2 %, PETG etwa 3 %): Arm länger oder dünner machen oder die Nase flacher",
+    "strain": "Etwa {strain} % Dehnung beim Einrasten; gedrucktes {material} verträgt einmal {most, number} %, bei häufigem Einrasten etwa {often, number} %",
+    "strainFibre": "Etwa {strain} % Dehnung beim Einrasten; {material} ist faserverstärkt, und Fasern senken, was ein Kunststoff verträgt: ohne Wert dafür lässt PartBuddy {most, number} % zu ({share, number} % des PLA-Werts, eigene Wahl), bei häufigem Einrasten etwa {often, number} %",
+    "snapUpright": "So konstruiert steht der Arm aufrecht: so gedruckt biegt er quer zu den Schichten, und stehend gedruckte Probestäbe aus PLA, ABS und PC brachen gebogen oder gezogen bei {least, number} bis {most, number} % (Ultimaker-Datenblätter). Das Teil so legen, dass der Arm liegt.",
+    "rootSharp": "SolidCraft kann die Wurzel des Arms hier nicht runden: sie bleibt scharfkantig und bricht eher. Auf eine ebene Stelle der Fläche setzen.",
+    "rootSmall": "SolidCraft rundet die Wurzel des Arms hier nur mit {applied, number} statt {wanted, number} mm, weil die Fläche nahe daneben endet.",
+    "rootTooSmall": "SolidCraft rundet die Wurzel des Arms hier nur mit {applied, number} mm, unter den {least, number} mm, die eine Wurzel mindestens braucht: weiter vom Rand der Fläche weg setzen.",
+    "strainUnknown": "Etwa {strain} % Dehnung beim Einrasten; für {material} ist kein Wert bekannt, deshalb gelten die {most, number} % von {fallback} (bei häufigem Einrasten etwa {often, number} %)",
     "logoChoose": "SVG-Datei wählen …",
     "logoOther": "Andere Datei …",
     "logoWaiting": "Wähle eine SVG-Datei für das Logo",
@@ -1514,13 +1569,13 @@
       "loose": "Grob"
     },
     "hint": {
-      "tappedHole": "Eine Bohrung mit SolidCraft-Gewinde dieser Größe, mit Kernlochdurchmesser gebohrt.",
-      "screwHole": "Durchgangsloch nach ISO 273 mit Platz für den Kopf nach ISO 4762 oder ISO 10642, plus 0,6 mm für den Druck.",
-      "insertSeat": "Typische Werte für ruthex-Einsätze, einen Millimeter tiefer als der Einsatz. Prüf das Datenblatt deines Einsatzes.",
+      "tappedHole": "Ein modelliertes Gewinde dieser Größe, im Durchmesser {thread, number} mm größer für den Druck, mit angefaster Mündung; nicht modelliert wird mit dem Kernlochdurchmesser gebohrt, um nach dem Druck nachzuschneiden.",
+      "screwHole": "Durchgangsloch aus PartBuddys Tabelle nach ISO 273 (um {shrink, number} mm größer gezeichnet, das Lochaufmaß des Materials, damit es in seiner Größe herauskommt), mit Platz für den Kopf nach ISO 4762 oder ISO 10642 plus {head, number} mm für den Druck (je Seite bei der Flachsenkung, einmal auf den Durchmesser der Kegelsenkung). Eine Flachsenkung bekommt zwei Brückenschichten von {layer, number} mm unter ihrem Boden und druckt so auch zum Bett hin.",
+      "insertSeat": "Typische Werte für ruthex-Einsätze, einen Millimeter tiefer als der Einsatz. Prüf das Datenblatt deines Einsatzes. In dieser Größe gezeichnet, ohne Lochaufmaß des Materials: der Einsatz schmilzt sich hinein.",
       "boss": "Ein Dom mit Sitz für eine Einschmelzmutter dieser Größe und mindestens 2 mm Wand.",
-      "nutTrap": "Sechskanttasche nach ISO 4032 mit 0,3 mm Luft und 0,4 mm Tiefenzugabe, darunter ein Durchgangsloch nach ISO 273.",
+      "nutTrap": "Sechskanttasche nach ISO 4032 mit {room, number} mm Luft (die Steckpassung des Materials) und 0,4 mm Tiefenzugabe, darunter ein Durchgangsloch nach ISO 273. Ältere DIN-Muttern sind bei M10 breiter (17 mm): dafür {din, number} als Schlüsselweite angeben.",
       "slot": "Ein Langloch mit der Breite des mittleren Durchgangslochs, mittig am Punkt, zum Verstellen der Schraube.",
-      "text": "Text mittig am Punkt, waagrecht lesbar. Vertieft ab 0,6 mm und erhaben ab 0,4 mm Tiefe druckt sauber; Schrift ab etwa 5 mm Höhe.",
+      "text": "Text mittig am Punkt, waagrecht lesbar. Vertieft oder erhaben {depth, number} mm tief ist auf diesem Drucker gut lesbar, ebenso Striche ab {stroke, number} mm Breite; unter zwei Düsenbreiten druckt ein Strich nicht. Vertieft lassen 7 mm hohe Großbuchstaben (die Vorgabe) genug Kunststoff zwischen den Buchstaben.",
       "lip": "Für ein ausgehöhltes Gehäuse: Fläche am Rand wählen. Die Lippe kommt aufs Unterteil, die Nut mit Spalt in den Deckel.",
       "snapFit": "Ein federnder Arm mit Rastnase, der aus der Fläche ragt. Liegend drucken, damit die Schichten längs des Arms laufen: stehend bricht er an einer Schicht. Das Gegenstück braucht eine Öffnung so tief wie die Nase.",
       "logo": "Eine SVG-Datei mittig am Punkt, so breit wie angegeben. Gebaut werden gefüllte Flächen und Linien in ihrer Strichstärke; Text vorher in Pfade umwandeln (in Inkscape: Pfad › Objekt in Pfad)."
@@ -1540,7 +1595,23 @@
       "insertSeat": "Loch für eine Einschmelzmutter, auch als Reihe"
     },
     "font": "Schrift",
-    "fontBuiltIn": "Standard (Liberation Sans)"
+    "fontBuiltIn": "Standard (Liberation Sans)",
+    "limit": {
+      "printedThread": "Ein gedrucktes {size}-Gewinde reißt aus: Haken bei „Gewinde modellieren“ weg, dann wird zum Nachschneiden gebohrt, oder einen Einsatz-Sitz nehmen, oder ein Gewinde ab M{from, number}.",
+      "stroke": "Großbuchstaben mit {value, number} mm Höhe haben {stroke, number} mm breite Striche, weniger als die {needed, number} mm (zwei Düsenbreiten), die ein Strich mit der {nozzle, number}-mm-Düse braucht: Höhe {least, number} mm oder mehr angeben.",
+      "strokeBold": "Fette Großbuchstaben mit {value, number} mm Höhe haben {stroke, number} mm breite Striche, weniger als die {needed, number} mm (zwei Düsenbreiten), die ein Strich mit der {nozzle, number}-mm-Düse braucht: Höhe {least, number} mm oder mehr angeben.",
+      "lipWall": "Eine Lippe mit {value, number} mm Breite druckt nicht massiv: zwei Linien der {nozzle, number}-mm-Düse sind {least, number} mm – mindestens das angeben.",
+      "grooveWall": "Eine Nut mit {value, number} mm Breite nimmt keine Lippe auf, die massiv druckt: zwei Linien der {nozzle, number}-mm-Düse sind {least, number} mm – mindestens das angeben.",
+      "armWall": "Ein Arm mit {value, number} mm Dicke oder Breite druckt nicht massiv: zwei Linien der {nozzle, number}-mm-Düse sind {least, number} mm – mindestens das angeben.",
+      "catch": "Eine Rastnase mit {value, number} mm Tiefe druckt nicht und hält nichts: mindestens {least, number} mm angeben, die schmalste Linie, die ein Slicer mit der {nozzle, number}-mm-Düse legt.",
+      "layer": "{value, number} mm sind weniger als eine Schicht ({least, number} mm): das druckt nicht – mindestens das angeben.",
+      "screw": "Ein Langloch mit {value, number} mm Breite lässt keine {size}-Schraube ({thread, number} mm) durch: Standard sind {standard, number} mm.",
+      "nutFlats": "Eine {size}-Mutter ist {least, number} mm breit über die Flächen und passt nicht in {value, number} mm: die Standardtasche hat {standard, number} mm.",
+      "nutCorners": "Eine {size}-Mutter ist {most, number} mm breit über die Ecken und würde sich in einer Tasche mit {value, number} mm drehen: weniger angeben.",
+      "nutHeight": "Eine {size}-Mutter ist {least, number} mm hoch und stünde aus einer Tasche mit {value, number} mm Tiefe heraus: Standard sind {standard, number} mm.",
+      "strain": "Der Arm dehnt sich beim Einrasten an der Wurzel um {strain, number} %, mehr als die {most, number} %, die PartBuddy gedrucktem {material} zugesteht: mindestens {least, number} mm lang machen, dünner oder die Nase flacher."
+    },
+    "strokeUnchecked": "Die Striche dieser Schrift sind nicht geprüft: PartBuddy kennt sie nur für Arial und die eingebaute Schrift."
   },
   "assembly": {
     "title": "Zusammenbau",

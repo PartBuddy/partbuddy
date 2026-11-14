@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GateProxy, type ToolResult, type UpstreamTools } from '../src/main/agents/gateProxy';
 import { policyToolSet } from '../src/main/agents/loop';
 import { Questions } from '../src/main/agents/questions';
-import { CHANGING_TOOLS, UNDO_CAP, designChanged, WorkLog } from '../src/main/agents/workLog';
+import { CHANGING_TOOLS, UNCHECKED_CHANGE, UNDO_CAP, designChanged, WorkLog } from '../src/main/agents/workLog';
 import { CHECK_PENDING, CHECK_PENDING_VIEW, CheckTold, printCheckNote, withCheckOfChange, type CheckState } from '../src/main/print/printCheckNote';
 import type { PrintCheckReport } from '../src/shared/contract';
 import { describeToolCall } from '../src/shared/stepPhrases';
@@ -80,7 +80,7 @@ function setup({ checkAfterMs = 100, measureMs = null, waitMs = 1000, fullMs = 5
 }
 
 const extrude = { command: 'solid.extrude', params: { distance: 5 } };
-const BLOCKED = 'not ready to print.\n- blocks printing: walls down to 0.3 mm, thinner than the 0.4 mm nozzle';
+const BLOCKED = 'not ready to print.\n- blocks printing: walls down to 0.3 mm, thinner than the narrowest line a slicer lays (0.42 mm with the 0.4 mm nozzle)';
 const textOf = (result: ToolResult) => result.content.map((part) => String(part.text)).join('\n');
 
 /** What Claude Code reads: the tool result through the gate proxy. */
@@ -155,7 +155,7 @@ describe('designs of several bodies: the mesh check goes ahead of the measures (
     const text = textOf(await setup({ measureMs: 60_000, waitMs: 2000, fullMs: 300 }).tools.callTool('execute', extrude));
     expect(Date.now() - started).toBeLessThan(1500);
     expect(text).toContain(BLOCKED);
-    expect(text).toContain('Preliminary: clearance and joints still being measured (bodies that overlap or come closer than a push fit, joints that stop before a limit); call partbuddy_view for the full check before you call the part done.');
+    expect(text).toContain('Preliminary: clearance and joints still being measured (bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move, joints that stop before a limit, or within a turn or as far as the parts reach where they have none); call partbuddy_view for the full check before you call the part done.');
     expect(text).toContain('- "Plate": 6 cm³ solid');
     expect(text).not.toContain(CHECK_PENDING);
   });
@@ -171,14 +171,14 @@ describe('designs of several bodies: the mesh check goes ahead of the measures (
 
   it('does not send partbuddy_view back to partbuddy_view: from the view a preliminary check says that the rest is coming', () => {
     const fromView = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 2, measuring: true }, true);
-    expect(fromView).toContain('Preliminary: clearance and joints still being measured (bodies that overlap or come closer than a push fit, joints that stop before a limit); the full check will be here in a moment.');
+    expect(fromView).toContain('Preliminary: clearance and joints still being measured (bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move, joints that stop before a limit, or within a turn or as far as the parts reach where they have none); the full check will be here in a moment.');
     expect(fromView).not.toContain('call partbuddy_view');
   });
 
   it('says what SolidCraft could not measure instead of counting it as checked', () => {
     const failed = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 2, unmeasured: ['clearance'] });
-    expect(failed).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, area on the bed, open bodies, failed features, bodies that touch, joints that stop before a limit).');
-    expect(failed).toContain("NOT measured, or not all of it (SolidCraft's measure failed or did not finish every pair in its time, or there were more than 200 joint runs): bodies that overlap or come closer than a push fit. Measure it yourself (inspect.clearance) before you call the part done.");
+    expect(failed).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, rounded edges on the bed, holes under 2 mm, slots under one nozzle, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch, joints that stop before a limit, or within a turn or as far as the parts reach where they have none).');
+    expect(failed).toContain("NOT measured, or not all of it (SolidCraft's measure failed or did not finish every pair in its time, or there were more than 200 joint runs): bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move. Measure it yourself (inspect.clearance) before you call the part done.");
     const both = printCheckNote({ status: 'warn', findings: [{ kind: 'open', severity: 'warn', bodies: ['A'] }], nozzle: 0.4, revision: 2, unmeasured: ['clearance', 'joints'] });
     expect(both).toContain('Measure it yourself (inspect.clearance, joint.sweep)');
     // A check that lost its measures is another check than the one before.
@@ -189,7 +189,7 @@ describe('designs of several bodies: the mesh check goes ahead of the measures (
 
   it('does not call a preliminary clean check clean of what is still measured', () => {
     const note = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 1, measuring: true });
-    expect(note).toContain('nothing found so far (build volume, wall and floor thickness, overhang angle, area on the bed, open bodies, failed features, bodies that touch).');
+    expect(note).toContain('nothing found so far (build volume, wall and floor thickness, overhang angle, rounded edges on the bed, holes under 2 mm, slots under one nozzle, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch).');
     expect(note).not.toContain('in what it checks');
   });
 });
@@ -245,10 +245,12 @@ describe('only a call that changed the design gets a check (review of PR 357)', 
     expect(textOf(first) + textOf(second)).not.toContain('nothing found');
   });
 
-  it('says in the log when the history cannot be read, since the answer then carries no check', async () => {
+  it('says in the log and to the model when the history cannot be read, since the answer then carries no check (audit R18)', async () => {
     const { tools, logged, failHistory } = setup();
     failHistory();
-    expect(textOf(await tools.callTool('execute', extrude))).toBe('ok');
+    expect(textOf(await tools.callTool('execute', extrude))).toBe(`ok
+${UNCHECKED_CHANGE}`);
+    expect(UNCHECKED_CHANGE).toContain('no ready-to-print check comes with it; call partbuddy_view');
     expect(logged).toEqual(["the design's history could not be read round execute; its answer carries no print check"]);
   });
 });

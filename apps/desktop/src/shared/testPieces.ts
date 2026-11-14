@@ -1,68 +1,102 @@
+import { BOLD_FONT, textDepth } from './blocks';
+import { ELEPHANT_FOOT, snapSize } from './designFit';
 import { FIT_STEPS, HOLE_SIZES, OVERHANG_STEPS } from './tolerances';
+import { DEFAULT_MATERIAL, drawnHole } from './toolFit';
 
 /**
  * The test pieces of the tolerance assistant, built with SolidCraft's own commands like the
  * templates (F3): a fit comb with a pin, a hole plate and an overhang staircase, each step with its
- * value engraved. Heights are whole layers of the printer in use, the engraving two layers deep and
- * the letters at least 3 mm, larger for a wide nozzle. Fixed numbers, no parameters: they are made,
- * printed and thrown away. Checked with `solidcraft-cli run` (0.40.0-rc.2) on 2026-11-08.
+ * value engraved. They keep the rules the assistant gets (audit T27, MV-16): heights are whole layers
+ * of the printer in use, the engraving `textDepth`, the letters bold with a digit stroke
+ * of two nozzles, and every hole a 45° chamfer at the bed, so the elephant's foot does not narrow the
+ * holes that are measured. Fixed numbers, no parameters: they are made, printed and thrown away.
+ * Checked with `solidcraft-cli run --param-check strict` (0.40.1) on 2026-11-13 for nozzles 0.25, 0.4, 0.6 and 0.8.
  */
 
 type Step = { command: string; params: Record<string, unknown> };
 
-/** The diameter of the comb's pin; each hole is this plus twice the step's clearance. */
+/**
+ * The diameter of the comb's pin; each hole is this plus twice the step's clearance, as it shall come out, drawn wider by the
+ * hole allowance of the material measured ({@link combHole}).
+ */
 export const PIN = 6;
+/** The fit comb's holes per row. */
+const PER_ROW = 5;
+/**
+ * The thinnest stroke of a digit in Arial bold as a share of the cap height: 0.134, the top bar of the 5, measured on
+ * SolidCraft 0.40.1 (2026-11-13, 10 mm digits, narrowest neck of the engraved glyph). blocks.ts TEXT_STROKE (0.2019) is the
+ * capital I; the bars of 0, 2 and 5 are thinner (BC-20 review). The tails of 6 and 9 taper further, as every stroke end.
+ */
+export const DIGIT_STROKE = 0.134;
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
-export function testPieceSteps({ nozzle, layer }: { nozzle: number; layer: number }): Step[] {
-  const layers = (mm: number) => round(Math.max(1, Math.ceil(mm / layer - 1e-9)) * layer);
-  const engraving = round(2 * layer);
-  const letters = Math.max(3, round(nozzle * 7.5));
+/**
+ * A hole of the fit comb as drawn: pin and clearance, plus the material's hole allowance, so the clearance read off the comb is the
+ * room left after printing, as the tools add the allowance on top of it (BC-16 review B1, audit N-nach-6: undrawn, the shrink went
+ * into the reading, and the tools counted it twice). `holeShrink` is the profile's before the reading, PLA's when none is given.
+ * The plate printed beside it measures the real allowance; applyReadings takes the difference off each reading (review S3).
+ */
+export const combHole = (clearance: number, holeShrink = DEFAULT_MATERIAL.holeShrink) => drawnHole(PIN + 2 * clearance, { ...DEFAULT_MATERIAL, holeShrink });
+
+export function testPieceSteps({ nozzle, layer, holeShrink }: { nozzle: number; layer: number; holeShrink?: number | undefined }): Step[] {
+  const printer = { nozzle, layer };
+  const layers = (mm: number) => snapSize('height', mm, printer);
+  const engraving = textDepth(printer);
+  // Cap height for a digit stroke of two nozzles, the block check's text rule (blockLimit), on 0.5 mm and at least the
+  // earlier 3 mm: 3 mm on 0.2, 4 on 0.25, 6 on 0.4, 9 on 0.6, 12 on 0.8. The rule text's 1 mm (textStroke) is not
+  // taken: on a 0.4 mm nozzle it asks 7.5 mm digits, and the staircase would outgrow a 120 mm bed.
+  const letters = Math.max(3, Math.ceil(((2 * nozzle) / DIGIT_STROKE) * 2 - 1e-9) / 2);
+  // Two layers as the rule text's bed chamfer, more where two do not take up the elephant's foot (0.12 mm layers).
+  const chamfer = round(Math.max(2, Math.ceil(ELEPHANT_FOOT / layer - 1e-9)) * layer);
   const steps: Step[] = [];
+  const hole = (body: string, diameter: number, height: number, [x, y]: [number, number], name: string) => {
+    steps.push({ command: 'solid.cylinder', params: { diameter: round(diameter), height, base: [x, y, 0], operation: 'cut', targets: [body], name } });
+    steps.push({ command: 'solid.cone', params: { diameter: round(diameter + 2 * chamfer), top_diameter: round(diameter), height: chamfer, base: [x, y, 0], operation: 'cut', targets: [body], name: `${name} chamfer` } });
+  };
   const label = (body: string, top: number, items: [string, number, number][]) => {
     steps.push({ command: 'sketch.create', params: { plane: 'XY', offset: top, name: `${body} labels` } });
-    for (const [text, x, y] of items) steps.push({ command: 'sketch.text', params: { text, at: [x, y], height: letters, align: 'center' } });
+    for (const [text, x, y] of items) steps.push({ command: 'sketch.text', params: { text, at: [x, y], height: letters, align: 'center', font: BOLD_FONT, bold: true } });
     steps.push({ command: 'sketch.finish', params: {} });
     steps.push({ command: 'solid.extrude', params: { distance: engraving, direction: 'negative', operation: 'cut', targets: [body], name: `${body} values` } });
   };
 
-  // Fit comb: two rows of holes, the clearance per side under each; the pin beside it.
-  const pitch = Math.max(12, round(letters * 4));
+  // Fit comb: rows of holes, the clearance per side under each; the pin beside it. "-0.05" in bold is about 3.2 letters wide.
+  const pitch = Math.max(12, round(letters * 3.6));
   // Label baseline 1.5 mm from the cell's edge, the hole above it clear of the letters.
   const above = round(letters + 7);
   const row = round(letters + 12);
+  const rows = Math.ceil(FIT_STEPS.length / PER_ROW);
   const comb = layers(4);
-  const perRow = Math.ceil(FIT_STEPS.length / 2);
-  steps.push({ command: 'solid.box', params: { length: perRow * pitch, width: 2 * row, height: comb, operation: 'new', body_name: 'Fit comb', name: 'Fit comb' } });
+  steps.push({ command: 'solid.box', params: { length: PER_ROW * pitch, width: rows * row, height: comb, operation: 'new', body_name: 'Fit comb', name: 'Fit comb' } });
   const fitLabels: [string, number, number][] = [];
   FIT_STEPS.forEach((clearance, i) => {
-    const x = pitch / 2 + (i % perRow) * pitch;
-    const y = (i < perRow ? row : 0) + above;
-    steps.push({ command: 'solid.cylinder', params: { diameter: round(PIN + 2 * clearance), height: comb, base: [x, y, 0], operation: 'cut', targets: ['Fit comb'], name: `Fit ${String(clearance)}` } });
+    const x = pitch / 2 + (i % PER_ROW) * pitch;
+    const y = (rows - 1 - Math.floor(i / PER_ROW)) * row + above;
+    hole('Fit comb', combHole(clearance, holeShrink), comb, [x, y], `Fit ${String(clearance)}`);
     fitLabels.push([String(clearance), x, y - above + 1.5]);
   });
   label('Fit comb', comb, fitLabels);
-  const pinX = perRow * pitch + 12;
+  const pinX = PER_ROW * pitch + 12;
   steps.push({ command: 'solid.cylinder', params: { diameter: 2 * PIN, height: layers(2), base: [pinX, row, 0], operation: 'new', body_name: 'Fit pin', name: 'Pin grip' } });
   steps.push({ command: 'solid.cylinder', params: { diameter: PIN, height: 10, base: [pinX, row, layers(2)], operation: 'join', targets: ['Fit pin'], name: 'Pin' } });
 
   // Hole plate: the nominal sizes to measure with a caliper.
-  const plateY = 2 * row + 8;
+  const plateY = rows * row + 8;
   const plateWidth = round(letters + 16);
   const plate = layers(3);
-  steps.push({ command: 'solid.box', params: { length: HOLE_SIZES.length * 16, width: plateWidth, height: plate, corner: [0, plateY, 0], operation: 'new', body_name: 'Hole plate', name: 'Hole plate' } });
-  HOLE_SIZES.forEach((size, i) => {
-    steps.push({ command: 'solid.cylinder', params: { diameter: size, height: plate, base: [8 + i * 16, round(plateY + letters + 8.5), 0], operation: 'cut', targets: ['Hole plate'], name: `Hole ${String(size)}` } });
-  });
+  // "10" in bold is about 1.6 letters wide.
+  const spacing = Math.max(16, round(letters * 2.1));
+  steps.push({ command: 'solid.box', params: { length: HOLE_SIZES.length * spacing, width: plateWidth, height: plate, corner: [0, plateY, 0], operation: 'new', body_name: 'Hole plate', name: 'Hole plate' } });
+  HOLE_SIZES.forEach((size, i) => hole('Hole plate', size, plate, [round(spacing / 2 + i * spacing), round(plateY + letters + 8.5)], `Hole ${String(size)}`));
   label(
     'Hole plate',
     plate,
-    HOLE_SIZES.map((size, i) => [String(size), 8 + i * 16, plateY + 2]),
+    HOLE_SIZES.map((size, i) => [String(size), round(spacing / 2 + i * spacing), plateY + 2]),
   );
 
-  // Overhang staircase: fins whose downward face leans further from the vertical step by step.
-  const fin = Math.max(8, round(letters * 2.7));
+  // Overhang staircase: fins whose downward face leans further from the vertical step by step. "70" is about 1.6 letters wide.
+  const fin = Math.max(8, round(letters * 1.8));
   const base = layers(1.2);
   const height = 6;
   const depth = Math.max(3, round(6 * nozzle));
@@ -84,4 +118,30 @@ export function testPieceSteps({ nozzle, layer }: { nozzle: number; layer: numbe
     OVERHANG_STEPS.map((angle, i) => [String(angle), i * fin + fin / 2, stairY + 1]),
   );
   return steps;
+}
+
+/**
+ * The footprint of each test piece, X and Y in mm, from its boxes, cylinders and fins; the letters stay inside. The slicer
+ * lays the pieces apart, so each has to fit the bed on its own.
+ */
+export function testPieceSizes(printer: { nozzle: number; layer: number }): Record<string, [number, number]> {
+  const boxes: Record<string, [number, number, number, number]> = {};
+  const grow = (body: string, x0: number, y0: number, x1: number, y1: number) => {
+    const [a, b, c, d] = boxes[body] ?? [x0, y0, x1, y1];
+    boxes[body] = [Math.min(a, x0), Math.min(b, y0), Math.max(c, x1), Math.max(d, y1)];
+  };
+  let fin: number | null = null;
+  for (const { command, params } of testPieceSteps(printer)) {
+    const body = typeof params.body_name === 'string' ? params.body_name : ((params.targets as string[] | undefined)?.[0] ?? '');
+    if (command === 'solid.box') {
+      const [x, y] = (params.corner as number[] | undefined) ?? [0, 0];
+      grow(body, x ?? 0, y ?? 0, (x ?? 0) + Number(params.length), (y ?? 0) + Number(params.width));
+    } else if (command === 'solid.cylinder' && params.operation !== 'cut') {
+      const [x = 0, y = 0] = params.base as number[];
+      const r = Number(params.diameter) / 2;
+      grow(body, x - r, y - r, x + r, y + r);
+    } else if (command === 'sketch.create' && params.plane === 'YZ') fin = Number(params.offset);
+    else if (command === 'sketch.line' && fin !== null) for (const [y = 0] of params.points as number[][]) grow('Overhang', fin, y, fin, y);
+  }
+  return Object.fromEntries(Object.entries(boxes).map(([body, [x0, y0, x1, y1]]) => [body, [round(x1 - x0), round(y1 - y0)]]));
 }

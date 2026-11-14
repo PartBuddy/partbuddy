@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_KINDS, blockBodies, cutsThrough, defaultBlock, hasSize, hookVector, logoFrom, needsNormal, planeAt, sizesOf, snapStrain, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../src/shared/blocks';
+import { BLOCK_KINDS, blockBodies, blockLimit, cutsThrough, defaultBlock, DEFAULT_PRINTER, hasSize, hookVector, limitSaid, logoFrom, needsNormal, planeAt, raisedBlock, sizesOf, snapStrain, stepsOf, textDepth, textStroke, throughReach, throughTrial, throughWall, type FeatureBlock } from '../src/shared/blocks';
+import { SNAP } from '../src/shared/mechanisms';
+import { ROOT_FIT, rootApplied, rootFillet, rootGrowth, rootOutcome, rootSteps } from '../src/shared/blocks';
+import { CLEARANCE, CLEARANCE_NORMAL, headRoom, pilotHole, printedThread } from '../src/shared/screwSizes';
+import { MATERIAL_CATALOG } from '../src/shared/materialCatalog';
+import { DEFAULT_MATERIAL, drawnHole, fitClearance, type ToolMaterial } from '../src/shared/toolFit';
+
+/** A catalogue material as the tools take it. */
+const material = (name: string): ToolMaterial => {
+  const entry = MATERIAL_CATALOG.find((item) => item.name === name);
+  if (!entry) throw new Error(name);
+  return { holeShrink: entry.holeShrink, clearance: entry.clearance };
+};
 import { featureBlockSchema } from '../src/shared/contract';
 import { blockPhrase, describeCommands } from '../src/shared/stepPhrases';
 
@@ -9,9 +21,13 @@ const stepOf = (block: FeatureBlock) => stepsOf(block)[0] ?? { command: '', para
 const at: [number, number, number] = [10, 10, 10];
 
 describe('function blocks (F1)', () => {
-  it('builds a tapped hole with SolidCraft\'s thread, through or to a depth', () => {
-    expect(stepOf(defaultBlock('tappedHole', 'Body1', at, 'M4'))).toEqual({ command: 'solid.hole', params: { position: at, thread: 'M4', modeled: true, targets: ['Body1'] } });
-    expect(stepOf({ block: 'tappedHole', body: 'Body1', point: at, size: 'M3', depth: 8, modeled: false }).params).toMatchObject({ depth: '8 mm', modeled: false });
+  it('builds a tapped hole with room for printing, through or to a depth, its mouth chamfered (audit S-09, N-bloecke-9, R36)', () => {
+    // M5: the ISO profile 0.3 mm larger on every diameter, drilled at major minus pitch as SolidCraft drills a custom size.
+    expect(printedThread('M5')).toEqual({ designation: 'M5.3x0.8', major: 5.3, drill: 4.5 });
+    expect(printedThread('M10')).toEqual({ designation: 'M10.3x1.5', major: 10.3, drill: 8.8 });
+    expect(stepOf(defaultBlock('tappedHole', 'Body1', at, 'M5'))).toEqual({ command: 'solid.hole', params: { position: at, thread: 'M5.3x0.8', modeled: true, type: 'countersink', cs_diameter: '5.5 mm', cs_angle: '90 deg', targets: ['Body1'] } });
+    // Listed only, it is drilled to ISO's tap drill to be tapped after printing.
+    expect(stepOf({ block: 'tappedHole', body: 'Body1', point: at, size: 'M5', depth: 8, modeled: false }).params).toMatchObject({ thread: 'M5', depth: '8 mm', modeled: false, cs_diameter: '5.2 mm' });
   });
 
   it('builds a row of the same hole at each of its points, and checks the row at the boundary', () => {
@@ -23,26 +39,107 @@ describe('function blocks (F1)', () => {
     expect(featureBlockSchema.safeParse({ ...row, more: Array.from({ length: 100 }, () => at) }).success).toBe(false);
   });
 
-  it('gives a screw hole room for the head after ISO 4762 and ISO 10642 plus the print allowance', () => {
-    expect(stepOf(defaultBlock('screwHole', 'Body1', at, 'M3')).params).toEqual({ position: at, clearance: 'M3', fit: 'normal', type: 'counterbore', cb_diameter: '6.7 mm', cb_depth: '3.4 mm', targets: ['Body1'] });
-    expect(stepOf({ block: 'screwHole', body: 'Body1', point: at, size: 'M4', head: 'countersunk', fit: 'close' }).params).toMatchObject({ type: 'countersink', cs_diameter: '9.56 mm', cs_angle: '90 deg', fit: 'close' });
-    expect(stepOf({ block: 'screwHole', body: 'Body1', point: at, size: 'M2', head: 'none', fit: 'loose' }).params).toEqual({ position: at, clearance: 'M2', fit: 'loose', targets: ['Body1'] });
+  it('gives a screw hole its clearance from PartBuddy\'s table and room for the head after ISO 4762 and ISO 10642 plus the print allowance (audit R7, W21, S-11)', () => {
+    // The hole as a diameter of our own ISO 273 table, the counterbore with two bridge layers of the printer's layer under its floor.
+    // Drawn with PLA's hole allowance (0.15 mm), the default profile's material (audit S-10).
+    expect(stepOf(defaultBlock('screwHole', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '3.55 mm', type: 'counterbore', cb_diameter: '6.7 mm', cb_depth: '3.4 mm', bridge: '0.2 mm', targets: ['Body1'] });
+    expect(stepsOf(defaultBlock('screwHole', 'Body1', at, 'M3'), undefined, undefined, { nozzle: 0.6, layer: 0.3 })[0]?.params).toMatchObject({ bridge: '0.3 mm' });
+    expect(stepOf({ block: 'screwHole', body: 'Body1', point: at, size: 'M8', head: 'countersunk', fit: 'close' }).params).toMatchObject({ diameter: '8.55 mm', type: 'countersink', cs_diameter: '18.52 mm', cs_angle: '90 deg' });
+    // Without a head the mouth gets the details' 0.5 mm chamfer.
+    expect(stepOf({ block: 'screwHole', body: 'Body1', point: at, size: 'M2', head: 'none', fit: 'loose' }).params).toEqual({ position: at, diameter: '2.75 mm', type: 'countersink', cs_diameter: '3.75 mm', cs_angle: '90 deg', targets: ['Body1'] });
     expect(sizesOf('screwHole', 'countersunk')[0]).toBe('M3');
+    // ISO 273 fine, medium and coarse (Wikipedia, Ifanger); the screw joint takes the same normal row.
+    expect(CLEARANCE).toEqual({
+      close: { M2: 2.2, 'M2.5': 2.7, M3: 3.2, M4: 4.3, M5: 5.3, M6: 6.4, M8: 8.4, M10: 10.5 },
+      normal: { M2: 2.4, 'M2.5': 2.9, M3: 3.4, M4: 4.5, M5: 5.5, M6: 6.6, M8: 9, M10: 11 },
+      loose: { M2: 2.6, 'M2.5': 3.1, M3: 3.6, M4: 4.8, M5: 5.8, M6: 7, M8: 10, M10: 12 },
+    });
+    expect(CLEARANCE_NORMAL).toBe(CLEARANCE.normal);
+    // Head room, one formula: dk + 2 × 0.6 for a counterbore, dk + 0.6 for a countersink down to its hole (audit T39, MV-20).
+    expect(headRoom('M5', 'cap')).toEqual({ diameter: 9.7, depth: 5.4 });
+    expect(headRoom('M3', 'countersunk')).toEqual({ diameter: 7.32, depth: 1.96 });
   });
 
-  it('seats an insert one millimetre deeper than it is long, and bosses it with 2 mm of wall', () => {
+  it('draws every hole, slot and pocket wider by the hole allowance of the part\'s material, so that it comes out at its size (audit S-10, W16, T10)', () => {
+    const hole: FeatureBlock = { block: 'screwHole', body: 'Body1', point: at, size: 'M3', head: 'none', fit: 'normal' };
+    // ISO 273 medium M3 is 3.4 mm: PLA (0.15) 3.55, PP (0.3) 3.7, a measured 0 stays 3.4; without a material, PLA's.
+    expect([material('PLA'), material('PP'), { ...DEFAULT_MATERIAL, holeShrink: 0 }].map((stuff) => stepsOf(hole, undefined, undefined, { nozzle: 0.4, layer: 0.2, material: stuff })[0]?.params.diameter)).toEqual(['3.55 mm', '3.7 mm', '3.4 mm']);
+    expect(DEFAULT_MATERIAL).toMatchObject(material('PLA'));
+    // An insert's seat is drawn at its maker's size in every material: the insert melts into it (review S1).
+    expect(stepsOf(defaultBlock('insertSeat', 'Body1', at, 'M3'), undefined, undefined, { nozzle: 0.4, layer: 0.2, material: material('PP') })[0]?.params.diameter).toBe('4 mm');
+    // Above the hole plate's 10 mm the allowance grows with the diameter (holeAllowance): ABS 0.25 on 10 mm, 0.265 on 11.
+    expect([drawnHole(10, material('ABS')), drawnHole(11, material('ABS'))]).toEqual([10.25, 11.265]);
+    // A close hole is no longer refused: drawn wider, it comes out at ISO 273 fine (audit T31 came from undrawn holes).
+    expect(blockLimit({ ...hole, size: 'M4', fit: 'close' }, DEFAULT_PRINTER)).toBeNull();
+    expect(stepsOf({ ...hole, size: 'M4', fit: 'close' }, undefined, undefined, { nozzle: 0.4, layer: 0.2, material: material('PP') })[0]?.params.diameter).toBe('4.6 mm');
+  });
+
+  it('takes the room of nut pockets and lips from the fits of the part\'s material, scaled to the nozzle (audit W16, T10, T42, W36)', () => {
+    // Push fit on both sides of the nut: PLA 0.15 → 5.8 (as the fixed 0.3 before), PETG 0.2 → 5.9; on 0.8 mm PLA's doubles.
+    const flats = (stuff: ToolMaterial, nozzle = 0.4) => (defaultBlock('nutTrap', 'Body1', at, 'M3', [0, 0, 1], { nozzle, layer: 0.2, material: stuff }) as { flats: number }).flats;
+    expect([flats(material('PLA')), flats(material('PETG')), flats(material('PLA'), 0.8), flats(material('PLA'), 0.2)]).toEqual([5.8, 5.9, 6.1, 5.8]);
+    // A measured fit is kept within the nut's flats and under its corners (6.35 for M3), so the standard is never refused.
+    const fit = (push: number) => ({ ...material('PLA'), clearance: { ...material('PLA').clearance, push } });
+    expect([flats(fit(-0.1)), flats(fit(0)), flats(fit(0.4)), flats(fit(0.5))]).toEqual([5.5, 5.5, 6.3, 6.34]);
+    expect(blockLimit(defaultBlock('nutTrap', 'Body1', at, 'M3', [0, 0, 1], { nozzle: 0.4, layer: 0.2, material: fit(0.5) }), DEFAULT_PRINTER)).toBeNull();
+    expect(fitClearance('push', { nozzle: 0.6, layer: 0.2 })).toBe(0.225);
+    // A profile read on a 0.6 mm nozzle is used as read there.
+    expect(fitClearance('push', { nozzle: 0.6, layer: 0.2, material: { ...material('PLA'), measuredNozzle: 0.6 } })).toBe(0.15);
+    // The lip of a lid: the closure's least lip (LIP.thick, raised to two lines where needed) and the material's slide fit, the
+    // closure's 0.25 in PLA (T42, W36).
+    const lip = (stuff: ToolMaterial, nozzle: number) => raisedBlock(defaultBlock('lip', 'Body1', at, 'M3', [0, 0, 1], { nozzle, layer: 0.2, material: stuff }), { nozzle, layer: 0.2 }).block;
+    expect(lip(material('PLA'), 0.4)).toMatchObject({ width: 1.2, gap: 0.25 });
+    expect(lip(material('PETG'), 0.4)).toMatchObject({ width: 1.2, gap: 0.3 });
+    expect(lip(material('PLA'), 0.8)).toMatchObject({ width: 1.8, gap: 0.5 });
+    // A measured slide fit below zero leaves no gap under zero.
+    expect(lip({ ...material('PLA'), clearance: { ...material('PLA').clearance, slide: -0.1 } }, 0.4)).toMatchObject({ gap: 0 });
+  });
+
+  it('takes the depth of text from the printer\'s layers, the pilot hole from the rule (audit T49, S-19, MV-26)', () => {
+    // 0.5 mm (Xometry) in whole layers: 0.6 on 0.2 and 0.3 mm layers, 0.5 on 0.25, 0.56 on 0.28, 0.64 on 0.16.
+    expect([0.2, 0.3, 0.25, 0.28, 0.16].map((layer) => textDepth({ nozzle: 0.4, layer }))).toEqual([0.6, 0.6, 0.5, 0.56, 0.64]);
+    expect(defaultBlock('text', 'Body1', at, 'M3', [0, 0, 1], { nozzle: 0.4, layer: 0.16 })).toMatchObject({ depth: 0.64 });
+    expect(defaultBlock('logo', 'Body1', at, 'M3', [0, 0, 1], { nozzle: 0.4, layer: 0.16 })).toMatchObject({ depth: 0.64 });
+    // A stroke reads well from 1 mm, and never under two lines (1.35 mm on a 0.6 mm nozzle).
+    expect([0.4, 0.6].map((nozzle) => textStroke({ nozzle, layer: 0.2 }))).toEqual([1, 1.35]);
+    expect(pilotHole(3)).toBe(2.55);
+  });
+
+  it('seats an insert one millimetre deeper than it is long, and bosses it with 2 mm of wall in whole lines and a fillet at its foot (audit S-14)', () => {
     expect(defaultBlock('insertSeat', 'Body1', at, 'M3')).toMatchObject({ diameter: 4, depth: 6.7 });
-    expect(stepOf(defaultBlock('boss', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '8 mm', height: '8.7 mm', hole_diameter: '4 mm', hole_depth: '6.7 mm', body: 'Body1' });
+    // No chamfer on a seat: the insert's tip starts it, and the seat's measure needs its plain cylinder.
+    expect(stepOf(defaultBlock('insertSeat', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '4 mm', depth: '6.7 mm', targets: ['Body1'] });
+    // 2 mm of wall is five lines of 0.45 mm, 2.25 mm; the fillet half of that, at least 1 mm and two nozzles.
+    expect(stepOf(defaultBlock('boss', 'Body1', at, 'M3')).params).toEqual({ position: at, diameter: '8.5 mm', height: '8.7 mm', hole_diameter: '4 mm', hole_depth: '6.7 mm', draft: '0 deg', fillet: '1.13 mm', body: 'Body1' });
+    expect(defaultBlock('boss', 'Body1', at, 'M3', [0, 0, 1], { nozzle: 0.6, layer: 0.3 })).toMatchObject({ diameter: 8.05 });
+    expect(stepsOf(defaultBlock('boss', 'Body1', at, 'M3', [0, 0, 1], { nozzle: 0.6, layer: 0.3 }), undefined, undefined, { nozzle: 0.6, layer: 0.3 })[0]?.params).toMatchObject({ fillet: '1.2 mm' });
     expect(sizesOf('insertSeat')).toEqual(['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6']);
     // ruthex RX: the M2.5 insert has the body of the M3 one, and the larger ones ask for more wall than 2 mm.
     expect(defaultBlock('insertSeat', 'Body1', at, 'M2.5')).toMatchObject({ diameter: 4, depth: 6.7 });
-    expect((['M2', 'M4', 'M5', 'M6'] as const).map((size) => defaultBlock('boss', 'Body1', at, size)).map((boss) => 'diameter' in boss && boss.diameter)).toEqual([7.2, 9.8, 11.6, 14.6]);
+    expect((['M2', 'M4', 'M5', 'M6'] as const).map((size) => defaultBlock('boss', 'Body1', at, size)).map((boss) => 'diameter' in boss && boss.diameter)).toEqual([7.7, 10.1, 11.8, 15.2]);
   });
 
-  it('names each block in the work log', () => {
-    const phrases = describeCommands(['tappedHole', 'screwHole', 'insertSeat', 'boss'].map((kind) => stepOf(defaultBlock(kind as 'boss', 'Body1', at, 'M3'))));
+  it('names each block in the work log by its screw, not by the diameter or print size it drills', () => {
+    const phrases = (['tappedHole', 'screwHole', 'insertSeat', 'boss'] as const).map((kind) => blockPhrase(defaultBlock(kind, 'Body1', at, 'M5')));
     expect(phrases.map((phrase) => phrase.key)).toEqual(['tappedHole', 'screwHole', 'hole', 'boss']);
-    expect(phrases[0]?.values).toEqual({ thread: 'M3' });
+    // The modelled M5 is drilled as M5.3x0.8; the log says M5 (review of BC-12).
+    expect(stepOf(defaultBlock('tappedHole', 'Body1', at, 'M5')).params).toMatchObject({ thread: 'M5.3x0.8' });
+    expect(phrases[0]?.values).toEqual({ thread: 'M5' });
+    expect(phrases[1]?.values).toEqual({ size: 'M5' });
+    // A raw step still reads as what it is.
+    expect(describeCommands([stepOf(defaultBlock('screwHole', 'Body1', at, 'M3'))])[0]?.key).toBe('hole');
+  });
+
+  it('models a thread from M5 and lists a smaller one, in the form as with the assistant (review of BC-12)', () => {
+    expect((['M3', 'M4', 'M5', 'M10'] as const).map((size) => (defaultBlock('tappedHole', 'Body1', at, size) as { modeled: boolean }).modeled)).toEqual([false, false, true, true]);
+    const tapped = (size: 'M4' | 'M5', modeled: boolean): FeatureBlock => ({ block: 'tappedHole', body: 'Body1', point: at, size, depth: null, modeled });
+    const limit = blockLimit(tapped('M4', true), DEFAULT_PRINTER);
+    expect(limit).toEqual({ key: 'modeled', value: 4, nozzle: 0.4, reason: 'printedThread', size: 'M4', from: 5 });
+    expect(limit && limitSaid(limit)).toBe('modeled: a printed M4 thread strips; give modeled false to drill it for tapping after printing, use insertSeat (a heat-set insert), or a thread from M5');
+    expect(blockLimit(tapped('M4', false), DEFAULT_PRINTER)).toBeNull();
+    expect(blockLimit(tapped('M5', true), DEFAULT_PRINTER)).toBeNull();
+    // A listed M8 is drilled with ISO's 6.8 mm tap drill, chamfered from there.
+    expect(stepOf({ block: 'tappedHole', body: 'Body1', point: at, size: 'M8', depth: null, modeled: false }).params).toMatchObject({ thread: 'M8', cs_diameter: '7.8 mm' });
   });
 
   it('lays the sketch plane flat on the face with x level where it can', () => {
@@ -58,7 +155,7 @@ describe('function blocks (F1)', () => {
   it('engraves or embosses text centred on the point', () => {
     const steps = stepsOf(defaultBlock('text', 'Body1', at, 'M3', [0, 0, 1]));
     expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.text', 'solid.emboss']);
-    expect(steps[1]?.params).toEqual({ text: 'PartBuddy', at: [0, -2.5], height: 5, align: 'center', font: 'Arial', bold: true });
+    expect(steps[1]?.params).toEqual({ text: 'PartBuddy', at: [0, -3.5], height: 7, align: 'center', font: 'Arial', bold: true });
     expect(steps[2]?.params).toEqual({ depth: '0.6 mm', mode: 'deboss', face: at, targets: ['Body1'] });
   });
 
@@ -76,14 +173,15 @@ describe('function blocks (F1)', () => {
     expect(block).toMatchObject({ flats: 5.8, depth: 2.8 });
     const steps = stepsOf(block);
     expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.polygon.circumscribed', 'solid.extrude', 'solid.hole']);
-    expect(steps[1]?.params).toEqual({ center: [0, 0], radius: 2.9, sides: 6 });
+    // Drawn with PLA's hole allowance on the flats: 5.95 mm.
+    expect(steps[1]?.params).toEqual({ center: [0, 0], radius: 2.975, sides: 6 });
     expect(steps[2]?.params).toEqual({ distance: '-2.8 mm', operation: 'cut', targets: ['Body1'] });
-    expect(steps[3]?.params).toEqual({ position: [10, 10, 7.2], clearance: 'M3', fit: 'normal', targets: ['Body1'] });
+    expect(steps[3]?.params).toEqual({ position: [10, 10, 7.2], diameter: '3.55 mm', targets: ['Body1'] });
   });
 
   it('cuts a slot as wide as the clearance hole, along the chosen direction', () => {
     const block = defaultBlock('slot', 'Body1', at, 'M4', [0, 0, 1]);
-    expect(stepsOf(block)[1]?.params).toEqual({ p0: [-5, 0], p1: [5, 0], width: 4.5 });
+    expect(stepsOf(block)[1]?.params).toEqual({ p0: [-5, 0], p1: [5, 0], width: 4.65 });
     expect(stepsOf(block)[2]?.params).toEqual({ distance: '-1000 mm', operation: 'cut', targets: ['Body1'] });
     const upright = stepsOf({ ...block, along: 'y', depth: 3 } as FeatureBlock);
     expect(upright[1]?.params).toMatchObject({ p0: [0, -5], p1: [0, 5] });
@@ -128,6 +226,13 @@ describe('function blocks (F1)', () => {
     it('cuts through the near wall and a millimetre on, never half way to the next wall or further', () => {
       const slot = defaultBlock('slot', 'Dose', wall, 'M3', [-1, 0, 0]);
       expect(throughReach(slot, measured)).toEqual([3]);
+      // The wall itself, which a nut trap's pocket and engraved text must stop short of (audit N-bloecke-6).
+      expect(throughWall(slot, measured)).toEqual([2]);
+      expect(throughWall({ ...slot, point: [-0.1, 20, 15] }, measured)).toEqual([null]);
+      // A nut trap is tried by its hole alone: its pocket, deeper than a thin wall, would leave the hole on no face.
+      expect(throughTrial(defaultBlock('nutTrap', 'Dose', wall, 'M3', [-1, 0, 0])).filter((step) => step.command !== 'solid.box' && step.command !== 'solid.combine' && step.command !== 'solid.move' && step.command !== 'inspect.measure')).toEqual([
+        { command: 'solid.hole', params: { position: wall, diameter: '3.55 mm', type: 'countersink', cs_diameter: '4.55 mm', cs_angle: '90 deg', targets: ['Dose'] } },
+      ]);
       // A point a little off its face (rounded) still finds its wall; one further off finds none.
       expect(throughReach({ ...slot, point: [-0.04, 20, 15] }, measured)).toEqual([3.04]);
       expect(throughReach({ ...slot, point: [-0.1, 20, 15] }, measured)).toEqual([null]);
@@ -157,7 +262,7 @@ describe('function blocks (F1)', () => {
   it('builds a lip, and a groove with its gap, with SolidCraft\'s plastic.lip', () => {
     const lip = defaultBlock('lip', 'Body1', at, 'M3');
     expect(stepsOf(lip)).toEqual([{ command: 'plastic.lip', params: { face: at, type: 'lip', width: '1.2 mm', height: '2 mm', body: 'Body1' } }]);
-    expect(stepsOf({ ...lip, type: 'groove' } as FeatureBlock)[0]?.params).toMatchObject({ type: 'groove', gap: '0.2 mm' });
+    expect(stepsOf({ ...lip, type: 'groove' } as FeatureBlock)[0]?.params).toMatchObject({ type: 'groove', gap: '0.25 mm' });
   });
 
   it('stands a snap fit out of the face with its catch across the arm', () => {
@@ -168,6 +273,34 @@ describe('function blocks (F1)', () => {
         params: { position: at, hook: [0, 1, 0], length: '12 mm', thickness: '1.5 mm', width: '5 mm', catch_depth: '0.8 mm', catch_length: '1.5 mm', body: 'Body1' },
       },
     ]);
+    // Audit MV-10: both root edges rounded at 0.6 of the thickness, a step of its own, named in the timeline; the arm stands from
+    // the point against the catch (SolidCraft 0.40.1: edges at y 10 and 8.5 for a hook along +y, +0.869 mm³ each for 0.9 mm over 5 mm).
+    const snap = block as Extract<FeatureBlock, { block: 'snapFit' }>;
+    // One edge a step, so each is measured on its own (second review of BC-17, S1).
+    expect(rootFillet(snap)).toEqual([at, [10, 8.5, 10]].map((edge) => ({ command: 'solid.fillet', params: { edges: [edge], radius: '0.9 mm', tangent_chain: false, fit: 'reduce', body: 'Body1', name: 'Snap fit root' } })));
+    // Sideways, the second edge lies one thickness against the catch.
+    expect(rootFillet({ ...snap, normal: [1, 0, 0], hook: 'x-', thickness: 2 })[1]?.params).toMatchObject({ edges: [[10, 12, 10]], radius: '1.2 mm' });
+    // What SolidCraft answers: the radius it made smaller, or none when it took the one asked.
+    expect(rootApplied(snap, { radius_applied: 0.2298 })).toBe(0.2298);
+    expect(rootApplied(snap, { warning: null })).toBe(0.9);
+    // Each edge must add what its radius adds along the arm: 5 · 0.9² · (1 − π/4) = 0.869 mm³ (measured for both edges at once: 1.738).
+    const measured = (volume_mm3: number) => ({ bodies: [{ name: 'Body1', volume_mm3 }] });
+    const edge = rootGrowth(5, 0.9);
+    expect(edge).toBeCloseTo(0.869, 3);
+    expect(rootSteps(snap).map((step) => step.command)).toEqual(['inspect.measure', 'solid.fillet', 'inspect.measure', 'solid.fillet', 'inspect.measure']);
+    const five = (a: number, b: number, c: number, r1: object = {}, r2: object = {}) => [measured(a), r1, measured(b), r2, measured(c)];
+    expect(rootOutcome(snap, five(16093, 16093 + edge, 16093 + 2 * edge))).toEqual({ radius: 0.9, measured: true });
+    // Within ROOT_FIT of it on each edge, and just outside.
+    expect(rootOutcome(snap, five(16093, 16093 + edge * (1 + ROOT_FIT - 0.001), 16093 + 2 * edge))).toEqual({ radius: 0.9, measured: true });
+    expect(rootOutcome(snap, five(16093, 16093 + edge * (1 + ROOT_FIT + 0.001), 16093 + 2 * edge))).toBeNull();
+    // Smaller radii: their own growth; the smaller is said.
+    expect(rootOutcome(snap, five(0, rootGrowth(5, 0.5), rootGrowth(5, 0.5) + rootGrowth(5, 0.27), { radius_applied: 0.5 }, { radius_applied: 0.27 }))).toEqual({ radius: 0.27, measured: true });
+    // One root edge concave and a convex wrong one: the body grows, but not by the root (review S1); one edge alone; shrank (thin wall).
+    expect(rootOutcome(snap, five(0, 0.43, 0.33))).toBeNull();
+    expect(rootOutcome(snap, five(0, edge, edge))).toBeNull();
+    expect(rootOutcome(snap, five(693, 692.9, 692.796, { radius_applied: 0.1649 }, { radius_applied: 0.1649 }))).toBeNull();
+    // A volume missing proves nothing either way: kept, said as not measured.
+    expect(rootOutcome(snap, [{}, {}, measured(694), {}, measured(695)])).toEqual({ radius: 0.9, measured: false });
     // On a side face the catch can point up or down, or level along the face.
     expect(hookVector(at, [1, 0, 0], 'y+')).toEqual([0, 0, 1]);
     expect(hookVector(at, [1, 0, 0], 'y-')).toEqual([0, 0, -1]);
@@ -178,6 +311,50 @@ describe('function blocks (F1)', () => {
         expect(vector[0] * normal[0] + vector[1] * normal[1] + vector[2] * normal[2]).toBe(0);
       }
     }
+  });
+
+  it('sizes the snap fit from the mechanism\'s hook, to the nozzle and to what the material takes (audit G9, T18, W15)', () => {
+    const block = defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1]) as Extract<FeatureBlock, { block: 'snapFit' }>;
+    expect([block.length, block.thickness, block.width, block.catchDepth, block.catchLength]).toEqual([SNAP.length, SNAP.thickness, SNAP.width, SNAP.catch, SNAP.catchLength]);
+    // 0.8 mm: two lines 1.8, the narrowest line 0.82; 150 · 1.8 · 0.82 / 11.25² = 1.75 %, within PLA's 2 %, so no longer.
+    const coarse = raisedBlock(defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1], { nozzle: 0.8, layer: 0.2 }), { nozzle: 0.8, layer: 0.2 }).block as typeof block;
+    expect([coarse.length, coarse.thickness, coarse.catchDepth]).toEqual([12, 1.8, 0.82]);
+    expect(blockLimit(coarse, { nozzle: 0.8, layer: 0.2 })).toBeNull();
+    // 1.2 mm: 2.7 thick and a catch of 1.22 bend 3.9 % on 12 mm; lengthened to 16.5 mm it is 1.99 %.
+    const coarser = raisedBlock(defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1], { nozzle: 1.2, layer: 0.3 }), { nozzle: 1.2, layer: 0.3 }).block as typeof block;
+    expect([coarse.width, coarser.length, coarser.thickness, coarser.catchDepth]).toEqual([5, 16.5, 2.7, 1.22]);
+    expect(snapStrain(coarser)).toBeLessThanOrEqual(2);
+    expect(snapStrain({ ...coarser, length: 16.4 })).toBeGreaterThan(2);
+    expect(blockLimit(coarser, { nozzle: 1.2, layer: 0.3 })).toBeNull();
+  });
+
+  it('refuses a snap arm that bends more than its material takes, on both sides of the limit (audit T18, R56, MV-12)', () => {
+    const block = defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1]) as Extract<FeatureBlock, { block: 'snapFit' }>;
+    // PLA 2 %: 150 · 1.5 · 0.8 / (L − 0.75)² = 2 at L = 10.237; 10.24 holds, 10.23 not.
+    expect(blockLimit({ ...block, length: 10.24 }, DEFAULT_PRINTER)).toBeNull();
+    const refused = blockLimit({ ...block, length: 10.23 }, DEFAULT_PRINTER);
+    // Rounded up, so that "2.003 %" does not read "2 %, more than the 2 %" (review of BC-17).
+    expect(refused).toEqual({ key: 'length', value: 10.23, nozzle: 0.4, reason: 'strain', strain: 2.01, most: 2, least: 10.3, material: 'PLA', known: true, name: 'PLA', fibre: false });
+    expect(limitSaid(refused as NonNullable<typeof refused>)).toBe('length 10.23: the arm bends 2.01 % at its root as the catch snaps in, more than the 2 % PartBuddy allows printed PLA; make it at least 10.3 mm long, or thinner, or the catch shallower');
+    // Audit T18: thickness 3, length 5, catch 2 bent 49 % and was built.
+    expect(blockLimit({ ...block, length: 5, thickness: 3, catchDepth: 2 }, DEFAULT_PRINTER)).toMatchObject({ reason: 'strain', strain: 49.83 });
+    // PETG takes 3.5 %: the arm of 8 mm (3.42 %) holds there, not in PLA; a material without sources is held to PLA's.
+    const petg = { ...DEFAULT_PRINTER, material: { ...DEFAULT_MATERIAL, name: 'Prusament PETG' } };
+    expect(blockLimit({ ...block, length: 8 }, petg)).toBeNull();
+    expect(blockLimit({ ...block, length: 8 }, DEFAULT_PRINTER)).toMatchObject({ reason: 'strain', most: 2 });
+    const abs = blockLimit({ ...block, length: 8 }, { ...DEFAULT_PRINTER, material: { ...DEFAULT_MATERIAL, name: 'ABS' } });
+    expect(abs).toMatchObject({ reason: 'strain', most: 2, material: 'ABS', known: false, name: 'ABS' });
+    expect(limitSaid(abs as NonNullable<typeof abs>)).toContain("more than the 2 % PartBuddy allows printed ABS (no allowed strain is known for it: PLA's, the lowest PartBuddy knows)");
+    // Fibre-filled: half of PLA's, 12 mm (1.42 %) refused, 15 mm (0.89 %) taken (review of BC-17 S1).
+    const cf = { ...DEFAULT_PRINTER, material: { ...DEFAULT_MATERIAL, name: 'Bambu PETG CF' } };
+    const fibre = blockLimit(block, cf);
+    expect(fibre).toMatchObject({ reason: 'strain', most: 1, material: 'Bambu PETG CF', fibre: true, least: 14.2 });
+    expect(limitSaid(fibre as NonNullable<typeof fibre>)).toContain('(fibre-filled: 50 % of what PLA takes, its own choice, as fibres lower what a plastic takes)');
+    expect(blockLimit({ ...block, length: 15 }, cf)).toBeNull();
+    // The block's default is as long as the fibre type needs.
+    expect(defaultBlock('snapFit', 'Body1', at, 'M3', [0, 0, 1], cf)).toMatchObject({ length: 14.2 });
+    // A size under what prints is said first.
+    expect(blockLimit({ ...block, length: 5, catchDepth: 0.3 }, DEFAULT_PRINTER)).toMatchObject({ reason: 'catch' });
   });
 
   it('works out the snap fit\'s strain at the root of the arm', () => {

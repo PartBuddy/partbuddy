@@ -69,7 +69,7 @@ function Invoke-Here([string]$Script) {
 $RunningCheck = "@(Get-CimInstance Win32_Process -Filter `"Name='PartBuddy.exe' OR Name='electron.exe'`" | ? { `$_.CommandLine -like '*\.partbuddy\test-app*' }).Count"
 
 # Packt test-app\incoming.tar aus, tauscht app gegen die neue Fassung und legt die Verknüpfung an.
-# $local (vorangestellt) wählt eigenes Profil und SolidCraft rc.4 für den Server.
+# $local (vorangestellt) wählt das eigene Profil für den Server; SolidCraft ist dort das installierte (ab 0.40.1).
 $Swap = @'
 $ErrorActionPreference = 'Stop'
 $t = Join-Path $env:USERPROFILE '.partbuddy\test-app'

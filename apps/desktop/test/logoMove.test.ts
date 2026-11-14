@@ -60,6 +60,35 @@ describe('moving a placed logo', () => {
     spot?.box.forEach((value, i) => expect(value).toBeCloseTo([-4, -4, 4, 4][i] ?? NaN, 1));
     // Beside the drawing on the same face: no logo.
     expect(await logoAt(run, [30, 30, 10])).toBeNull();
+    // Under the 0.6 mm pocket, on the floor of the 10 mm box: a face behind the logo, not the logo (0.6 + 0.5 mm reach).
+    expect(await logoAt(run, [16, 21, 10 - 1.1])).not.toBeNull();
+    expect(await logoAt(run, [16, 21, 10 - 1.2])).toBeNull();
+    expect(await logoAt(run, [16, 21, 0])).toBeNull();
+    // Above the face an engraved logo is not: within the slack yes, over it no.
+    expect(await logoAt(run, [16, 21, 10.5])).not.toBeNull();
+    expect(await logoAt(run, [16, 21, 10.6])).toBeNull();
+  });
+
+  it('finds the top of a logo built up 30 mm, as high as a logo may be (audit G8)', async () => {
+    const tall = (high: number): Run => {
+      const { run } = engine();
+      return (commands) =>
+        run(commands).then((results) =>
+          results.map((result, i) => {
+            const step = commands[i];
+            if (step?.command === 'timeline.inspect' && step.params.feature === 5) return { inputs: [{ label: 'Distance', param: 'd5', expression: `${String(high)} mm` }], definition: { sketch: 3 } };
+            if (step?.command === 'parameters.list') return { parameters: [{ name: 'd5', expression: `${String(high)} mm`, value: high }] };
+            return result;
+          }),
+        );
+    };
+    // 20 mm reach missed the top of it; now the logo's own height and half a millimetre.
+    expect(await logoAt(tall(30), [16, 21, 40])).toMatchObject({ logo: 'SVG-Logo Badge', depth: { value: 30, raised: true } });
+    expect(await logoAt(tall(50), [16, 21, 60.5])).toMatchObject({ depth: { value: 50 } });
+    expect(await logoAt(tall(50), [16, 21, 60.6])).toBeNull();
+    // On the other side of a 1 mm plate under a raised logo: the plate's underside, not the logo (review K3 of BC-23).
+    expect(await logoAt(tall(30), [16, 21, 10 - 0.5])).not.toBeNull();
+    expect(await logoAt(tall(30), [16, 21, 10 - 1])).toBeNull();
   });
 
   it('plans centring and an exact move as one redefine per sketch, with the bodies for the ghost', async () => {

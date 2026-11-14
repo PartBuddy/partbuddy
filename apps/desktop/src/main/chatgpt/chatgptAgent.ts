@@ -5,7 +5,7 @@ import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } fro
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself } from '../agents/loop';
+import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
 import { sourceOfUrl } from '../agents/research';
 import { composeMessage } from '../agents/viewContext';
 import type { ChatGptAccount } from './account';
@@ -69,6 +69,8 @@ export class ChatGptAgent implements AgentBackend {
   private webSearchRefused = false;
   /** How full the conversation is after the last turn. */
   private context: AgentStatus['context'] | null = null;
+  /** The last turn used all its tool rounds; the next message tells the model (audit R57). */
+  private cutShort = false;
 
   constructor(private readonly options: ChatGptAgentOptions) {}
 
@@ -107,6 +109,7 @@ export class ChatGptAgent implements AgentBackend {
     await this.stop();
     this.history = [];
     this.context = null;
+    this.cutShort = false;
     this.models = null;
     this.choice = null;
     await this.options.account.signOut();
@@ -123,6 +126,7 @@ export class ChatGptAgent implements AgentBackend {
     await this.stop();
     this.history = [];
     this.context = null;
+    this.cutShort = false;
   }
 
   async dispose(): Promise<void> {
@@ -141,7 +145,8 @@ export class ChatGptAgent implements AgentBackend {
       return;
     }
     if (!this.choice) await this.readModels();
-    const message = composeMessage(text, selections, note);
+    const message = composeMessage(text, selections, withRoundsNote(this.cutShort, note));
+    this.cutShort = false;
     this.options.event(userEvent(text, message.label, message.summary, images.length > 0 ? kind : undefined));
     this.history.push(
       images.length > 0
@@ -201,6 +206,12 @@ export class ChatGptAgent implements AgentBackend {
       if (repeatsItself({ steps: await result.steps })) {
         this.options.event({ type: 'error', message: LOOP_NOTICE });
         this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: 'failed' });
+        return;
+      }
+      if (usedAllRounds(await result.steps)) {
+        this.cutShort = true;
+        this.options.log(`ChatGPT turn used all ${String(MAX_STEPS)} tool rounds and stopped`);
+        this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: ROUNDS_DETAIL });
         return;
       }
       this.options.event({ type: 'done', ok: true, durationMs: Date.now() - started, detail: null });

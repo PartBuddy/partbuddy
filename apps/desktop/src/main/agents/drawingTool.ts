@@ -1,13 +1,20 @@
 import { drawingColours, drawingFacts, drawingSvg, mergedColours, withFills, type Drawing } from '../../shared/svgDrawing';
-import { LOGO_PREFIX, logoBase, uniqueLogoName } from '../../shared/drawingPlacement';
-import { colourLayers, splitPieceSteps, stepsOf, type FeatureBlock } from '../../shared/blocks';
+import { detailCoarse, drawingDetail, type DetailBuild } from '../../shared/drawingDetail';
+import { centring, hostFace, LOGO_DEPTH_MAX, LOGO_PREFIX, LOGO_WIDTH_MAX, logoBase, movedPlane, uniqueLogoName } from '../../shared/drawingPlacement';
+import { blockLimit, colourLayers, DEFAULT_PRINTER, limitSaid, planeAt, splitPieceSteps, stepsOf, type FeatureBlock } from '../../shared/blocks';
+import type { FitPrinter } from '../../shared/designFit';
 import { planLogoMove, type Run } from '../solidcraft/logoMove';
+import { leastFloor, misplaced, reachOf, volumesOf, wallTrial } from './blockTool';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
+import { PLAN_TOOL } from './questions';
+import { markOf, TAKEN_BACK_SAID, takeBack } from './takeBack';
 
 export const MOVE_DRAWING_TOOL = 'partbuddy_move_drawing';
 export const PLACE_DRAWING_TOOL = 'partbuddy_place_drawing';
 
 const vector = { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 };
+const WIDTH_SAID = `width must be more than 0 and at most ${String(LOGO_WIDTH_MAX)} mm`;
+const mm = (value: number) => String(Math.round(value * 100) / 100);
 
 const placeTool: UpstreamTool = {
   name: PLACE_DRAWING_TOOL,
@@ -22,9 +29,9 @@ const placeTool: UpstreamTool = {
       point: { ...vector, description: "A point on the face in mm: the logo's middle. For part where its middle goes, default the origin." },
       normal: { ...vector, description: 'The outward normal of the face there. For part the way it stands up, default +Z (lying on the bed).' },
       mode: { type: 'string', enum: ['deboss', 'emboss', 'part'], description: 'deboss: into the face (in colours: an inlay flush with the face); emboss: standing on it; part: a body of its own.' },
-      depth: { type: 'number', exclusiveMinimum: 0, maximum: 50, description: 'How deep or high (for part: how thick), in mm.' },
+      depth: { type: 'number', exclusiveMinimum: 0, maximum: LOGO_DEPTH_MAX, description: 'How deep or high (for part: how thick), in mm. Engraved or inlaid it must leave plastic under it: PartBuddy measures the wall there and refuses a depth that does not.' },
       fills: { type: 'array', items: { type: 'string', pattern: '^#[0-9a-f]{6}$' }, minItems: 1, description: 'Only these fills, e.g. leave out a white background square; default all.' },
-      width: { type: 'number', exclusiveMinimum: 0, maximum: 1000, description: 'Width in mm, aspect kept; default the width the user chose.' },
+      width: { type: 'number', exclusiveMinimum: 0, maximum: LOGO_WIDTH_MAX, description: 'Width in mm, aspect kept; default the width the user chose.' },
       colours: { type: 'boolean', description: 'A body per colour, each coloured like its fill (only for a drawing with several fills).' },
       colours_max: { type: 'integer', minimum: 2, maximum: 16, description: "With colours: at most this many (the printer's filaments); the nearest colours merge, the larger area keeping its colour." },
       centre: { type: 'string', enum: ['x', 'y', 'both'], description: 'Then centre it on the face along its x, y or both.' },
@@ -46,7 +53,7 @@ const moveTool: UpstreamTool = {
       by: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: "mm along the logo's own x (its width, left to right as it reads) and y (up)." },
       centre: { type: 'string', enum: ['x', 'y', 'both'], description: "Onto the middle of the face it sits on: along the logo's x, its y, or both." },
       rotate: { type: 'number', minimum: -360, maximum: 360, description: 'Degrees to turn it counter-clockwise, looking at the face, about its middle (90 turns it a quarter left).' },
-      width: { type: 'number', exclusiveMinimum: 0, maximum: 1000, description: 'Its new width in mm (along its own x), aspect kept, about its middle.' },
+      width: { type: 'number', exclusiveMinimum: 0, maximum: LOGO_WIDTH_MAX, description: 'Its new width in mm (along its own x), aspect kept, about its middle.' },
     },
     required: ['logo'],
     additionalProperties: false,
@@ -99,12 +106,19 @@ export class Drawings {
 /** What the model hears with a drawing: its exact facts and how to build it. */
 export function drawingNote(id: string, kept: KeptDrawing, skipped: Drawing['skipped']): string {
   const facts = drawingFacts(kept.drawing, kept.width);
-  const mm = (value: number) => String(Math.round(value * 100) / 100);
   const colours = facts.colours.map((colour) => `${colour.fill} (${mm(colour.area)} mm²)`).join(', ');
   const left = [
     skipped.strokes ? `${String(skipped.strokes)} shape${skipped.strokes === 1 ? '' : 's'} without fill or stroke` : '',
     skipped.texts ? `${String(skipped.texts)} text${skipped.texts === 1 ? '' : 's'} not turned into paths` : '',
     skipped.images ? `${String(skipped.images)} embedded picture${skipped.images === 1 ? '' : 's'}` : '',
+  ].filter(Boolean);
+  const count = (n: number, one: string, many = `${one}s`) => `${String(n)} ${n === 1 ? one : many}`;
+  // Built, but not as drawn (audit T51): the model has to know to say so before it builds.
+  const otherwise = [
+    skipped.colours ? `${count(skipped.colours, 'shape')} of a colour PartBuddy does not know or a gradient without a fallback colour, built black` : '',
+    skipped.clips ? `${count(skipped.clips, 'clip path or mask', 'clip paths or masks')} not applied, so what they hide is built too` : '',
+    skipped.dashes ? `${count(skipped.dashes, 'dashed line')} built as one line` : '',
+    skipped.views ? `${count(skipped.views, 'inner drawing')} (an inner <svg>) without its own view and clipping` : '',
   ].filter(Boolean);
   // The name is the user's file name: quoted data, never instructions.
   const name = kept.name.replace(/["\n\r[\]]/g, ' ').slice(0, 80);
@@ -114,10 +128,11 @@ export function drawingNote(id: string, kept: KeptDrawing, skipped: Drawing['ski
     `${String(facts.holes)} of them hole${facts.holes === 1 ? '' : 's'}; fills ${colours}.` +
     (left.length > 0 ? ` Left out because they have no area: ${left.join(', ')}.` : '') +
     (skipped.backgrounds ? ' Left out as no part of the drawing: a light sheet or a frame around it.' : '') +
+    (otherwise.length > 0 ? ` Read otherwise than it looks: ${otherwise.join('; ')}. Tell the user before building it.` : '') +
     ` As a logo on a face (engraved, built up, in colours, centred), place it with \`${PLACE_DRAWING_TOOL}\` {drawing: "${id}", body, point, normal, mode, depth` +
     (facts.colours.length > 1 ? ', colours: true for a body per fill' + (facts.colours.length > 2 ? ', colours_max for fewer filaments' : '') : '') +
     `, centre}: PartBuddy builds it exactly; \`${MOVE_DRAWING_TOOL}\` moves it afterwards. ` +
-    `As a part of its own (a pendant, a sign, the drawing extruded) use mode "part" {drawing: "${id}", mode: "part", depth}, never a sketch of your own, so the user can move, turn and resize it. ` +
+    `As a part of its own (a pendant, a sign, the drawing extruded) use mode "part" {drawing: "${id}", mode: "part", depth}, never a sketch of your own, so the user can move, turn and resize it; in a design without bodies that is a new part, so show a plan with ${PLAN_TOOL} first. ` +
     'fills: [...] builds only some fills; a white or light fill behind the whole drawing is usually background to leave out. ' +
     `Only for other uses (a cut-out through the part, a profile to revolve or sweep) put it into a sketch with \`sketch.insert_svg\` {text: "drawing:${id}", width: ${mm(facts.width)}, align: "center", at: [x, y]}: ` +
     'PartBuddy replaces that text with the exact contours, so never type, trace or redraw the paths. Build that with `solid.extrude` (a loop inside a hole stays material, as drawn); ' +
@@ -146,12 +161,13 @@ function jsonOf(result: ToolResult): unknown {
 async function moveDrawing(upstream: UpstreamTools, args: Record<string, unknown>, callId: string | undefined): Promise<string> {
   const name = typeof args.logo === 'string' ? args.logo.trim() : '';
   const by = Array.isArray(args.by) && args.by.length === 2 && args.by.every((value) => typeof value === 'number' && Number.isFinite(value)) ? (args.by as [number, number]) : null;
-  const centre = args.centre === 'x' || args.centre === 'y' || args.centre === 'both' ? (args.centre) : null;
+  const centre = args.centre === 'x' || args.centre === 'y' || args.centre === 'both' ? args.centre : null;
   if (args.by !== undefined && !by) throw new Error('by must be two numbers in mm');
+  if (args.centre !== undefined && !centre) throw new Error('centre must be x, y or both');
   const rotate = typeof args.rotate === 'number' && Number.isFinite(args.rotate) && Math.abs(args.rotate) <= 360 ? args.rotate : null;
   if (args.rotate !== undefined && rotate === null) throw new Error('rotate must be degrees between -360 and 360');
-  const width = typeof args.width === 'number' && args.width > 0 && args.width <= 1000 ? args.width : null;
-  if (args.width !== undefined && width === null) throw new Error('width must be 0–1000 mm');
+  const width = typeof args.width === 'number' && args.width > 0 && args.width <= LOGO_WIDTH_MAX ? args.width : null;
+  if (args.width !== undefined && width === null) throw new Error(WIDTH_SAID);
   if (!by && !centre && !rotate && !width) throw new Error('say how far (by), centre, rotate or width');
   const run: Run = async (commands) => {
     const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[]; failed?: { error?: unknown } };
@@ -162,7 +178,6 @@ async function moveDrawing(upstream: UpstreamTools, args: Record<string, unknown
   await run(move.steps);
   const [du, dv] = move.by;
   const face = move.face ? ` on face ${move.face}` : '';
-  const mm = (value: number) => String(Math.round(value * 100) / 100);
   const turned = (width ? `, now ${mm(width)} mm wide` : '') + (rotate ? `, turned by ${mm(rotate)}° (now ${mm(move.angle)}° from level)` : '');
   return `Moved ${move.name} by ${mm(du)} mm along its x and ${mm(dv)} mm along its y${face}${turned}; its middle is now at [${move.origin.map(mm).join(', ')}] mm.`;
 }
@@ -170,8 +185,14 @@ async function moveDrawing(upstream: UpstreamTools, args: Record<string, unknown
 const vec3 = (value: unknown): [number, number, number] | null =>
   Array.isArray(value) && value.length === 3 && value.every((entry) => typeof entry === 'number' && Number.isFinite(entry)) ? (value as [number, number, number]) : null;
 
-/** `partbuddy_place_drawing`: the logo block's steps for a drawing of this session, then centring. */
-async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: Record<string, unknown>, callId: string | undefined): Promise<string> {
+/**
+ * `partbuddy_place_drawing`: the logo block's steps for a drawing of this session. Centred, its middle is moved onto the
+ * face's middle first, as the form does (supervisor.ts centredBlock), so the wall is measured where it is built. Engraved or
+ * inlaid, the wall under it is measured on trial, as for engraved text (blockTool.ts); built, the named body is checked as a
+ * block's is; and what fails after the first step (SolidCraft refusing a step, the wrong body) is taken back, so a logo is
+ * either placed as said or not there (audit W38, W39).
+ */
+async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: Record<string, unknown>, callId: string | undefined, fit: FitPrinter, log: (line: string) => void): Promise<string> {
   const id = typeof args.drawing === 'string' ? args.drawing.trim().replace(/^drawing:/, '') : '';
   const kept = drawings.get(id);
   if (!kept) throw new Error(`"${id}" is not a drawing of this session; ask the user to attach the SVG again`);
@@ -179,13 +200,15 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
   const point = vec3(args.point);
   const normal = vec3(args.normal);
   const mode = args.mode === 'emboss' || args.mode === 'deboss' || args.mode === 'part' ? args.mode : null;
+  if (!mode) throw new Error('mode must be deboss, emboss or part');
   const part = mode === 'part';
-  const depth = typeof args.depth === 'number' && args.depth > 0 && args.depth <= 50 ? args.depth : null;
-  const width = args.width === undefined ? kept.width : typeof args.width === 'number' && args.width > 0 && args.width <= 1000 ? args.width : null;
+  const depth = typeof args.depth === 'number' && args.depth > 0 && args.depth <= LOGO_DEPTH_MAX ? args.depth : null;
+  if (!depth) throw new Error(`depth must be more than 0 and at most ${String(LOGO_DEPTH_MAX)} mm`);
+  const width = args.width === undefined ? kept.width : typeof args.width === 'number' && args.width > 0 && args.width <= LOGO_WIDTH_MAX ? args.width : null;
+  if (!width) throw new Error(WIDTH_SAID);
   const centre = args.centre === 'x' || args.centre === 'y' || args.centre === 'both' ? args.centre : null;
   if (!part && (!body || !point || !normal)) throw new Error('body, point and normal are needed on a face; for a part of its own use mode part');
   if (normal && Math.hypot(...normal) < 1e-9) throw new Error('the normal must not be zero');
-  if (!mode || !depth || !width) throw new Error('mode must be deboss, emboss or part, depth 0–50 mm, width 0–1000 mm');
   if (part && args.centre !== undefined) throw new Error('a part of its own has no face to centre on');
   const fills = Array.isArray(args.fills) ? args.fills.filter((fill): fill is string => typeof fill === 'string').map((fill) => fill.toLowerCase()) : null;
   const colours = drawingColours(kept.drawing);
@@ -195,29 +218,107 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
   if (args.centre !== undefined && !centre) throw new Error('centre must be x, y or both');
   const most = Number.isInteger(args.colours_max) && (args.colours_max as number) >= 2 && (args.colours_max as number) <= 16 ? (args.colours_max as number) : null;
   if (args.colours_max !== undefined && most === null) throw new Error('colours_max must be a whole number 2–16');
+  const shown = most ? mergedColours(drawing, most) : drawing;
   // A part of its own is built like a logo standing on the plane, but as a new body.
-  const block: Extract<FeatureBlock, { block: 'logo' }> = { block: 'logo', body: part ? '' : body, point: point ?? [0, 0, 0], normal: normal ?? [0, 0, 1], size: 'M3', name: kept.name, svg: drawingSvg(most ? mergedColours(drawing, most) : drawing, width), width, depth, mode: part ? 'emboss' : mode, colours: args.colours === true };
+  const given: Extract<FeatureBlock, { block: 'logo' }> = { block: 'logo', body: part ? '' : body, point: point ?? [0, 0, 0], normal: normal ?? [0, 0, 1], size: 'M3', name: kept.name, svg: drawingSvg(shown, width), width, depth, mode: part ? 'emboss' : mode, colours: args.colours === true };
+  // Nothing of a block prints under one layer (blocks.ts).
+  const limit = blockLimit(given, fit);
+  if (limit) throw new Error(limitSaid(limit));
+  const run: Run = async (commands) => {
+    const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[]; failed?: { error?: unknown } };
+    if (reply.failed) throw new Error(`SolidCraft refused it: ${String(reply.failed.error)}`);
+    return reply.results ?? [];
+  };
   const sketches = (jsonOf(await upstream.callTool('inspect_design', {}, callId)) as { sketches?: { name?: unknown }[] }).sketches ?? [];
   const sketch = uniqueLogoName(kept.name, sketches.flatMap((entry) => (typeof entry.name === 'string' ? [entry.name] : [])));
-  const steps = stepsOf(block, sketch).map((step) => (part && step.command === 'solid.extrude' && step.params.operation === 'join' ? { ...step, params: { ...step.params, operation: 'new', body_name: logoBase(kept.name) } } : step));
-  const reply = jsonOf(await upstream.callTool('batch', { commands: steps }, callId)) as { failed?: { error?: unknown } };
-  if (reply.failed) throw new Error(`SolidCraft refused it: ${String(reply.failed.error)}`);
-  const layers = colourLayers(block);
-  if (layers.length > 0) {
-    // Pieces a cut split off keep their colour, as with the logo block.
-    const recolour = splitPieceSteps(layers, jsonOf(await upstream.callTool('inspect_design', {}, callId)));
-    if (recolour.length > 0) jsonOf(await upstream.callTool('batch', { commands: recolour }, callId));
+  const measure = { command: 'inspect.measure', params: {} };
+  const before = part ? null : volumesOf((await run([measure]))[0]);
+  if (before && !before.has(body)) throw new Error(misplaced(body, before, before) ?? `there is no body named ${body}`);
+  // Onto the face's middle before anything is built or measured.
+  let block = given;
+  let centred = '';
+  if (centre) {
+    const plane = planeAt(given.point, given.normal);
+    const [faces, edges] = await run([
+      { command: 'model.faces', params: { body } },
+      { command: 'model.edges', params: { body } },
+    ]);
+    const host = hostFace(plane, [{ body, faces, edges }]);
+    if (!host) throw new Error(`no flat face of ${body} at the point to centre the logo on; give the point of the face's middle, or leave centre out`);
+    const [du, dv] = centring(host.extent, centre);
+    block = { ...given, point: movedPlane(plane, du, dv).origin };
+    centred = ` Moved by ${mm(du)} mm along its x and ${mm(dv)} mm along its y onto the middle of face ${host.face} of ${body} before it was built; its middle is now at [${block.point.map(mm).join(', ')}] mm.`;
   }
-  const how = `${part ? 'a part of its own' : mode === 'deboss' ? (layers.length > 0 ? 'inlaid' : 'engraved') : 'built up'} ${String(depth)} mm, ${String(width)} mm wide` + (layers.length > 0 ? `, ${String(layers.length)} colour bodies` : '');
-  const placed = part ? `Built "${sketch}" (${how}).` : `Placed "${sketch}" on ${body} (${how}).`;
-  return centre ? `${placed} ${await moveDrawing(upstream, { logo: sketch, centre }, callId)}` : placed;
+  const steps = stepsOf(block, sketch).map((step) => (part && step.command === 'solid.extrude' && step.params.operation === 'join' ? { ...step, params: { ...step.params, operation: 'new', body_name: logoBase(kept.name) } } : step));
+  // Engraved or inlaid, it must leave plastic under it: the wall at its middle, measured on trial as for engraved text.
+  // shortcut: one point, the logo's middle; a logo reaching over a thinner part of the wall passes. Measure under each piece if that turns up.
+  const probe = part ? null : wallTrial(block);
+  const tried = probe ? await reachOf(upstream, probe, (inner) => inner, callId) : undefined;
+  const thick = tried?.wall[0];
+  const floor = leastFloor(fit);
+  const layers = colourLayers(block);
+  const how = part ? 'a part of its own' : mode === 'deboss' ? (layers.length > 0 ? 'inlaid' : 'engraved') : 'built up';
+  if (typeof thick === 'number' && depth + floor > thick + 1e-9) {
+    const less = thick - floor >= fit.layer - 1e-9 ? `Give depth ${mm(thick - floor)} or less, put` : 'Put';
+    throw new Error(
+      `at [${block.point.map(mm).join(', ')}] ${body} is ${mm(thick)} mm thick (measured on trial); a logo ${how} ${mm(depth)} mm deep needs ${mm(floor)} mm of plastic under it (two lines or four layers on a ${String(fit.nozzle)} mm nozzle, as the part may lie either way), ${mm(depth + floor)} mm in all. ${less} it where the part is thicker, or build it up (emboss)`,
+    );
+  }
+  if (probe && typeof thick !== 'number') log(`partbuddy_place_drawing on ${body}: the wall under the logo could not be measured on trial`);
+  const wallSaid = !probe ? '' : typeof thick === 'number' ? ` ${body} is ${mm(thick)} mm thick there (measured on trial): ${mm(thick - depth)} mm of plastic stay under it.` : ` PartBuddy could not measure the wall of ${body} under it: check that ${mm(depth)} mm leave plastic behind.`;
+  // Said before anything is built: should it throw, no logo stands under "Not placed".
+  const detail = detailSaid(shown, width, fit.nozzle, part || mode === 'emboss' ? 'raised' : layers.length > 0 ? 'inlaid' : 'engraved');
+  // The design before the logo, to take it back to.
+  const mark = await markOf(run);
+  try {
+    const results = await run(before ? [...steps, measure] : steps);
+    if (before) {
+      // A logo's colour bodies, and the pieces a cut split off them, are its own.
+      const own = (name: string) => layers.some((layer) => name === layer.body || (name.startsWith(`${layer.body} (`) && /^ \(\d+\)$/.test(name.slice(layer.body.length))));
+      const after = new Map([...volumesOf(results[results.length - 1])].filter(([name]) => !own(name)));
+      // Standing apart from the body it is to be on, built up: SolidCraft makes a body of its own or only warns (as blockTool.ts).
+      const apart = results.some((result) => {
+        const warning = (result as { warning?: unknown } | undefined)?.warning;
+        return typeof warning === 'string' && warning.includes('separate pieces');
+      });
+      if (mode === 'emboss' && (apart || [...after.keys()].some((name) => !before.has(name)))) throw new Error(`it would stand apart from ${body}, not on it; give a point on a face of ${body}`);
+      // Built up in colours the part stays as it was: its pieces stand on it as bodies of their own.
+      const wrong = misplaced(body, mode === 'emboss' && layers.length > 0 ? new Map([...before, [body, Number.NaN]]) : before, after);
+      if (wrong) throw new Error(wrong);
+    }
+    if (layers.length > 0) {
+      // Pieces a cut split off keep their colour, as with the logo block.
+      const recolour = splitPieceSteps(layers, jsonOf(await upstream.callTool('inspect_design', {}, callId)));
+      if (recolour.length > 0) await run(recolour);
+    }
+  } catch (cause) {
+    const taken = await takeBack(run, mark);
+    if (taken !== 'back') log(`partbuddy_place_drawing ${sketch} could not be taken back (${taken}) after: ${(cause as Error).message.slice(0, 200)}`);
+    throw new Error(`${(cause as Error).message.replace(/\.$/, '')}. ${TAKEN_BACK_SAID[taken]}`, { cause });
+  }
+  const said = `${how} ${String(depth)} mm, ${String(width)} mm wide` + (layers.length > 0 ? `, ${String(layers.length)} colour bodies` : '');
+  const placed = part ? `Built "${sketch}" (${said}).` : `Placed "${sketch}" on ${body} (${said}).`;
+  return placed + centred + wallSaid + detail;
+}
+
+/**
+ * What the answer says of details too fine at the width (drawingDetail.ts), as the composer shows it; empty when all print.
+ * shortcut: runs in the main process, a few hundred ms for a large drawing (measured up to about 1 s at 400 mm under load); move it to a worker if it holds up other calls.
+ */
+function detailSaid(drawing: Drawing, width: number, nozzle: number, build: DetailBuild): string {
+  const detail = drawingDetail(drawing, width, nozzle, build);
+  const coarse = detailCoarse(drawing, width, nozzle);
+  const fine = detail
+    ? ` ${detail.places === 1 ? 'One place of the drawing is' : `${String(detail.places)} places of the drawing are`} too fine for the ${String(nozzle)} mm nozzle at ${mm(width)} mm wide, the narrowest ${mm(detail.thinnest)} mm: ${build === 'engraved' ? 'a stroke (a groove)' : 'a stroke'} under ${mm(detail.stroke)} mm ${detail.stroke < detail.gap ? 'closes up' : 'does not print solid (two lines)'}, ${build === 'engraved' ? 'a gap (a rib left standing)' : 'a gap'} under ${mm(detail.gap)} mm ${detail.gap < detail.stroke ? 'closes up' : 'does not print solid (two lines)'}. From ${String(detail.fineFrom)} mm wide everything fits; tell the user.`
+    : '';
+  return fine + (coarse === null ? '' : ` At this size PartBuddy checked the details on a raster of ${String(coarse)} mm, so a place near the limit can go unseen.`);
 }
 
 /**
  * The upstream tools with `drawing:` references in `sketch.insert_svg` replaced, also in batch
  * steps, plus `partbuddy_move_drawing`.
  */
-export function withDrawings(upstream: UpstreamTools, drawings: Drawings): UpstreamTools {
+export function withDrawings(upstream: UpstreamTools, drawings: Drawings, printer: () => FitPrinter = () => DEFAULT_PRINTER, log: (line: string) => void = () => undefined): UpstreamTools {
   const error = (text: string): ToolResult => ({ content: [{ type: 'text', text }], isError: true });
   const object = (value: unknown) => (typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null);
   return {
@@ -226,7 +327,13 @@ export function withDrawings(upstream: UpstreamTools, drawings: Drawings): Upstr
     callTool: async (name, args, callId) => {
       if (name === PLACE_DRAWING_TOOL) {
         try {
-          return { content: [{ type: 'text', text: await placeDrawing(upstream, drawings, args, callId) }] };
+          let fit = DEFAULT_PRINTER;
+          try {
+            fit = printer();
+          } catch (cause) {
+            log(`partbuddy_place_drawing: no printer profile, checked for a ${String(DEFAULT_PRINTER.nozzle)} mm nozzle (${(cause as Error).message.slice(0, 200)})`);
+          }
+          return { content: [{ type: 'text', text: await placeDrawing(upstream, drawings, args, callId, fit, log) }] };
         } catch (cause) {
           return error(`Not placed: ${(cause as Error).message}`);
         }

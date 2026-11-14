@@ -60,6 +60,8 @@ export class AgentService implements AgentBackend {
   private models: ModelOption[] | null = null;
   /** Model and effort from the next turn on; null: Claude Code's own default. */
   private choice: ModelChoice | null = null;
+  /** Claude Code compacted the session since the last message: the next one counts as fresh (audit H-11). */
+  private compacted = false;
 
   constructor(
     private readonly options: AgentServiceOptions,
@@ -120,6 +122,8 @@ export class AgentService implements AgentBackend {
       return;
     }
     await this.ensureSession(tools);
+    // The notes for a fresh conversation (print profile, check) were read before this call and go with this message.
+    this.compacted = false;
     const message = composeMessage(text, selections, note);
     this.listeners.event(userEvent(text, message.label, message.summary, images.length > 0 ? kind : undefined));
     this.setStatus({ ...this.current, state: 'busy' });
@@ -162,9 +166,12 @@ export class AgentService implements AgentBackend {
     this.setStatus(this.current);
   }
 
-  /** A stopped or ended Claude Code session is not resumed (`--no-session-persistence`). */
+  /**
+   * A stopped or ended Claude Code session is not resumed (`--no-session-persistence`). A compacted one kept only a
+   * summary of earlier messages, so the notes they carried (print profile, check) go again with the next one.
+   */
   freshConversation(): boolean {
-    return !this.session?.running;
+    return !this.session?.running || this.compacted;
   }
 
   async dispose(): Promise<void> {
@@ -206,6 +213,7 @@ export class AgentService implements AgentBackend {
 
     let announced = false;
     this.context = { used: 0, size: 0 };
+    this.compacted = false;
     const session = new ClaudeSession({ claude: this.claude, env: this.options.env, cwd: this.options.workDir, mcpConfigPath: configPath, choice: this.choice, research: this.options.research?.() ?? false });
     session.onEvent((event) => {
       switch (event.type) {
@@ -240,6 +248,10 @@ export class AgentService implements AgentBackend {
           // Tokens come with each request, the window with the turn's result.
           this.context = { used: event.used ?? this.context.used, size: event.size ?? this.context.size };
           if (event.size) this.setStatus(this.current);
+          break;
+        case 'compacted':
+          this.compacted = true;
+          this.options.log(`Claude Code compacted its context (${event.tokens === null ? 'size unknown' : `${String(event.tokens)} tokens before`}); the next message carries the print profile and the check again`);
           break;
         case 'started':
           // Claude Code reports `init` at the start of every turn of the same session (checked

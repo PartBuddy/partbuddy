@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { rowsOf, sameEntries } from '../src/renderer/src/assistant/rows';
+import { ROUNDS_DETAIL } from '../src/main/agents/loop';
+import { retryMessage, ROUNDS, rowsOf, sameEntries } from '../src/renderer/src/assistant/rows';
 import type { ConversationItem } from '../src/renderer/src/assistant/store';
 import { clampChatWidth, DEFAULT_CHAT_WIDTH, MAX_CHAT_WIDTH, maxChatWidth, MIN_CHAT_WIDTH } from '../src/renderer/src/shell/chatWidth';
 
@@ -65,5 +66,15 @@ describe('rows of a streaming answer (chat polish)', () => {
     const token = [...items.slice(0, -1), { ...answer('Done'), key: 99 }];
     expect(sameEntries(before, work(token))).toBe(true);
     expect(sameEntries(before, work([...items, step('s3')]))).toBe(false);
+  });
+});
+
+describe('send again after a failed turn', () => {
+  it('sends "continue" after the round limit, not the request that would build the part twice (audit R57, review S1)', () => {
+    expect(ROUNDS).toBe(ROUNDS_DETAIL);
+    expect(retryMessage({ kind: 'stopped', key: 1, detail: ROUNDS_DETAIL }, 'Build a case', 'Continue')).toBe('Continue');
+    expect(retryMessage({ kind: 'stopped', key: 1, detail: 'failed' }, 'Build a case', 'Continue')).toBe('Build a case');
+    expect(retryMessage({ kind: 'stopped', key: 1, detail: null }, 'Build a case', 'Continue')).toBe('Build a case');
+    expect(retryMessage(undefined, 'Build a case', 'Continue')).toBe('Build a case');
   });
 });

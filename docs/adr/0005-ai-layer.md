@@ -85,8 +85,13 @@ Decided 2026-11-04 (keep token use low): the face selected in PartBuddy's view g
 message as one line in front of the user's text (`[PartBuddy: the user selected face "F1:+z" of
 body "Body1" (plane, normal …, picked at … mm)]`, about 40 tokens). The tool `partbuddy_view`,
 answered by PartBuddy itself on every route, returns the selection, the camera direction in words,
-the bodies and sketches shown and what the last step changed as compact JSON (about 100 tokens).
-The role prompt asks for screenshots only when the look of the part matters. The renderer reports
+the bodies and sketches shown and what the last step changed as compact JSON. Since then it also
+carries the user's notes on the model and, as a second text, PartBuddy's latest ready-to-print
+check; its size grows with the bodies, sketches, notes and findings, so the description names no
+token count any more (audit R43, 2026-11-13; it said "about 100 tokens"). Only Claude Code's role
+prompt asks for screenshots, and only when the look of the part matters (`SCREENSHOT_GUIDANCE`):
+the own loops of ChatGPT and local models pass no picture from a tool answer and have no screenshot
+tool (audit R24). The renderer reports
 the view state when the camera comes to rest, the selection changes or a revision arrives.
 
 ### Consequences

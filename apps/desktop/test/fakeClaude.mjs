@@ -9,10 +9,8 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 
 const args = process.argv.slice(2);
 
-const sunk = (name, z) => ({
-  command: 'solid.hole',
-  params: { position: [25, 0, z], direction: [0, 1, 0], diameter: '4.5 mm', type: 'countersink', cs_diameter: '9 mm', cs_angle: '90 deg', name },
-});
+// The wall holder's two countersunk holes for M4, from PartBuddy's block: raw solid.hole is refused (BC-13).
+const WALL_HOLDER_HOLES = { block: 'screwHole', body: 'Wandhalter', point: [25, 0, 80], more: [[25, 0, 40]], size: 'M4', head: 'countersunk' };
 const CLASHING_PARTS = [
   { command: 'solid.box', params: { length: 20, width: 20, height: 10, operation: 'new', body_name: 'Case' } },
   { command: 'solid.box', params: { length: 20, width: 20, height: 3, corner: [0, 0, 9], operation: 'new', body_name: 'Lid' } },
@@ -40,8 +38,8 @@ const WALL_HOLDER = [
     params: { length: 'plate_width', width: 'hook_width + wall', height: 'wall', center: ['plate_width/2', 'wall + (hook_width+wall)/2', 'wall/2'], name: 'Hakenboden', operation: 'join' },
   },
   { command: 'solid.box', params: { length: 'plate_width', width: 'wall', height: 'lip_height', corner: [0, 'wall + hook_width', 0], name: 'Hakenlippe', operation: 'join' } },
-  sunk('Senkbohrung oben', 80),
-  sunk('Senkbohrung', 40),
+];
+const WALL_HOLDER_EDGES = [
   { command: 'solid.fillet', params: { edges: [[25, 6, 6]], radius: '2 mm', name: 'Innenradien' } },
   { command: 'solid.fillet', params: { edges: [[0, 3, 100], [50, 3, 100]], radius: '5 mm', name: 'Aussenkanten' } },
 ];
@@ -176,6 +174,13 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: true, result: expired, duration_ms: 12 });
       continue;
     }
+    // "Compact now": the boundary Claude Code reports after compacting its context (audit H-11).
+    if (content.includes('Compact now')) {
+      out({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'auto', pre_tokens: 180000 } });
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: 'Compacted.' }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     if (content.includes('Make it fail')) {
       out({ type: 'result', subtype: 'error_during_execution', is_error: true, duration_ms: 12 });
       continue;
@@ -234,7 +239,7 @@ if (args[0] === '--version') {
     // "notes" (M2b): looks for the note text in inspect_design, tries to undo the user's note and
     // tells whether PartBuddy's note came with the message.
     // "wall holder" (UI upgrade step 10): the part of the UI inventory, boxes on formula corners
-    // and countersunk holes, built step by step.
+    // and countersunk holes from partbuddy_block, built step by step.
     // "Place the logo {json}": partbuddy_place_drawing with those arguments, and its answer.
     if (content.includes('Place the logo ')) {
       const start = content.indexOf('Place the logo ') + 'Place the logo '.length;
@@ -335,7 +340,7 @@ if (args[0] === '--version') {
     }
     // "a volume knob": a knob for a 6 mm D shaft, a part of its own, through PartBuddy's own block.
     if (content.includes('a volume knob')) {
-      const built = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'knob', body: 'Volume', point: [0, 0, 0] } });
+      const built = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'knob', body: 'Volume', point: [0, 0, 0], shaft: 'd', shaftDiameter: 6 } });
       await client.close();
       out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
@@ -344,9 +349,9 @@ if (args[0] === '--version') {
     // "a wall plate": a plate standing upright, two keyholes on its back and two countersunk holes on its front, through PartBuddy's own blocks.
     if (content.includes('a wall plate')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.box', params: { length: 80, width: 8, height: 100, operation: 'new', body_name: 'Plate' } } });
-      const hung = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'keyhole', body: 'Plate', point: [20, 0, 80], normal: [0, -1, 0], up: [0, 0, 1], more: [[60, 0, 80]] } });
-      const screwed = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'woodScrew', body: 'Plate', point: [20, 8, 30], more: [[60, 8, 30]] } });
-      const magnets = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'magnet', body: 'Plate', point: [20, 8, 55], normal: [0, 1, 0], more: [[60, 8, 55]] } });
+      const hung = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'keyhole', body: 'Plate', point: [20, 0, 80], normal: [0, -1, 0], up: [0, 0, 1], more: [[60, 0, 80]], screw: 4 } });
+      const screwed = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'woodScrew', body: 'Plate', point: [20, 8, 30], more: [[60, 8, 30]], screw: 4 } });
+      const magnets = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'magnet', body: 'Plate', point: [20, 8, 55], normal: [0, 1, 0], more: [[60, 8, 55]], diameter: 6, height: 2 } });
       await client.close();
       out({ type: 'assistant', message: { content: [{ type: 'text', text: [hung, screwed, magnets].flatMap((built) => (built.content ?? []).map((block) => block.text ?? '')).join(' ') }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
@@ -447,6 +452,8 @@ if (args[0] === '--version') {
     }
     if (content.includes('wall holder')) {
       for (const step of WALL_HOLDER) await client.callTool({ name: 'execute', arguments: step });
+      await client.callTool({ name: 'partbuddy_block', arguments: WALL_HOLDER_HOLES });
+      for (const step of WALL_HOLDER_EDGES) await client.callTool({ name: 'execute', arguments: step });
       await client.close();
       out({ type: 'assistant', message: { content: [{ type: 'text', text: 'The wall holder is built.' }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });

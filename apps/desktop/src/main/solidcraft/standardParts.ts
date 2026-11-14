@@ -1,4 +1,4 @@
-import type { PartFamily, PartsLibrary } from '../../shared/contract';
+import { partFamilySchema, type PartFamily, type PartsLibrary } from '../../shared/contract';
 
 /**
  * Standard parts (plan step B7): screws, nuts, washers, pins and bearings from SolidCraft's library
@@ -7,8 +7,8 @@ import type { PartFamily, PartsLibrary } from '../../shared/contract';
  * them out.
  */
 
-/** The metric families PartBuddy offers, in the order of the menu. */
-export const PART_FAMILIES: PartFamily[] = ['socket_head_cap_screw', 'button_head_cap_screw', 'hex_bolt', 'set_screw', 'hex_nut', 'washer', 'dowel_pin', 'bearing'];
+/** The metric families PartBuddy offers, in the order of the menu: the schema's, so menu and requests know the same (audit S-30, T48). */
+export const PART_FAMILIES: readonly PartFamily[] = partFamilySchema.options;
 
 const num = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
 

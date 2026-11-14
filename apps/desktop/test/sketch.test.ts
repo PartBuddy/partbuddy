@@ -38,6 +38,9 @@ describe('a rough sketch for the assistant (F4)', () => {
     expect(note).toContain('not exact sizes');
     expect(note).toContain('clarification card');
     expect(note).toContain('instead of reading it off the pixels');
+    // Audit R53: a sketch is a new part like any other, not built straight after the sizes.
+    expect(note).toContain('Then go on as for any new part (plan, Go, build).');
+    expect(note).not.toContain('build it printable as designed');
     expect(note.endsWith(']')).toBe(true);
     // F9: the list of elements follows, with the labels marked as data.
     const listed = sketchNote('- dimension "40" between (2, 2) and (12, 2) (10 squares)');

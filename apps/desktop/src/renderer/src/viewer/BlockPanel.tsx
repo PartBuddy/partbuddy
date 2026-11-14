@@ -4,7 +4,10 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckboxButton, CheckboxField, FileTrigger, Input, Label, NumberField, TextField, ToggleButton } from 'react-aria-components';
 
-import { BLOCK_KINDS, defaultBlock, hasSize, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, snapStrain, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
+import { FIBRE_SHARE, ROOT_LEAST, snapLimit, standsUpright, UPRIGHT_BREAK } from '../../../shared/mechanisms';
+import { BLOCK_KINDS, DEFAULT_PRINTER, blockLimit, defaultBlock, hasSize, limitRefusal, raisedBlock, strokesKnown, HOOK_DIRECTIONS, hookVector, logoFrom, needsNormal, sizesOf, snapStrain, textDepth, textStroke, type BlockKind, type BlockSize, type FeatureBlock } from '../../../shared/blocks';
+import { HEAD_ALLOWANCE, NUT_DIN_FLATS, THREAD_ALLOWANCE } from '../../../shared/screwSizes';
+import { fitClearance, holeRoom, type ToolPrinter } from '../../../shared/toolFit';
 import { drawingColours, drawingSvg, mergedColours, naturalWidth, parseDrawing, type Drawing, type DrawingProblem } from '../../../shared/svgDrawing';
 import { DrawingDetailNote } from '../assistant/DrawingDetailNote';
 import { platform } from '../platform';
@@ -98,9 +101,6 @@ const TILES = [
 ] as const satisfies readonly { kind: BlockKind; icon: React.ReactNode }[];
 const tiled = (kind: BlockKind) => TILES.some((tile) => tile.kind === kind);
 
-/** Above this strain at the arm's root, printed PLA tends to crack (PETG takes about 3 %). */
-const SNAP_STRAIN_LIMIT = 2;
-
 /** The catch's direction named by its world axis, so it matches the axes in the view. */
 function hookLabel(vector: Vec, index: number, t: TFunction): string {
   const axis = vector.findIndex((value) => Math.abs(Math.abs(value) - 1) < 1e-6);
@@ -108,6 +108,13 @@ function hookLabel(vector: Vec, index: number, t: TFunction): string {
   const positive = (vector[axis] ?? 0) > 0;
   if (axis === 2) return t(positive ? 'blocks.hooks.up' : 'blocks.hooks.down');
   return t('blocks.hooks.axis', { axis: `${positive ? '+' : '−'}${'XY'[axis] ?? ''}` });
+}
+
+/** What the status adds of a snap fit's root radius on trial: nothing when it is as asked (audit MV-10, review of BC-17 S4). */
+function rootNote(root: { applied: number | null; wanted: number } | undefined, t: (key: string, values: Record<string, number>) => string): string {
+  if (!root || (root.applied !== null && root.applied >= root.wanted - 1e-6)) return '';
+  if (root.applied === null) return ` ${t('blocks.rootSharp', {})}`;
+  return ` ${t(root.applied < ROOT_LEAST - 1e-9 ? 'blocks.rootTooSmall' : 'blocks.rootSmall', { applied: root.applied, wanted: root.wanted, least: ROOT_LEAST })}`;
 }
 
 /**
@@ -122,8 +129,14 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   const [open, setOpen] = useState(false);
   // The block's values; body and point come from the picked face.
   const [spec, setBlock] = useState<FeatureBlock>(() => defaultBlock('tappedHole', '', [0, 0, 0], 'M3'));
+  // The printer in use with the part's material: the form starts from standard sizes raised to what it prints, with the
+  // material's fits, and checks by the assistant's limits; main builds with the same (index.ts, toolPrinter).
+  const print = useStudio((s) => s.print);
+  const printer = useMemo<ToolPrinter>(() => (print ? { ...print.printer, material: print.material } : DEFAULT_PRINTER), [print]);
+  // What a snap arm may bend in the profile's material (mechanisms.ts snapLimit), for the strain line.
+  const strainLimit = useMemo(() => snapLimit(printer.material), [printer]);
   // SolidCraft's answer for a block; only the answer for the block as it is now counts (a moved one is tried anew).
-  const [status, setStatus] = useState<{ ok: boolean; error?: string; block?: FeatureBlock; unmeasured?: boolean } | null>(null);
+  const [status, setStatus] = useState<{ ok: boolean; error?: string; block?: FeatureBlock; unmeasured?: boolean; root?: { applied: number | null; wanted: number } } | null>(null);
   const [fileProblem, setFileProblem] = useState<DrawingProblem | 'unreadable' | null>(null);
   const at = face ? `${face.body}\u0000${face.point.join(',')}\u0000${face.normal.join(',')}` : null;
   // Where the block sits on its face, from the face's middle; at first where it was clicked.
@@ -171,9 +184,13 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   // The ghost keeps up while the block is dragged or its values are typed.
   useLivePreview(
     open && block && !busy && !waiting ? block : null,
-    (tried) => platform().design.previewBlock(sent(tried)),
+    // A size that does not print is said at once, in the interface language, without a trial (refusal.ts).
+    (tried) => {
+      const limit = blockLimit(tried, printer);
+      return limit ? Promise.resolve({ ok: false as const, error: limitRefusal(limit) }) : platform().design.previewBlock(sent(tried));
+    },
     (tried, result) => {
-      setStatus(result.ok ? { ok: true, block: tried, unmeasured: result.unmeasured === true } : { ok: false, error: result.error, block: tried });
+      setStatus(result.ok ? { ok: true, block: tried, unmeasured: result.unmeasured === true, ...(result.root ? { root: result.root } : {}) } : { ok: false, error: result.error, block: tried });
       onGhost(result.ok ? result.preview : null);
     },
   );
@@ -188,7 +205,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   if (!face || !block) return null;
   const kind = (next: BlockKind) => {
     const sizes = sizesOf(next);
-    setBlock(defaultBlock(next, face.body, face.point, sizes.includes(block.size) ? block.size : (sizes[2] ?? 'M3'), face.normal));
+    setBlock(raisedBlock(defaultBlock(next, face.body, face.point, sizes.includes(block.size) ? block.size : (sizes[2] ?? 'M3'), face.normal, printer), printer).block);
     setStatus(null);
     setFileProblem(null);
     onGhost(null);
@@ -212,7 +229,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     );
   };
   const size = (next: BlockSize) => {
-    setBlock(block.block === 'screwHole' ? { ...block, size: next } : block.block === 'slot' ? { ...defaultBlock('slot', face.body, face.point, next, face.normal), length: block.length, depth: block.depth, along: block.along } as FeatureBlock : defaultBlock(block.block, face.body, face.point, next, face.normal));
+    setBlock(block.block === 'screwHole' ? { ...block, size: next } : block.block === 'slot' ? { ...defaultBlock('slot', face.body, face.point, next, face.normal, printer), length: block.length, depth: block.depth, along: block.along } as FeatureBlock : defaultBlock(block.block, face.body, face.point, next, face.normal, printer));
     setStatus(null);
   };
   const close = () => {
@@ -225,6 +242,10 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     onGhost(null);
     void platform()
       .design.applyBlock(sent(block))
+      // A snap fit that came out without its root's radius: said after the form has closed (second review of BC-17).
+      .then((built) => {
+        if (built?.rootSharp) useStudio.getState().setNotice({ tone: 'danger', text: t('blocks.rootSharp') });
+      })
       .catch((error: unknown) => {
         useStudio.getState().setNotice({ tone: 'danger', text: t('actions.failed', { detail: (error as Error).message.slice(0, 200) }) });
       });
@@ -391,7 +412,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
           ) : block.block === 'text' ? (
             <div className="grid grid-cols-2 gap-2" key={block.block}>
               <Words label={t('blocks.text')} value={block.text} onChange={(text) => setBlock({ ...block, text })} testId="block-text" />
-              <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id, depth: id === 'emboss' ? 0.4 : 0.6 })} testId="block-mode" />
+              <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id, depth: textDepth(printer) })} testId="block-mode" />
               <Length key={block.mode} label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" />
               <Length label={t('blocks.textHeight')} value={block.height} onChange={(height) => setBlock({ ...block, height })} testId="block-height" />
               <div className="flex items-end pb-1">
@@ -424,7 +445,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
                   {t(`blocks.logoProblems.${fileProblem}`)}
                 </p>
               ) : null}
-              <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id, depth: id === 'emboss' ? 0.4 : 0.6 })} testId="block-mode" />
+              <Choice label={t('blocks.textMode')} value={block.mode} items={(['deboss', 'emboss'] as const).map((id) => ({ id, label: t(`blocks.textModes.${id}`) }))} onChange={(id) => setBlock({ ...block, mode: id, depth: textDepth(printer) })} testId="block-mode" />
               <Length key={block.mode} label={t('blocks.depth')} value={block.depth} onChange={(depth) => setBlock({ ...block, depth })} testId="block-depth" />
               <Length key={widened} label={t('blocks.width')} value={block.width} onChange={(width) => setBlock({ ...block, width })} testId="block-width" />
               <div className="col-span-2">
@@ -482,9 +503,16 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               />
               <Length label={t('blocks.catchDepth')} value={block.catchDepth} onChange={(catchDepth) => setBlock({ ...block, catchDepth })} testId="block-catch-depth" />
               <Length label={t('blocks.catchLength')} value={block.catchLength} onChange={(catchLength) => setBlock({ ...block, catchLength })} testId="block-catch-length" />
-              <p className={`col-span-2 text-xs ${snapStrain(block) > SNAP_STRAIN_LIMIT ? 'text-warning' : 'text-text-subtle'}`} data-testid="block-strain">
-                {t(snapStrain(block) > SNAP_STRAIN_LIMIT ? 'blocks.strainHigh' : 'blocks.strain', { strain: snapStrain(block).toLocaleString(i18n.language, { maximumFractionDigits: 1 }) })}
+              {/* Over what the material takes the block is refused (blockLimit, in the status); the line names both limits (audit T18, MV-12). */}
+              <p className="col-span-2 text-xs text-text-subtle" data-testid="block-strain">
+                {t(strainLimit.fibre ? 'blocks.strainFibre' : strainLimit.known ? 'blocks.strain' : 'blocks.strainUnknown', { strain: snapStrain(block).toLocaleString(i18n.language, { maximumFractionDigits: 1 }), most: strainLimit.strain, often: strainLimit.often, material: strainLimit.known ? strainLimit.type : strainLimit.name, fallback: strainLimit.type, share: FIBRE_SHARE })}
               </p>
+              {/* An arm standing upright as designed bends across its layers (audit R31, S-13; review of BC-17 S4). */}
+              {standsUpright(block.normal) ? (
+                <p className="col-span-2 text-xs text-warning" data-testid="block-upright">
+                  {t('blocks.snapUpright', { least: UPRIGHT_BREAK.least, most: UPRIGHT_BREAK.most })}
+                </p>
+              ) : null}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2" key={block.block}>
@@ -494,13 +522,13 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
               {block.type === 'groove' ? <Length label={t('blocks.gap')} value={block.gap} onChange={(gap) => setBlock({ ...block, gap })} testId="block-gap" /> : null}
             </div>
           )}
-          <p className="text-xs text-text-subtle">{t(`blocks.hint.${block.block}`)}</p>
+          <p className="text-xs text-text-subtle">{t(`blocks.hint.${block.block}`, { thread: THREAD_ALLOWANCE, shrink: holeRoom(3, printer.material), room: 2 * fitClearance('push', printer), din: (NUT_DIN_FLATS.M10 ?? 17) + 2 * fitClearance('push', printer), head: HEAD_ALLOWANCE.diameter, layer: printer.layer, depth: textDepth(printer), stroke: textStroke(printer) })}</p>
           {waiting ? (
             <p className="text-xs text-text-muted" role="status" data-testid="block-status">
               {t('blocks.logoWaiting')}
             </p>
           ) : (
-            <ProbeStatus state={!tried ? 'probing' : tried.ok ? 'ready' : 'refused'} error={tried?.error} ready={tried?.unmeasured ? t('blocks.unmeasured') : t('blocks.ready')} testId="block-status" />
+            <ProbeStatus state={!tried ? 'probing' : tried.ok ? 'ready' : 'refused'} error={tried?.error} ready={`${tried?.unmeasured ? t('blocks.unmeasured') : t('blocks.ready')}${block.block === 'text' && !strokesKnown(block) ? ` ${t('blocks.strokeUnchecked')}` : ''}${rootNote(tried?.root, t)}`} testId="block-status" />
           )}
           <div className="flex gap-2">
             <Button variant="primary" isDisabled={busy || !tried?.ok} onPress={apply} className="flex-1" data-testid="block-apply">

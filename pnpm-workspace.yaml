@@ -20,3 +20,11 @@ allowBuilds:
 # still requests ^10.2. ESLint is a development tool; the CI lint job shows that it still works.
 overrides:
   minimatch: 11.0.3
+
+# drei's <Line> disposed its material whenever its points changed, so every revision of a design compiled
+# the edge shaders again (about a second of the renderer per revision in software WebGL). Still so in
+# 10.7.9, the newest version: drop the patch once drei keeps the material. The patch is in core/Line.js (and
+# core/Line.cjs.js); drei's index.cjs.js bundles its own unpatched copy, but Vite takes `module` (index.js),
+# which imports core/Line.js.
+patchedDependencies:
+  '@react-three/drei@10.7.9': patches/react-three-drei-10.7.9.patch

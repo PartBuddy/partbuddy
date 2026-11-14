@@ -14,7 +14,11 @@
  * (0.40.0-rc.4), so no occurrence id has to be read first.
  */
 
-import { hingeSteps, lipSteps, pinDiameter, printTogether, slideSteps } from './mechanisms';
+import { printInPlaceGap, type FitPrinter } from './designFit';
+import { DEFAULT_PRINTER, drawnHole, type ToolPrinter } from './toolFit';
+import { hingeDiameter, hingeProblem, hingeSteps, lipSteps, pinDiameter, printTogether, slideSteps, type HingeSpec } from './mechanisms';
+import { CLEARANCE_NORMAL } from './screwSizes';
+import { wallSizes } from './wallMount';
 
 export const TEMPLATE_IDS = ['hingedBox', 'slideStop', 'housing', 'sign', 'wallHolder'] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
@@ -47,11 +51,14 @@ const joint = (type: 'revolute' | 'slider', fixed: string, moving: string, on: {
  * middle of the long side and on the rim when the sizes change. Its knuckles start 12 mm above the
  * bed and stand on the webs of the mechanism tool, down to the walls of their halves.
  */
-function hingedBox(): Step[] {
+function hingedBox(printer: FitPrinter): Step[] {
   // The room between the halves; the hinge line runs in its middle, within reach of both walls.
   const between = 1;
   const [length, width, height, hinge] = [60, 40, 16, 40];
-  const [diameter, gap, knuckles] = [8, 0.4, 5];
+  // The hinge for the printer in use, as the mechanism tool builds it (audit T28, BC-10 open 5): the print-in-place gap of
+  // its nozzle (0.4 mm on 0.4) and a barrel of 8 mm, wider where two lines round the bore and four layers over its roof need it.
+  const gap = printInPlaceGap(printer);
+  const [diameter, knuckles] = [Math.max(8, hingeDiameter(gap, true, printer) ?? 8), 5];
   const start = (length - hinge) / 2;
   const knuckle = (hinge - (knuckles - 1) * gap) / knuckles;
   const pin = pinDiameter(diameter);
@@ -61,6 +68,10 @@ function hingedBox(): Step[] {
   const front = between + width;
   // The wall at the start.
   const wall0 = 2.4;
+  const spec: HingeSpec = { fixed: 'Box', moving: 'Lid', from: [start, between / 2, height], to: [start + hinge, between / 2, height], diameter, gap, knuckles, name: 'Hinge', support: { bed: 0, fixed: { toward: [0, -1, 0], distance: between / 2 }, moving: { toward: [0, 1, 0], distance: between / 2 } } };
+  // What the mechanism tool refuses, the template does not build either.
+  const problem = hingeProblem(spec, printer);
+  if (problem) throw new Error(`the hinged box's hinge does not print on a ${String(printer.nozzle)} mm nozzle with ${String(printer.layer)} mm layers: ${problem}`);
   const shell = (body: string, y: Expr, y0: number, feature: (name: string) => string): Step[] => [
     { command: 'solid.box', params: { length: 'length', width: 'width', height: 'height', corner: [0, y, 0], operation: 'new', body_name: body, name: body } },
     // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
@@ -69,11 +80,11 @@ function hingedBox(): Step[] {
     { command: 'solid.chamfer', params: { edges: [[length / 2, y0, 0]], distance: '0.6 mm', body, name: feature('bed chamfer') } },
   ];
   return [
-    parameter('length', '60 mm', 'Outer length of box and lid; at least 54 mm, the hinge is 40 mm long'),
-    parameter('width', '40 mm', 'Outer width of box and lid'),
-    parameter('height', '16 mm', 'Height of each half; closed, the box is twice as high. At least 8 mm: the webs under the hinge reach 6.2 mm below the rim'),
-    parameter('wall', '2.4 mm', 'Wall and floor thickness'),
-    parameter('corner', '5 mm', 'Radius of the outer corners of box and lid; at least 2 mm more than the wall'),
+    parameter('length', '60 mm', 'Outer length of box and lid; the hinge is 40 mm long [54..200]'),
+    parameter('width', '40 mm', 'Outer width of box and lid; narrower, the bead meets the rim of the box more than 6° before the lid is shut [32..150]'),
+    parameter('height', '16 mm', 'Height of each half; closed, the box is twice as high, and the lip of the lid reaches 4 mm into the box above its floor [8..60]'),
+    parameter('wall', '2.4 mm', 'Wall and floor thickness; the rille of the closure goes 0.45 mm into the wall of the box, and the rooms of the knuckles open through a wall up to 3 mm [1.6..3]'),
+    parameter('corner', '5 mm', 'Radius of the outer corners of box and lid; rounder, the corners reach the knuckles of the hinge [4..7]'),
     ...shell('Box', '-width', -width, (name) => `Box ${name}`),
     ...shell('Lid', between, between, (name) => `Lid ${name}`),
     // The snap closure of the mechanism tool on the lid's inner room, the catch on the front, away from the hinge:
@@ -87,13 +98,15 @@ function hingedBox(): Step[] {
       up: 1,
       radius: { at: 5 - wall0, expr: 'corner - wall' },
       wall: { at: wall0, expr: 'wall' },
+      floor: { at: wall0, expr: 'wall' },
       side: 'y+',
       hinge: { along: 'x', across: between / 2, z: { at: height, expr: 'height' } },
+      nozzle: printer.nozzle,
       name: 'Closure',
     }),
     // The hinge of the mechanism tool, built at the starting sizes, then tied to the parameters.
     // The walls of both halves stand half the room between them from the line, down to the bed: every knuckle gets its web.
-    ...hingeSteps({ fixed: 'Box', moving: 'Lid', from: [start, between / 2, height], to: [start + hinge, between / 2, height], diameter, gap, knuckles, name: 'Hinge', support: { bed: 0, fixed: { toward: [0, -1, 0], distance: between / 2 }, moving: { toward: [0, 1, 0], distance: between / 2 } } }).map((step, i, steps) => {
+    ...hingeSteps(spec).map((step, i, steps) => {
       // The profiles (the bore's roof, the webs and their rooms, the pin's flat) are drawn in the world's own y and z and
       // moved along x, so they follow the sizes as the cylinders do. One drawn looking back along x is turned round:
       // it starts where its extrusion ended. No web is drawn below the bed, however low the halves are set.
@@ -121,9 +134,12 @@ function hingedBox(): Step[] {
  * the mechanism tool, and a stop that slides on it and is clamped by a screw in a heat-set insert.
  * The stop prints beside the base (plate view) and is pushed onto the rail from an end.
  */
-function slideStop(): Step[] {
-  // The base is 6 mm thick: the rail's sketch stands on its top, and a sketch plane takes no expression.
-  const [length, baseWidth, thick, gap] = [120, 40, 6, 0.4];
+function slideStop(printer: ToolPrinter): Step[] {
+  // Holes as the blocks draw them (BC-16 review S3): wider by the material's hole allowance; the insert's hole at its maker's size.
+  const screw = wallSizes(4, printer.material);
+  // The base is 6 mm thick: the rail's sketch stands on its top, and a sketch plane takes no expression. The guide's gap is
+  // the mechanism tool's for a slide: the nozzle's print-in-place gap (audit T28: 0.4 mm on every nozzle before).
+  const [length, baseWidth, thick, gap] = [120, 40, 6, printInPlaceGap(printer)];
   const screws: [Expr, Expr][] = [
     ['length * 0.15', '-(base_width / 2 - 7 mm)'],
     ['length * 0.85', 'base_width / 2 - 7 mm'],
@@ -134,8 +150,9 @@ function slideStop(): Step[] {
     parameter('base_width', '40 mm', 'Width of the base; the stop is 24 mm wide'),
     parameter('stop_length', '30 mm', 'Length of the stop along the rail'),
     parameter('stop_height', '20 mm', 'Height of the stop above the base'),
-    parameter('screw_hole', '4.5 mm', 'Holes in the base for 4 mm wood screws'),
-    parameter('screw_head', '9 mm', 'Diameter of the counterbore for their heads, so the stop passes over them'),
+    // The 4 mm wood screw of the wall mountings (audit T43: 4.5 and 9 here, 4.7 and 8.8 there): its hole, and its head with 0.5 mm per side.
+    parameter('screw_hole', `${String(screw.clearance)} mm`, 'Holes in the base for 4 mm wood screws, drawn with the hole allowance of the material'),
+    parameter('screw_head', `${String(screw.entry)} mm`, 'Diameter of the counterbore for their heads, so the stop passes over them'),
     parameter('clamp_hole', '5.6 mm', 'Hole in the stop for an M4 heat-set insert; its screw clamps the stop on the rail'),
     { command: 'solid.box', params: { length: 'length', width: 'base_width', height: `${String(thick)} mm`, corner: [0, '-base_width / 2', 0], operation: 'new', body_name: 'Base', name: 'Base' } },
     // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
@@ -164,24 +181,35 @@ function slideStop(): Step[] {
   ];
 }
 
+/** How far in from its ends the sign's screw holes stand (mm); its words keep 1 mm clear of them. */
+const SIGN_HOLE_IN = 6;
+/** What of the sign's length its words may not take: both holes and 1 mm beside each (audit T56). */
+const SIGN_ROOM = Math.round(2 * (SIGN_HOLE_IN + CLEARANCE_NORMAL.M3 / 2 + 1) * 10) / 10;
+const SIGN_LABEL = `The words on the sign; they must fit between the screw holes, the length less ${String(SIGN_ROOM)} mm: a letter takes about 0.8 times the text height, a capital about 1, a W 1.3`;
+
 /**
  * A sign to screw on: a door, a drawer, a shelf. Its words are a text parameter, so the parameter
  * panel relabels it; the raised letters stay in the middle of the plate.
  */
-function sign(): Step[] {
+function sign(printer: ToolPrinter): Step[] {
   const [length, width] = [80, 25];
   return [
-    { command: 'parameters.add', params: { name: 'label', expression: 'PartBuddy', unit: 'text', comment: 'The words on the sign' } },
+    // Measured on SolidCraft 0.40.1 (2026-11-13), Arial bold at 9 mm capitals: "PartBuddy" 62.5 mm, 30 capitals 260.6 mm,
+    // "Werkzeug Schublade 3" 136.4 mm, ten W 118.7 mm. Between the screw holes and 1 mm clear of them the words have
+    // the length less SIGN_ROOM.
+    // shortcut: SolidCraft's expressions cannot measure a text, so nothing refuses words too long; the print check finds
+    // letters past the plate or over a hole as an overhang. Fit the height to the words when SolidCraft can measure them.
+    { command: 'parameters.add', params: { name: 'label', expression: 'PartBuddy', unit: 'text', comment: SIGN_LABEL } },
     parameter('length', '80 mm', 'Length of the sign'),
     parameter('width', '25 mm', 'Width of the sign'),
     parameter('thickness', '3 mm', 'Thickness of the plate'),
-    parameter('text_height', '9 mm', 'Height of the capital letters'),
-    parameter('screw_hole', '3.4 mm', 'Holes for M3 screws (ISO 273, normal)'),
+    parameter('text_height', '9 mm', 'Height of the capital letters; from 4 mm their strokes are two lines of a 0.4 mm nozzle, and with descenders the words are 1.3 times as high [4..18]'),
+    parameter('screw_hole', `${String(drawnHole(CLEARANCE_NORMAL.M3, printer.material))} mm`, 'Holes for M3 screws (ISO 273, normal), drawn with the hole allowance of the material'),
     { command: 'solid.box', params: { length: 'length', width: 'width', height: 'thickness', operation: 'new', body_name: 'Sign', name: 'Plate' } },
     // Edges by a point on them at the starting sizes; SolidCraft follows them when the sizes change.
     { command: 'solid.fillet', params: { edges: [[0, 0, 1.5], [length, 0, 1.5], [0, width, 1.5], [length, width, 1.5]], radius: '4 mm', name: 'Outer corners' } },
     { command: 'solid.chamfer', params: { edges: [[length / 2, 0, 0]], distance: '0.6 mm', name: 'Bed chamfer' } },
-    ...(['6 mm', 'length - 6 mm'] as const).map((x, i) => ({
+    ...[`${String(SIGN_HOLE_IN)} mm`, `length - ${String(SIGN_HOLE_IN)} mm`].map((x, i) => ({
       command: 'solid.cylinder',
       params: { diameter: 'screw_hole', height: 'thickness', base: [x, 'width / 2', 0], operation: 'cut', name: `Screw hole ${String(i + 1)}` },
     })),
@@ -192,17 +220,21 @@ function sign(): Step[] {
   ];
 }
 
-/** A slot through a housing ear at x: a box with a round end on both sides, so the screw can shift 4.5 mm along the wall. */
-function earSlot(x: string, n: number): Step[] {
+/**
+ * A slot through a housing ear at x: a box with a round end on both sides, so the screw can shift 4.5 mm along the wall; 4.5 mm
+ * wide (an M4's normal hole) as printed, drawn `wide`.
+ */
+function earSlot(x: string, n: number, wide: number): Step[] {
   const cut = { operation: 'cut', targets: ['Housing'] };
+  const w = `${String(wide)} mm`;
   return [
-    { command: 'solid.box', params: { length: '4.5 mm', width: '4.5 mm', height: '6 mm', corner: [x + ' - 2.25 mm', 'width / 2 - 2.25 mm', '-1 mm'], ...cut, name: 'Ear slot ' + String(n) } },
-    { command: 'solid.cylinder', params: { diameter: '4.5 mm', height: '6 mm', base: [x, 'width / 2 - 2.25 mm', '-1 mm'], ...cut, name: 'Ear slot ' + String(n) + ' end 1' } },
-    { command: 'solid.cylinder', params: { diameter: '4.5 mm', height: '6 mm', base: [x, 'width / 2 + 2.25 mm', '-1 mm'], ...cut, name: 'Ear slot ' + String(n) + ' end 2' } },
+    { command: 'solid.box', params: { length: w, width: '4.5 mm', height: '6 mm', corner: [`${x} - ${String(wide / 2)} mm`, 'width / 2 - 2.25 mm', '-1 mm'], ...cut, name: 'Ear slot ' + String(n) } },
+    { command: 'solid.cylinder', params: { diameter: w, height: '6 mm', base: [x, 'width / 2 - 2.25 mm', '-1 mm'], ...cut, name: 'Ear slot ' + String(n) + ' end 1' } },
+    { command: 'solid.cylinder', params: { diameter: w, height: '6 mm', base: [x, 'width / 2 + 2.25 mm', '-1 mm'], ...cut, name: 'Ear slot ' + String(n) + ' end 2' } },
   ];
 }
 
-function housing(): Step[] {
+function housing(printer: ToolPrinter): Step[] {
   // The bosses reach half a millimetre into both walls, so they join them in a face, not a line.
   const c = '(wall + boss / 2 - 0.5 mm)';
   const corners: [Expr, Expr][] = [
@@ -221,7 +253,7 @@ function housing(): Step[] {
     parameter('boss', '8 mm', 'Diameter of the screw bosses in the corners'),
     parameter('insert_hole', '4 mm', 'Hole for an M3 heat-set insert (ruthex: 4 mm)'),
     parameter('insert_depth', '6.7 mm', 'Depth of that hole: insert length plus 1 mm'),
-    parameter('screw_hole', '3.4 mm', 'Hole in the lid for the M3 screws (ISO 273, normal)'),
+    parameter('screw_hole', `${String(drawnHole(CLEARANCE_NORMAL.M3, printer.material))} mm`, 'Hole in the lid for the M3 screws (ISO 273, normal), drawn with the hole allowance of the material'),
     parameter('corner', '6 mm', 'Radius of the outer corners of housing and lid'),
     parameter('ear', '12 mm', 'How far the screw ears reach out on the short sides'),
     { command: 'solid.box', params: { length: 'length', width: 'width', height: 'height', operation: 'new', body_name: 'Housing', name: 'Housing' } },
@@ -245,8 +277,8 @@ function housing(): Step[] {
     })),
     { command: 'solid.fillet', params: { edges: [[-12, 19, 2], [-12, 41, 2], [92, 19, 2], [92, 41, 2]], radius: '5 mm', body: 'Housing', name: 'Ear corners' } },
     { command: 'solid.fillet', params: { edges: [[-12, 30, 4], [92, 30, 4]], radius: '1 mm', body: 'Housing', name: 'Ear edges' } },
-    ...earSlot('-ear / 2', 1),
-    ...earSlot('length + ear / 2', 2),
+    ...earSlot('-ear / 2', 1, drawnHole(4.5, printer.material)),
+    ...earSlot('length + ear / 2', 2, drawnHole(4.5, printer.material)),
     ...corners.map(([x, y], i) => ({ command: 'solid.cylinder', params: { diameter: 'boss', height: 'height - wall', base: [x, y, 'wall'], operation: 'join', targets: ['Housing'], name: `Boss ${String(i + 1)}` } })),
     ...corners.map(([x, y], i) => ({
       command: 'solid.cylinder',
@@ -271,15 +303,18 @@ function housing(): Step[] {
   ];
 }
 
-function wallHolder(): Step[] {
+function wallHolder(printer: ToolPrinter): Step[] {
+  const screw = wallSizes(4, printer.material);
   return [
-    parameter('plate_height', '100 mm', 'Height of the plate on the wall'),
-    parameter('plate_width', '50 mm', 'Width of the holder'),
-    parameter('wall', '6 mm', 'Thickness of plate, floor and lip'),
-    parameter('hook_width', '40 mm', 'Room between plate and lip'),
-    parameter('lip_height', '25 mm', 'Height of the front lip'),
-    parameter('screw_hole', '4.5 mm', 'Hole for the wall screws (4 mm wood screws)'),
-    parameter('screw_head', '9 mm', 'Diameter of the countersink for their heads'),
+    // The ranges keep the inner rounds, as large as the wall, inside the floor, the lip and the plate, with the floor's slot
+    // between them (review of BC-07: hook_width 10 and lip_height 10 at a wall of 6 did not build), and both screws above them.
+    parameter('plate_height', '100 mm', 'Height of the plate on the wall [60..200]'),
+    parameter('plate_width', '50 mm', 'Width of the holder [30..150]'),
+    parameter('wall', '6 mm', 'Thickness of plate, floor and lip; the inner corners are rounded by as much [4..8]'),
+    parameter('hook_width', '40 mm', 'Room between plate and lip [30..120]'),
+    parameter('lip_height', '25 mm', 'Height of the front lip [20..60]'),
+    parameter('screw_hole', `${String(screw.clearance)} mm`, 'Hole for the wall screws (4 mm wood screws), drawn with the hole allowance of the material'),
+    parameter('screw_head', `${String(screw.countersink)} mm`, 'Diameter of the countersink for their heads'),
     { command: 'solid.box', params: { length: 'plate_width', width: 'wall', height: 'plate_height', operation: 'new', body_name: 'Wall holder', name: 'Plate' } },
     {
       command: 'solid.box',
@@ -292,40 +327,47 @@ function wallHolder(): Step[] {
     { command: 'sketch.point', params: { point: ['-plate_width / 2', 'plate_height * 0.8'] } },
     { command: 'sketch.point', params: { point: ['-plate_width / 2', 'plate_height * 0.4'] } },
     { command: 'solid.hole', params: { sketch: 'Screw points', diameter: 'screw_hole', type: 'countersink', cs_diameter: 'screw_head', cs_angle: '90 deg', name: 'Countersunk holes' } },
-    // Edges by a point on them; SolidCraft follows them when the sizes change.
-    { command: 'solid.fillet', params: { edges: [[25, 6, 6]], radius: '2 mm', name: 'Inner radius' } },
-    { command: 'solid.fillet', params: { edges: [[0, 3, 100], [50, 3, 100]], radius: '5 mm', name: 'Outer corners' } },
-    { command: 'solid.fillet', params: { edges: [[0, 49, 25], [50, 49, 25]], radius: '3 mm', name: 'Lip corners' } },
+    // Edges by a point on them; SolidCraft follows them when the sizes change. Both inner corners of the hook as round as
+    // its wall is thick, as the hook rule asks (audit T29: 2 mm at a wall of 6). The holder prints lying on its side, so the
+    // corners of plate and lip on that side are chamfered at 45°, where a round would start in the air; those on the far
+    // side (x = plate_width, on top as it prints) are chamfered alike, so both sides look the same.
+    { command: 'solid.fillet', params: { edges: [[25, 6, 6], [25, 46, 6]], radius: 'wall', name: 'Inner radius' } },
+    { command: 'solid.chamfer', params: { edges: [[0, 3, 100], [50, 3, 100]], distance: '5 mm', name: 'Outer corners' } },
+    { command: 'solid.chamfer', params: { edges: [[0, 49, 25], [50, 49, 25]], distance: '3 mm', name: 'Lip corners' } },
     { command: 'solid.fillet', params: { edges: [[25, 52, 0]], radius: '5 mm', name: 'Outer bend' } },
     { command: 'solid.fillet', params: { edges: [[25, 46, 25], [25, 52, 25], [25, 6, 100]], radius: '1.2 mm', name: 'Soft edges' } },
     // A slot in the floor: water runs out, a cable can pass.
     { command: 'solid.box', params: { length: 'plate_width * 0.4', width: '6 mm', height: 'wall + 2 mm', corner: ['plate_width * 0.3', 'wall + hook_width / 2 - 3 mm', '-1 mm'], operation: 'cut', name: 'Floor slot' } },
     { command: 'solid.cylinder', params: { diameter: '6 mm', height: 'wall + 2 mm', base: ['plate_width * 0.3', 'wall + hook_width / 2', '-1 mm'], operation: 'cut', name: 'Floor slot end 1' } },
     { command: 'solid.cylinder', params: { diameter: '6 mm', height: 'wall + 2 mm', base: ['plate_width * 0.7', 'wall + hook_width / 2', '-1 mm'], operation: 'cut', name: 'Floor slot end 2' } },
+    // On its side, as the hook rule asks: the load then runs along the layers round both bends (audit T29: it stood as
+    // drawn, the layers across the bend at the plate).
+    { command: 'body.print_face', params: { body: 'Wall holder', point: [0, 3, 50] } },
   ];
 }
 
-const BUILDERS: Record<TemplateId, () => Step[]> = { hingedBox, slideStop, housing, sign, wallHolder };
+const BUILDERS: Record<TemplateId, (printer: ToolPrinter) => Step[]> = { hingedBox, slideStop, housing, sign, wallHolder };
 
 /** The parameter comments in German (polish round 2); names stay the same, so expressions and the assistant find them. */
 const GERMAN: Record<string, string> = {
-  'Outer length of box and lid; at least 54 mm, the hinge is 40 mm long': 'Außenlänge von Box und Deckel; mindestens 54 mm, das Scharnier ist 40 mm lang',
-  'Outer width of box and lid': 'Außenbreite von Box und Deckel',
+  'Outer length of box and lid; the hinge is 40 mm long [54..200]': 'Außenlänge von Box und Deckel; das Scharnier ist 40 mm lang [54..200]',
+  'Outer width of box and lid; narrower, the bead meets the rim of the box more than 6° before the lid is shut [32..150]': 'Außenbreite von Box und Deckel; schmaler trifft der Wulst den Rand der Box mehr als 6° vor dem Schließen [32..150]',
   'Length of base and rail': 'Länge von Grundplatte und Schiene',
   'Width of the base; the stop is 24 mm wide': 'Breite der Grundplatte; der Anschlag ist 24 mm breit',
   'Length of the stop along the rail': 'Länge des Anschlags entlang der Schiene',
   'Height of the stop above the base': 'Höhe des Anschlags über der Grundplatte',
-  'Holes in the base for 4 mm wood screws': 'Löcher in der Grundplatte für 4-mm-Holzschrauben',
+  "Holes in the base for 4 mm wood screws, drawn with the hole allowance of the material": 'Löcher in der Grundplatte für 4-mm-Holzschrauben, mit dem Lochaufmaß des Materials gezeichnet',
   'Diameter of the counterbore for their heads, so the stop passes over them': 'Durchmesser der Senkung für ihre Köpfe, damit der Anschlag darüber fährt',
   'Hole in the stop for an M4 heat-set insert; its screw clamps the stop on the rail': 'Loch im Anschlag für eine M4-Einschmelzmutter; ihre Schraube klemmt den Anschlag auf der Schiene',
-  'The words on the sign': 'Der Text auf dem Schild',
+  [SIGN_LABEL]: `Der Text auf dem Schild; er muss zwischen die Schraublöcher passen, die Länge weniger ${String(SIGN_ROOM).replace('.', ',')} mm: ein Buchstabe braucht etwa das 0,8-Fache der Schrifthöhe, ein Großbuchstabe etwa das 1-Fache, ein W das 1,3-Fache`,
   'Length of the sign': 'Länge des Schilds',
   'Width of the sign': 'Breite des Schilds',
   'Thickness of the plate': 'Stärke der Platte',
-  'Height of the capital letters': 'Höhe der Großbuchstaben',
-  'Holes for M3 screws (ISO 273, normal)': 'Löcher für M3-Schrauben (ISO 273, mittel)',
-  'Height of each half; closed, the box is twice as high. At least 8 mm: the webs under the hinge reach 6.2 mm below the rim': 'Höhe jeder Hälfte; geschlossen ist die Box doppelt so hoch. Mindestens 8 mm: die Stege unter dem Scharnier reichen 6,2 mm unter den Rand',
-  'Wall and floor thickness': 'Stärke von Wand und Boden',
+  'Height of the capital letters; from 4 mm their strokes are two lines of a 0.4 mm nozzle, and with descenders the words are 1.3 times as high [4..18]':
+    'Höhe der Großbuchstaben; ab 4 mm sind ihre Striche zwei Bahnen einer 0,4-mm-Düse, und mit Unterlängen ist der Text 1,3-mal so hoch [4..18]',
+  "Holes for M3 screws (ISO 273, normal), drawn with the hole allowance of the material": 'Löcher für M3-Schrauben (ISO 273, mittel), mit dem Lochaufmaß des Materials gezeichnet',
+  'Height of each half; closed, the box is twice as high, and the lip of the lid reaches 4 mm into the box above its floor [8..60]': 'Höhe jeder Hälfte; geschlossen ist die Box doppelt so hoch, und die Lippe des Deckels reicht 4 mm in die Box über ihrem Boden [8..60]',
+  'Wall and floor thickness; the rille of the closure goes 0.45 mm into the wall of the box, and the rooms of the knuckles open through a wall up to 3 mm [1.6..3]': 'Stärke von Wand und Boden; die Rille des Verschlusses geht 0,45 mm in die Wand der Box, und die Räume der Scharnieraugen gehen durch eine Wand bis 3 mm [1,6..3]',
   'Wall, floor and lid thickness': 'Stärke von Wand, Boden und Deckel',
   'Outer length of housing and lid': 'Außenlänge von Gehäuse und Deckel',
   'Outer width of housing and lid': 'Außenbreite von Gehäuse und Deckel',
@@ -333,16 +375,16 @@ const GERMAN: Record<string, string> = {
   'Diameter of the screw bosses in the corners': 'Durchmesser der Schraubdome in den Ecken',
   'Hole for an M3 heat-set insert (ruthex: 4 mm)': 'Loch für eine M3-Einschmelzmutter (ruthex: 4 mm)',
   'Depth of that hole: insert length plus 1 mm': 'Tiefe dieses Lochs: Länge der Mutter plus 1 mm',
-  'Hole in the lid for the M3 screws (ISO 273, normal)': 'Loch im Deckel für die M3-Schrauben (ISO 273, mittel)',
-  'Radius of the outer corners of box and lid; at least 2 mm more than the wall': 'Radius der Außenecken von Box und Deckel; mindestens 2 mm mehr als die Wand',
+  "Hole in the lid for the M3 screws (ISO 273, normal), drawn with the hole allowance of the material": 'Loch im Deckel für die M3-Schrauben (ISO 273, mittel), mit dem Lochaufmaß des Materials gezeichnet',
+  'Radius of the outer corners of box and lid; rounder, the corners reach the knuckles of the hinge [4..7]': 'Radius der Außenecken von Box und Deckel; runder reichen die Ecken an die Augen des Scharniers [4..7]',
   'Radius of the outer corners of housing and lid': 'Radius der Außenecken von Gehäuse und Deckel',
   'How far the screw ears reach out on the short sides': 'Wie weit die Schraublaschen an den Schmalseiten abstehen',
-  'Height of the plate on the wall': 'Höhe der Platte an der Wand',
-  'Width of the holder': 'Breite des Halters',
-  'Thickness of plate, floor and lip': 'Stärke von Platte, Boden und Rand',
-  'Room between plate and lip': 'Platz zwischen Platte und Rand',
-  'Height of the front lip': 'Höhe des vorderen Rands',
-  'Hole for the wall screws (4 mm wood screws)': 'Loch für die Wandschrauben (4-mm-Holzschrauben)',
+  'Height of the plate on the wall [60..200]': 'Höhe der Platte an der Wand [60..200]',
+  'Width of the holder [30..150]': 'Breite des Halters [30..150]',
+  'Thickness of plate, floor and lip; the inner corners are rounded by as much [4..8]': 'Stärke von Platte, Boden und Rand; die Innenecken sind ebenso stark gerundet [4..8]',
+  'Room between plate and lip [30..120]': 'Platz zwischen Platte und Rand [30..120]',
+  'Height of the front lip [20..60]': 'Höhe des vorderen Rands [20..60]',
+  "Hole for the wall screws (4 mm wood screws), drawn with the hole allowance of the material": 'Loch für die Wandschrauben (4-mm-Holzschrauben), mit dem Lochaufmaß des Materials gezeichnet',
   'Diameter of the countersink for their heads': 'Durchmesser der Senkung für ihre Köpfe',
 };
 
@@ -397,7 +439,7 @@ const GERMAN_FEATURES: Record<string, string> = {
 
 /** "Ear slot 2 end 1" → "Laschenschlitz 2 Ende 1": the base from the list, numbers and a mechanism's mark (·, ○, ● …) kept. */
 export function germanFeatureName(name: string): string {
-  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)((?: [·○●◢◆◠△◣◤▬])?)$/.exec(name);
+  const match = /^(.*?)((?: \d+)?)((?: end \d+)?)((?: [·○●◢◆◠△◣◤▬▭◥])?)$/.exec(name);
   const base = match?.[1] ?? name;
   const german = GERMAN_FEATURES[base];
   if (german === undefined) return name;
@@ -424,13 +466,18 @@ function inGerman(step: Step): Step {
   return { ...step, params };
 }
 
-/** The SolidCraft script of a template: its parameters first, then the geometry over them; in German on request. */
-export function templateSteps(id: TemplateId, german = false): Step[] {
-  const steps = BUILDERS[id]();
+/**
+ * The SolidCraft script of a template for the printer in use: its parameters first, then the geometry over them; in German
+ * on request. Gaps of its mechanisms follow the printer (audit T28); a hinge that does not print on it throws.
+ * shortcut: walls (2.4 and 2 mm) stay as they are, not on the printer's grid of lines and without an [auto] mark, so a
+ * change of printer does not refit them; mark them once the templates' preview pictures are rendered again.
+ */
+export function templateSteps(id: TemplateId, german = false, printer: ToolPrinter = DEFAULT_PRINTER): Step[] {
+  const steps = BUILDERS[id](printer);
   return german ? steps.map(inGerman) : steps;
 }
 
 /** The print faces a template's script sets, by body and a point on the face: PartBuddy keeps them for its plate view as well. */
-export function templatePrintFaces(id: TemplateId, german = false): { body: string; point: [number, number, number] }[] {
-  return templateSteps(id, german).flatMap((step) => (step.command === 'body.print_face' ? [{ body: step.params.body as string, point: step.params.point as [number, number, number] }] : []));
+export function templatePrintFaces(id: TemplateId, german = false, printer: ToolPrinter = DEFAULT_PRINTER): { body: string; point: [number, number, number] }[] {
+  return templateSteps(id, german, printer).flatMap((step) => (step.command === 'body.print_face' ? [{ body: step.params.body as string, point: step.params.point as [number, number, number] }] : []));
 }

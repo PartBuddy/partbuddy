@@ -1,5 +1,8 @@
-import { FIT_KINDS, type FitKind, type MaterialProfile } from './contract';
-import { CLEARANCE_NOZZLE } from './designFit';
+import { FIT_KINDS, fitsInOrder, type FitKind, type MaterialProfile } from './contract';
+import { CLEARANCE_NOZZLE, scaleClearance } from './designFit';
+import { HOLE_SIZES, toStep } from './holePlate';
+
+export { COMPENSATED_CIRCLE, holeAllowance, HOLE_SIZES, LARGEST_HOLE, PRINT_UNDERSIZE, toStep } from './holePlate';
 
 /**
  * The steps of the test pieces the tolerance assistant makes (decided 2026-11-08): the clearance per
@@ -7,7 +10,6 @@ import { CLEARANCE_NOZZLE } from './designFit';
  * user reads off the printed pieces becomes the material's values; nothing else of the profile.
  */
 export const FIT_STEPS = [-0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5] as const;
-export const HOLE_SIZES = [3, 5, 8, 10] as const;
 export const OVERHANG_STEPS = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70] as const;
 
 /** What the user read off the prints; a value left out keeps the material's own. */
@@ -20,9 +22,12 @@ export interface ToleranceReadings {
   overhang: number | null;
 }
 
-export type ReadingProblem = { field: 'fit'; fit: FitKind } | { field: 'hole'; size: number } | { field: 'overhang' } | { field: 'order' };
+/**
+ * What is wrong with the readings; each keeps the profile from being applied, but `oversize`: the holes came out larger
+ * than drawn by `by` mm on average, which no allowance can take (it is 0 to 1 mm), so it is said and the allowance is 0.
+ */
+export type ReadingProblem = { field: 'fit'; fit: FitKind } | { field: 'hole'; size: number } | { field: 'overhang' } | { field: 'order' } | { field: 'oversize'; by: number };
 
-const toStep = (value: number) => Math.round(value * 20) / 20;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const isStep = (steps: readonly number[], value: number) => steps.some((step) => Math.abs(step - value) < 1e-9);
 
@@ -30,25 +35,27 @@ const isStep = (steps: readonly number[], value: number) => steps.some((step) =>
  * The material with the readings applied: the fits and the overhang as read, the hole allowance as
  * the mean of nominal minus measured over the holes given, on 0.05 mm. Within the profile's limits;
  * a reading that is no step, or a hole more than 1 mm off its size, is a problem and changes nothing.
- * Fits that do not grow from clamp to turn are a problem too: the user read a step wrong.
+ * Fits that do not grow from clamp to turn are a problem too, the ones not read included (audit T33):
+ * the user read a step wrong. Holes larger than drawn give an allowance of 0 and say so (audit MG-31).
  * The fits are read on the pieces printed with `nozzle` and hold for it: the profile remembers that
- * nozzle, and the fits that were not read are brought over to it, so all four mean the same nozzle.
+ * nozzle, and the fits that were not read are brought over to it with `scaleClearance`, so all four
+ * mean the same nozzle.
  */
 export function applyReadings(material: MaterialProfile, readings: ToleranceReadings, nozzle?: number): { material: MaterialProfile; problems: ReadingProblem[] } {
   const problems: ReadingProblem[] = [];
   const from = material.measuredNozzle ?? CLEARANCE_NOZZLE;
   // Without a nozzle (a reading taken over as it is) nothing is carried and none is remembered.
   const measured = nozzle !== undefined && FIT_KINDS.some((fit) => readings.fits[fit] !== undefined) ? nozzle : undefined;
-  const carried = (value: number) => (measured === undefined ? value : clamp(Math.round(((value * measured) / from) * 1000) / 1000, -0.5, 2));
+  const carried = (value: number) => (measured === undefined ? value : clamp(scaleClearance(value, { nozzle: measured, layer: 0 }, from), -0.5, 2));
   const clearance = { clamp: carried(material.clearance.clamp), push: carried(material.clearance.push), slide: carried(material.clearance.slide), turn: carried(material.clearance.turn) };
+  // The steps read, checked here so their problems come first; set below, once the plate has given the allowance.
+  const steps: Partial<Record<(typeof FIT_KINDS)[number], number>> = {};
   for (const fit of FIT_KINDS) {
     const value = readings.fits[fit];
     if (value === undefined) continue;
-    if (Number.isFinite(value) && isStep(FIT_STEPS, value)) clearance[fit] = clamp(toStep(value), -0.5, 2);
+    if (Number.isFinite(value) && isStep(FIT_STEPS, value)) steps[fit] = toStep(value);
     else problems.push({ field: 'fit', fit });
   }
-  const read = FIT_KINDS.filter((fit) => readings.fits[fit] !== undefined).map((fit) => clearance[fit]);
-  if (read.some((value, i) => i > 0 && value < (read[i - 1] ?? value))) problems.push({ field: 'order' });
 
   const shrink: number[] = [];
   HOLE_SIZES.forEach((size, i) => {
@@ -57,12 +64,24 @@ export function applyReadings(material: MaterialProfile, readings: ToleranceRead
     if (Number.isFinite(measured) && measured > 0 && Math.abs(size - measured) <= 1) shrink.push(size - measured);
     else problems.push({ field: 'hole', size });
   });
-  const holeShrink = shrink.length > 0 ? clamp(toStep(shrink.reduce((sum, value) => sum + value, 0) / shrink.length), 0, 1) : material.holeShrink;
+  const mean = shrink.length > 0 ? toStep(shrink.reduce((sum, value) => sum + value, 0) / shrink.length) : null;
+  if (mean !== null && mean < 0) problems.push({ field: 'oversize', by: -mean });
+  const holeShrink = mean === null ? material.holeShrink : clamp(mean, 0, 1);
+
+  // The comb was drilled with the profile's allowance as it was (combHole, testPieces.ts); its holes shrank by the one the plate
+  // reads now, so each step's real room is the step plus half the difference (BC-16 review S3).
+  const drilled = (material.holeShrink - holeShrink) / 2;
+  for (const fit of FIT_KINDS) {
+    const step = steps[fit];
+    if (step !== undefined) clearance[fit] = clamp(Math.round((step + drilled) * 1000) / 1000, -0.5, 2);
+  }
+  if (FIT_KINDS.some((fit) => readings.fits[fit] !== undefined) && !fitsInOrder(clearance)) problems.push({ field: 'order' });
+  const read = Object.keys(steps).length > 0;
 
   let overhang = material.overhang;
   if (readings.overhang !== null) {
     if (Number.isFinite(readings.overhang) && isStep(OVERHANG_STEPS, readings.overhang)) overhang = clamp(readings.overhang, 20, 70);
     else problems.push({ field: 'overhang' });
   }
-  return { material: { ...material, overhang, holeShrink, clearance, ...(measured === undefined ? {} : { measuredNozzle: measured }) }, problems };
+  return { material: { ...material, overhang, holeShrink, clearance, ...(measured === undefined ? {} : { measuredNozzle: measured }), ...(read ? { fitsAfterPrint: true as const } : {}) }, problems };
 }

@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Heading, Label, NumberField } from 'react-aria-components';
 
-import { FIT_KINDS, type FitKind, type MaterialProfile, type PrinterProfile, type Slicer } from '../../../shared/contract';
+import { FIT_KINDS, layerFitsNozzle, type FitKind, type MaterialProfile, type PrinterProfile, type Slicer } from '../../../shared/contract';
+import { testPieceSizes } from '../../../shared/testPieces';
 import { applyReadings, FIT_STEPS, HOLE_SIZES, OVERHANG_STEPS, type ToleranceReadings } from '../../../shared/tolerances';
 import { platform } from '../platform';
 import { Button } from '../ui/Button';
@@ -51,14 +52,23 @@ export function ToleranceAssistant({
   }, [index]);
 
   // The picture and the slicers are read when the step with the test pieces comes up.
+  // A printer saved before BC-14 may have a layer over its nozzle: no test pieces for it, and the step says why.
+  const layerFits = layerFitsNozzle(printer);
+  // A piece larger than the bed either way round (BC-20 review): said, not blocked, since the bed in the profile may be the user's guess.
+  const [bedX, bedY] = printer.bed;
+  const tooLarge = useMemo(() => Object.values(testPieceSizes(printer)).find(([x, y]) => !((x <= bedX && y <= bedY) || (x <= bedY && y <= bedX))) ?? null, [printer, bedX, bedY]);
   useEffect(() => {
     if (step !== 'pieces') return;
     let live = true;
-    void platform()
-      .print.testPiecesPicture({ nozzle: printer.nozzle, layer: printer.layer })
-      .then((result) => {
-        if (live) setPicture(result.picture);
-      });
+    if (layerFits)
+      void platform()
+        .print.testPiecesPicture({ nozzle: printer.nozzle, layer: printer.layer, holeShrink: material?.holeShrink })
+        .then((result) => {
+          if (live) setPicture(result.picture);
+        })
+        .catch((reason: unknown) => {
+          console.warn('PartBuddy: the test pieces could not be pictured', reason);
+        });
     void platform()
       .design.slicers()
       .then((found) => {
@@ -70,7 +80,7 @@ export function ToleranceAssistant({
     return () => {
       live = false;
     };
-  }, [step, printer.nozzle, printer.layer]);
+  }, [step, printer.nozzle, printer.layer, layerFits, material?.holeShrink]);
 
   if (!material) return null;
   const result = applyReadings(material, readings, printer.nozzle);
@@ -78,7 +88,7 @@ export function ToleranceAssistant({
   const exportPieces = (slicer: string | null) => {
     setStatus(t('print.tolerance.working'));
     platform()
-      .print.exportTestPieces({ nozzle: printer.nozzle, layer: printer.layer, slicer })
+      .print.exportTestPieces({ nozzle: printer.nozzle, layer: printer.layer, holeShrink: material.holeShrink, slicer })
       .then((done) => {
         setStatus(done ? (done.slicer ? t('print.tolerance.opened', { name: done.slicer }) : t('print.tolerance.saved', { file: done.file ?? '' })) : null);
       })
@@ -99,12 +109,16 @@ export function ToleranceAssistant({
     { key: 'hole', label: t('print.holeShrink'), before: `${number.format(material.holeShrink)} mm`, after: `${number.format(result.material.holeShrink)} mm` },
     ...FIT_KINDS.map((fit) => ({ key: fit, label: `${t('print.clearance')}: ${t(`print.fit.${fit}`)}`, before: `${number.format(material.clearance[fit])} mm`, after: `${number.format(result.material.clearance[fit])} mm` })),
   ];
-  const problems = result.problems.map((problem) =>
-    problem.field === 'fit'
-      ? t('print.tolerance.problem.fit', { fit: t(`print.fit.${problem.fit}`) })
-      : problem.field === 'hole'
-        ? t('print.tolerance.problem.hole', { size: problem.size })
-        : t(`print.tolerance.problem.${problem.field}`),
+  // Holes larger than drawn are said but do not hold the profile back: the allowance is 0, the rest applies (audit MG-31).
+  const oversize = result.problems.flatMap((problem) => (problem.field === 'oversize' ? [problem.by] : []))[0];
+  const problems = result.problems.flatMap((problem) =>
+    problem.field === 'oversize'
+      ? []
+      : problem.field === 'fit'
+        ? [t('print.tolerance.problem.fit', { fit: t(`print.fit.${problem.fit}`) })]
+        : problem.field === 'hole'
+          ? [t('print.tolerance.problem.hole', { size: problem.size })]
+          : [t(`print.tolerance.problem.${problem.field}`)],
   );
   const last = index === STEPS.length - 1;
 
@@ -146,12 +160,22 @@ export function ToleranceAssistant({
                     <li key={key}>{t(`print.tolerance.guide.${key}`, { material: material.name })}</li>
                   ))}
                 </ul>
+                {layerFits ? null : (
+                  <p role="alert" className="text-sm text-danger" data-testid="tolerance-layer">
+                    {t('print.tolerance.layerOverNozzle', { nozzle: number.format(printer.nozzle), layer: number.format(printer.layer) })}
+                  </p>
+                )}
+                {tooLarge ? (
+                  <p className="text-sm text-warning" data-testid="tolerance-too-large">
+                    {t('print.tolerance.piecesTooLarge', { length: number.format(tooLarge[0]), width: number.format(tooLarge[1]), x: number.format(bedX), y: number.format(bedY) })}
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
-                  <Button onPress={() => exportPieces(null)} data-testid="tolerance-save">
+                  <Button isDisabled={!layerFits} onPress={() => exportPieces(null)} data-testid="tolerance-save">
                     {t('print.tolerance.save3mf')}
                   </Button>
                   {slicers.map((slicer) => (
-                    <Button key={slicer.id} onPress={() => exportPieces(slicer.id)} data-testid="tolerance-slicer">
+                    <Button key={slicer.id} isDisabled={!layerFits} onPress={() => exportPieces(slicer.id)} data-testid="tolerance-slicer">
                       {t('print.tolerance.openIn', { name: slicer.name })}
                     </Button>
                   ))}
@@ -183,6 +207,7 @@ export function ToleranceAssistant({
                 <fieldset className="flex flex-col gap-2">
                   <legend className="text-sm font-medium text-text">{t('print.tolerance.holesTitle')}</legend>
                   <p className="text-xs text-text-subtle">{t('print.tolerance.holes')}</p>
+                  <p className="text-xs text-text-subtle">{t('print.tolerance.holesSmall', { size: number.format(HOLE_SIZES[0]) })}</p>
                   <div className="grid grid-cols-4 gap-2">
                     {HOLE_SIZES.map((size, i) => (
                       <NumberField
@@ -237,6 +262,11 @@ export function ToleranceAssistant({
                     ))}
                   </tbody>
                 </table>
+                {oversize !== undefined ? (
+                  <p role="status" className="text-sm text-warning" data-testid="tolerance-oversize">
+                    {t('print.tolerance.problem.oversize', { by: oversize })}
+                  </p>
+                ) : null}
                 {problems.length > 0 ? (
                   <ul role="alert" className="list-disc pl-5 text-sm text-danger" data-testid="tolerance-problems">
                     {problems.map((problem) => (

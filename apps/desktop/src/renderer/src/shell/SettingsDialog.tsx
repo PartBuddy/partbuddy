@@ -43,9 +43,10 @@ import {
   Tabs,
 } from 'react-aria-components';
 
-import { DESIGN_RULES, ZOOM_STEPS, type AppSettings, type AppInfo, type GeneralSettingsInfo, type Language, type PrintSettings, type SettingsReset, type Theme, type UpdateState } from '../../../shared/contract';
+import { DESIGN_RULES, PRINT_HINTS, ZOOM_STEPS, type AppSettings, type AppInfo, type GeneralSettingsInfo, type Language, type PrintSettings, type SettingsReset, type Theme, type UpdateState } from '../../../shared/contract';
 import { AssistantChoice } from '../assistant/AgentChip';
 import { localeFrom } from '../i18n';
+import { withSwitch } from '../print/settingsMerge';
 import { PrintProfilesEditor } from '../print/PrintProfilesEditor';
 import { platform } from '../platform';
 import { useStudio, type SettingsSection } from '../state/store';
@@ -431,10 +432,10 @@ function ResearchToggle() {
 }
 
 /**
- * Designing without support and the design rule groups (2026-11-07): kept with the print settings,
+ * The design rule groups (2026-11-07), or the print check's hints (BC-24): kept with the print settings,
  * which the assistant reads. One copy for all rows, so no switch saves over another with a stale one.
  */
-function PrintRuleSettings() {
+function PrintRuleSettings({ group }: { group: 'design' | 'hints' }) {
   const [settings, setSettings] = useState<PrintSettings | null>(null);
   useEffect(() => {
     let live = true;
@@ -448,31 +449,25 @@ function PrintRuleSettings() {
     };
   }, []);
   if (!settings) return null;
-  const save = (next: PrintSettings) => {
-    setSettings(next);
-    void platform().print.saveSettings(next).then(setSettings);
+  // On the profiles as saved now: the profile editor beside the hints saves printers and materials of its own (BC-24).
+  const save = (rule: string, on: boolean) => {
+    setSettings(withSwitch(settings, group, rule, on));
+    void platform()
+      .print.settings()
+      .then((stored) => platform().print.saveSettings(withSwitch(stored, group, rule, on)))
+      .then(setSettings);
   };
   return (
     <>
-      <Setting id="supportFree">
-        <Toggle
-          id="supportFree"
-          isSelected={settings.supportFree}
-          onChange={(supportFree) => {
-            save({ ...settings, supportFree });
-          }}
-          testId="support-free"
-        />
-      </Setting>
-      {DESIGN_RULES.map((rule) => (
-        <Setting key={rule} id={`design.${rule}`}>
+      {(group === 'design' ? DESIGN_RULES : PRINT_HINTS).map((rule) => (
+        <Setting key={rule} id={`${group}.${rule}`}>
           <Toggle
-            id={`design.${rule}`}
-            isSelected={settings.design[rule]}
+            id={`${group}.${rule}`}
+            isSelected={(settings[group] as Record<string, boolean>)[rule] ?? true}
             onChange={(on) => {
-              save({ ...settings, design: { ...settings.design, [rule]: on } });
+              save(rule, on);
             }}
-            testId={`design-${rule}`}
+            testId={`${group}-${rule}`}
           />
         </Setting>
       ))}
@@ -668,6 +663,9 @@ function PrintSection() {
   return (
     <div ref={ref} data-highlighted={hit || undefined} className="flex flex-col gap-4 rounded-lg transition-shadow data-[highlighted]:ring-2 data-[highlighted]:ring-accent data-[highlighted]:ring-inset">
       <PrintProfilesEditor />
+      <Group id="checks">
+        <PrintRuleSettings group="hints" />
+      </Group>
     </div>
   );
 }
@@ -863,7 +861,7 @@ export function SettingsDialog() {
                     </Setting>
                   </Group>
                   <Group id="rules">
-                    <PrintRuleSettings />
+                    <PrintRuleSettings group="design" />
                   </Group>
                 </TabPanel>
                 <TabPanel id="print" className={panelClass} data-testid="print-profiles">

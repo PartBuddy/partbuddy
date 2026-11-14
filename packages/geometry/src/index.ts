@@ -1,4 +1,4 @@
-export { meshMetrics, overhangFindings, type MeshMetrics, type OverhangFinding } from './analysis';
+export { meshMetrics, type MeshMetrics } from './analysis';
 export {
   BRIDGE_SPAN,
   LYING_HOLE,
@@ -26,11 +26,15 @@ export {
   laidBodies,
   minimumFloor,
   minimumWall,
+  narrowestGap,
+  thinnestLine,
   withClearance,
   withMotion,
+  withinTurn,
   type FindingBox,
   type FindingPlace,
   type FindingSeverity,
+  type InPlaceFit,
   type JointUnit,
   type LaidBody,
   type MeasuredClearance,

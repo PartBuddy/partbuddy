@@ -1,4 +1,5 @@
 import type { ResearchSource } from '../../shared/contract';
+import { STANDARD_TOOL } from './standardTool';
 
 /**
  * Research on the web (plan step B7): the assistant may search and read pages to find solutions
@@ -11,6 +12,11 @@ export const RESEARCH_GUIDANCE =
   'dimension from a page or data sheet, name the source (title and link) next to the value, prefer the maker\'s data ' +
   'sheet, and say when sources disagree. Put the source\'s short name in the comment of a parameter that holds such a ' +
   'value, so it stays with the part.';
+
+/** In place of {@link RESEARCH_GUIDANCE} when the conversation may not search (audit R25): local models never, the others when switched off. */
+export const NO_RESEARCH_GUIDANCE =
+  'You cannot search the web in this conversation. Never give sizes of products, standards or boards from memory, ' +
+  `except what ${STANDARD_TOOL} and PartBuddy's other tools give: ask the user for the measured value or a data sheet.`;
 
 /** Claude Code's own tools for research; everything else stays off. */
 export const CLAUDE_RESEARCH_TOOLS = ['WebSearch', 'WebFetch'] as const;

@@ -3,6 +3,7 @@ import { IntlMessageFormat } from 'intl-messageformat';
 import type { AgentEvent, WorkStep, WorkStepState } from '../../shared/contract';
 import { describeToolCall, stepMessages, type StepPhrase } from '../../shared/stepPhrases';
 import type { ToolResult, UpstreamTools } from './gateProxy';
+import { VIEW_TOOL } from './viewContext';
 
 /** Where SolidCraft's undo history stands: its depth is how a step is found again (M2a). */
 export interface DesignHistory {
@@ -27,6 +28,21 @@ export interface WorkLogOptions {
 
 /** Tools that may change the design; every other tool only reads and is not tracked. */
 export const CHANGING_TOOLS = new Set(['execute', 'batch', 'set_parameter', 'undo', 'redo', 'partbuddy_mechanism', 'partbuddy_block', 'partbuddy_place_drawing', 'partbuddy_move_drawing']);
+/**
+ * Engine commands that only read (audit BC-09): `execute` of one of them changes nothing, so it is neither tracked nor
+ * held. The gate reads the parameter names with it before every `set_parameter` (policy.ts).
+ */
+const READ_COMMANDS = new Set(['parameters.list']);
+
+/** Whether a call may change the design: a changing tool, unless it is `execute` of a command that only reads. */
+export function changesDesign(name: string, args: Record<string, unknown>): boolean {
+  if (!CHANGING_TOOLS.has(name)) return false;
+  return !(name === 'execute' && typeof args.command === 'string' && READ_COMMANDS.has(args.command.trim().toLowerCase()));
+}
+/** Behind the answer of a changing call whose history could not be read: no check came with it, so it is not checked. */
+export const UNCHECKED_CHANGE =
+  `[PartBuddy: whether this call changed the design could not be read, so no ready-to-print check comes with it; call ${VIEW_TOOL} for the check before you call the part done.]`;
+
 /** Tools that move through the history instead of adding to it. */
 const HISTORY_TOOLS = new Set(['undo', 'redo']);
 
@@ -68,7 +84,7 @@ export class WorkLog {
       instructions: () => upstream.instructions(),
       listTools: () => upstream.listTools(),
       callTool: async (name, args, callId) => {
-        if (!CHANGING_TOOLS.has(name)) return upstream.callTool(name, args, callId);
+        if (!changesDesign(name, args)) return upstream.callTool(name, args, callId);
         const { result, moved } = await this.serial(async () => {
           const before = await this.readHistory();
           const result: ToolResult = await upstream.callTool(name, args, callId);
@@ -78,9 +94,12 @@ export class WorkLog {
           } else {
             this.publish();
           }
-          // Without the history nobody knows whether the design changed: said in the log, since the model then gets no check.
-          if (!before || !after) this.options.log?.(`the design's history could not be read round ${name}; its answer carries no print check`);
-          return { result, moved: before && after && designChanged(before, after) ? after : null };
+          // Without the history nobody knows whether the design changed: no check comes, and the log and the model hear so (audit R18).
+          if (!before || !after) {
+            this.options.log?.(`the design's history could not be read round ${name}; its answer carries no print check`);
+            return { result: { ...result, content: [...result.content, { type: 'text', text: UNCHECKED_CHANGE }] }, moved: null };
+          }
+          return { result, moved: designChanged(before, after) ? after : null };
         });
         // Outside the queue: the user's own changes do not wait for the check.
         return moved && this.options.changed ? this.options.changed(result, moved) : result;

@@ -1,3 +1,4 @@
+import { PRINT_HINTS } from '../../../shared/contract';
 import { isLogoColourBody } from '../../../shared/drawingPlacement';
 import { checkPrint, withClearance, withMotion, type PrintCheck } from '@partbuddy/geometry';
 import { useEffect } from 'react';
@@ -5,7 +6,7 @@ import { useEffect } from 'react';
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { measuresOf } from './bodyMeasures';
-import { jointRuns, reportOf, sweepInBlocks } from './report';
+import { fitsOf, jointRuns, reachOf, reportOf, sweepInBlocks } from './report';
 
 /** Quiet time after a revision before the check runs, so a burst of steps is checked once. */
 const CHECK_DELAY_MS = 250;
@@ -33,21 +34,24 @@ export function usePrintCheck(): void {
       // Bodies printed as one piece (a print-in-place hinge) stand on one bed: the first body's name names the group.
       const groupOf = (name: string) => model.structure.printGroups?.find((group) => group.includes(name))?.[0];
       const printed = model.bodies.filter((body) => !standard.has(body.name)).map((body) => ({ ...body, printFace: printFaces[body.name], group: groupOf(body.name) }));
-      const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang }, model.structure.features);
+      // The hints the user turned off in the print settings (BC-24) are not looked for.
+      const off = PRINT_HINTS.filter((hint) => print.hints?.[hint] === false);
+      const result = checkPrint(printed, { bed: print.printer.bed, nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang, off }, model.structure.features);
       // A value that follows another through a motion link (a gear) is neither swept nor posed on its own: its driver is.
       const joints = (model.structure.joints ?? []).map((joint) => ({ ...joint, values: joint.values.map((value, index) => ({ ...value, index })).filter((value) => !value.follows) })).filter((joint) => joint.values.length > 0);
       // A joint left away from "as designed" needs no measuring, so it shows at once: with a lid closed onto its
       // box SolidCraft's measures took longer than a look at the list (practice run 2026-11-10).
       // A logo's colour pieces sit in the part on purpose; measuring them, SolidCraft took minutes
       // for a logo of many pieces and held up every trial after it.
-      const parts = printed.filter((body) => !isLogoColourBody(body.name));
+      const sketches = model.structure.sketches.map((sketch) => sketch.name);
+      const parts = printed.filter((body) => !isLogoColourBody(body.name, sketches));
       const measuring = parts.length >= 2 || joints.length > 0;
       const preliminary = joints.length > 0 ? withMotion(result, { joints, stops: [] }) : result;
       useStudio.getState().setPrintCheck({ documentId: model.documentId, revision: model.revision, result: preliminary, ...(measuring ? { measuring } : {}) });
       // What each closed body costs to print, for the assistant to see what a change saved.
       const measures = measuresOf(printed, { nozzle: print.printer.nozzle, layer: print.printer.layer, overhang: print.material.overhang });
       const report = (final: typeof result, pending = false, unmeasured: ('clearance' | 'joints')[] = [], unchecked: string[] = []) => {
-        const more = { ...(pending ? { measuring: true } : {}), ...(unmeasured.length > 0 ? { unmeasured } : {}), ...(unchecked.length > 0 ? { unchecked } : {}), ...(measures.problem ? { problem: measures.problem } : {}) };
+        const more = { ...(off.length > 0 ? { off } : {}), ...(pending ? { measuring: true } : {}), ...(unmeasured.length > 0 ? { unmeasured } : {}), ...(unchecked.length > 0 ? { unchecked } : {}), ...(measures.problem ? { problem: measures.problem } : {}) };
         void platform()
           .print.reportCheck(reportOf(final, print.printer.nozzle, model.revision, measures.bodies, more))
           // A report the main process does not take would leave the assistant waiting for a check that never comes:
@@ -69,22 +73,29 @@ export function usePrintCheck(): void {
       let unchecked: string[] = [];
       const measure = async (): Promise<PrintCheck> => {
         let final = result;
-        // Several parts (F2): overlaps and gaps under the push fit.
-        const pushFit = print.material.clearance.push;
+        // Several parts (F2): overlaps, gaps under the push fit for this nozzle, and under the print-in-place gap
+        // between parts printed as one piece that move.
+        const fits = fitsOf(print, model.structure);
+        // shortcut: with a print group every pair is measured up to the print-in-place gap, and SolidCraft's answer is cut to 100 near pairs (contract); measure the group's bodies apart when designs with many close parts and a hinge come up.
         if (parts.length >= 2) {
           const measured = await platform()
             .design.clearance(
               parts.map((body) => body.name),
-              Math.max(pushFit, 0),
+              Math.max(fits.push, fits.inPlace?.gap ?? 0, 0),
             )
-            .catch(() => null);
-          if (measured) final = withClearance(final, measured, pushFit);
+            .catch((error: unknown) => {
+              console.warn('PartBuddy: measuring the clearance between the parts failed', error);
+              return null;
+            });
+          if (measured) final = withClearance(final, measured, fits.push, fits.inPlace);
           if (!measured || measured.incomplete) failed.push('clearance');
           unchecked = measured?.unchecked ?? [];
         }
-        // Parts that move (ADR 0027): every joint value runs from where it stands to its limits.
+        // Parts that move (ADR 0027): every joint value runs from where it stands to its limits, and as far as it can go where it has none.
         if (joints.length > 0) {
-          const { sweeps, more } = jointRuns(joints);
+          // The box round all bodies only for a distance without a limit: 20 ms for 250 000 triangles.
+          const reach = joints.some((joint) => joint.values.some((value) => value.unit === 'mm' && (value.limits ?? [null]).includes(null))) ? reachOf(model.bodies) : 0;
+          const { sweeps, more } = jointRuns(joints, reach);
           if (more) failed.push('joints');
           // SolidCraft takes a limited number of runs per call: block after block.
           const stopped = await sweepInBlocks(
@@ -96,7 +107,7 @@ export function usePrintCheck(): void {
           );
           const stops = sweeps.flatMap((sweep, i) => {
             const stop = stopped[i];
-            return stop ? [{ joint: sweep.name, unit: sweep.unit, to: sweep.to, ...stop }] : [];
+            return stop ? [{ joint: sweep.name, unit: sweep.unit, to: sweep.to, ...(sweep.free ? { free: true } : {}), ...stop }] : [];
           });
           final = withMotion(final, { joints, stops });
         }

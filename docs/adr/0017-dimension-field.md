@@ -29,12 +29,27 @@ result before the user commits to it?
 ## Decision Outcome
 
 Chosen option: "Try every candidate parameter in SolidCraft and measure the result", because it is
-exact for every feature type SolidCraft has, needs no rules per feature and costs a few
-milliseconds per candidate.
+exact for every feature type SolidCraft has and needs no rules per feature. It costs a rebuild of the
+design per candidate and one for its undo: a few milliseconds on a box, 2.3 to 13 s on the housing
+template (SolidCraft 0.40.1, measured 2026-11-13).
 
 * **Candidates:** length parameters (`parameters.list`, unit mm) whose expression is a plain number
   and whose value equals the edge length, or the radius of a cylindrical face (also twice the
-  radius: a diameter parameter). At most eight are tried.
+  radius: a diameter parameter). None is left out: a cap of eight lost the driver of a design with
+  more sizes of the same value (audit D45, 2026-11-13).
+* **Search (2026-11-13, review of BC-08):** the candidates of the features the selection lies on (the
+  feature ids in its face and edge names, the user parameters those features use) come first. A group
+  is tested in one rebuild with `parameters.change {changes}`, each member moved by its own small step
+  (0.05 mm × (1 + √p / 10), p a prime per member, so moves do not cancel out exactly; two opposite
+  drivers at neighbouring primes can leave 0.0009 mm, so any move over 0.0001 mm counts): if the selection stays,
+  none of them drives it; if it moves, the group is halved until one is left, which is tried with the
+  value typed. The answer comes with the first driver; the rest of the search runs afterwards, one
+  try per step (two rebuilds and the design read in the same batch) behind any other trial, and stops when another selection is probed, a value is
+  applied or the design changed; a second driver found then makes the next value a choice. What was
+  found is kept per selection (as picked, for an edge with the exact point), its size and the design
+  (parameters and timeline); a kept driver is trusted at the next value while it moves the selection in
+  proportion. Every try reads the design in its own batch, as the assistant's calls do not wait for
+  the probes: a try that finds another design stops the search, and a probe answers nothing from it.
 * **Try:** one `engine.batch` per candidate: `parameters.change`, `model.edges` or `model.faces`,
   then `sketch.inspect` of a sketch that does not exist. That last step fails on purpose, and
   SolidCraft undoes the whole batch, undo history included, but still returns the earlier results.

@@ -5,7 +5,7 @@ import { Button as AriaButton, CheckboxButton, CheckboxField, Input, Label, Numb
 
 import type { LogoMoveRequest, LogoSpot } from '../../../shared/contract';
 import { BOLD_FONT } from '../../../shared/blocks';
-import { isPlacedName, logoTitle, type Vec3 } from '../../../shared/drawingPlacement';
+import { isPlacedName, LOGO_DEPTH_MAX, LOGO_WIDTH_MAX, logoTitle, type Vec3 } from '../../../shared/drawingPlacement';
 import { platform } from '../platform';
 import { useStudio, type DraggedDimension, type Pick } from '../state/store';
 import { buttonClass } from '../ui/Button';
@@ -257,7 +257,7 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
           <NumberField
             value={depth}
             minValue={0.1}
-            maxValue={50}
+            maxValue={LOGO_DEPTH_MAX}
             step={0.1}
             isDisabled={busy}
             formatOptions={{ maximumFractionDigits: 2 }}
@@ -274,7 +274,7 @@ export function LogoPanel({ spot, busy, onGhost }: { spot: LogoSpot; busy: boole
         {spot.text ? null : (
         <NumberField
           value={wide}
-          maxValue={1000}
+          maxValue={LOGO_WIDTH_MAX}
           step={0.1}
           isDisabled={busy}
           formatOptions={{ maximumFractionDigits: 2 }}

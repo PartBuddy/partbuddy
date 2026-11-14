@@ -1,7 +1,11 @@
 # Engineering notes
 
 Facts found while building PartBuddy that the code and the ADRs do not say on their own. Most
-SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a step touches them.
+SolidCraft sections name the version they were checked on in their heading. The sections without
+one (control channel, probes, policy, geometry and references) were first written on 0.30.1; a
+bullet added there later names its version itself. PartBuddy needs 0.40.1 or newer since
+2026-11-12 (`MINIMUM_VERSION` in `engineVersion.ts`); recheck a note checked on 0.30.1 or a 0.40
+release candidate on 0.40.1 when a step touches it.
 
 ## SolidCraft
 
@@ -40,9 +44,16 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 ### Policy
 
 - `batch` accepts tools as steps (save, export, open, new_design, crash_reports, nested execute).
-  `path` is sometimes a file and sometimes geometry (curve lists, occurrence paths, `"l1"`), so only
-  text other than a curve id counts as a file. Also dangerous: `file.open_in_easyprint` (uploads to
-  Printables), `file.send_to_slicer` (starts a program), `settings.*`.
+  `path` is sometimes a file and sometimes geometry (curve lists, occurrence paths, `"l1"`), so the
+  policy knows the file arguments per command (`FILE_ARGUMENTS` in `policy.ts`, from the 0.40.1
+  catalogue) and, for any other command, takes text other than a curve id as a file. Also
+  dangerous: `file.open_in_easyprint` (uploads to Printables), `file.send_to_slicer` (starts a
+  program), `settings.*`.
+- 0.40.1 parses a `batch` step's `params` given as text (`"{}"` ran); `execute {params}` and
+  `batch {commands}` as text are refused by its schema. `set_parameter` and `parameters.change
+  {name}` make a new parameter for an unknown name without an error; `parameters.change {changes}`
+  refuses one. `inspect_design` lists only user parameters, `parameters.list` the features' inputs
+  (`d1`) too.
 
 ### Geometry and references
 
@@ -59,9 +70,10 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 - `sketch.inspect {sketch}` returns curves in sketch coordinates plus the plane, constraints with
   curve and point indices, dimensions with parameter names; arcs are always counter-clockwise (a
   clockwise arc swaps start and end with their point ids). Used sketches become invisible.
-- Actions by point: `solid.fillet {edges, radius}`, `solid.chamfer {edges, distance}`,
-  `solid.press_pull {face, distance}`, `solid.hole {position, diameter, depth?}`,
-  `solid.shell {faces, thickness}`; `inspect.measure` with two items gives distance and angle.
+- Actions by point: `solid.fillet {edges, radius, body}`, `solid.chamfer {edges, distance, body}`,
+  `solid.extrude {face, face_body, distance, operation, targets}` (`solid.press_pull {face, distance}` names no
+  body, see below), `solid.hole {position, diameter, depth?, targets}`, `solid.shell {faces, thickness, body}`;
+  `inspect.measure` with two items gives distance and angle.
 - Countersunk hole inputs: Diameter, Countersink diameter, Countersink angle.
 
 ### Import (0.40, checked 2026-11-05)
@@ -196,6 +208,11 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   `plastic.snap_fit` take `body`. Without them the point alone decides which body is cut: on an edge two
   bodies share, both. With them a point that is not on the body cuts nothing ("the hole removes no
   material", a warning, not an error) or is refused.
+- `solid.fillet`, `solid.chamfer` and `solid.shell` take `body` too (0.40.1, checked 2026-11-13 on two boxes
+  side by side): on the edge they share, fillet and chamfer are refused without it, and a shell at the shared
+  face hollows the first box. `solid.press_pull` takes no body (`face_body` is unknown to it) and cut 25 mm
+  through one box into the next; `solid.extrude {face, face_body, distance, operation, targets}` does what it
+  did on the named body alone.
 - Checked 2026-11-13: `solid.hole` without `depth` and `solid.extrude` cut far go through every wall of the
   named body on their line (a box 60 × 40 × 30 with walls of 2 mm lost 2 × 18.158 mm³ to an M3 hole).
   A cut as deep as the wall, or a millimetre more, takes that wall alone; a depth exactly as thick
@@ -229,7 +246,9 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 
 ## SolidCraft 0.40.0-rc.4 (checked 2026-11-11)
 
-- PartBuddy's recommended version since 2026-11-11. The contract suite ran against it and against the
+- PartBuddy's recommended version from 2026-11-11 to 2026-11-12. Since then 0.40.1 is both the
+  recommended and the minimum version, and rc.4 is refused as too old. The contract suite ran
+  against rc.4 and against the
   nightly 20261110.117.1 it contains; the nightly's own `solidcraft-cli --version` says `0.40.0-rc.3`,
   so PartBuddy cannot tell that nightly from rc.3.
 - New since rc.3 and of use here: `joint.find_limits` (both ways in one call, also for a joint without
@@ -262,7 +281,8 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   touch never makes a body of its own, it stays in the body as a separate piece (practice runs
   2026-11-10).
 - Which commands find the component themselves (0.40.0-rc.3, checked 2026-11-10): those that pick
-  by a point on the body (`solid.fillet`, `solid.hole`, `solid.press_pull`) follow a moved joint from
+  by a point on the body (`solid.fillet`, `solid.hole`, `solid.press_pull`, and `solid.extrude {face, face_body}`:
+  0.40.1, checked 2026-11-13 on a slider driven to 5 mm and back) follow a moved joint from
   the design level, also when built at a pose. A sketch with `solid.extrude` does not: cut from the
   design level, a slot is gone from the body once the joint moves it and back at 0. PartBuddy's
   sketched blocks therefore run inside `component.activate` (`ActionService.inComponentOf`).
@@ -279,6 +299,11 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   the slicer ends; PartBuddy waits at most 3 s when it closes the engine.
 - `body.print_face {body, point}` takes a point on a flat face of a solid body and refuses others;
   without `point` it clears the print face.
+- SolidCraft keeps print faces in the design and lists them nowhere but in the saved file: the `.sc`
+  is a zip whose `document.json` holds `print_faces` by body (0.40.1, measured for audit D20, #379).
+  PartBuddy therefore reads them after each save and before an export, only while the revision is
+  still the one right after that save, and writes `print-faces.json` from them (`assembly.ts`,
+  `supervisor.ts`); an undone, renamed or split print face reads as SolidCraft holds it.
 
 ## Installer (checked 2026-11-05, electron-builder 26.18.0, electron-updater 6.8.11)
 
@@ -318,7 +343,14 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
 - `plastic.snap_fit {position, hook, length, thickness, width, catch_depth, catch_length}` stands
   the arm out of the face; `length` includes the catch (a 10 mm arm on a 10 mm box reaches 20 mm).
   `hook` must lie in the face ("must point across the arm" otherwise). The strain shown in the form
-  uses the lever to the catch's middle.
+  uses the lever to the catch's middle. The arm stands from `position` against `hook` and meets the face
+  in sharp edges (0.40.1: 13 plane faces); `solid.fillet` on its two long root edges at `position` and one
+  thickness behind it rounds them (+0.869 mm³ each for 0.9 mm over 5 mm). With `fit: reduce` it makes the radius
+  smaller where the face ends closer and warns, but flush with the face's edge, or on a
+  wall as thin as the arm, it rounds the convex edges beside the arm instead (−0.204 mm³ at 0.1649 mm). The block rounds
+  one edge a step, measures the body around each and keeps the radius only where each edge adds w · r² · (1 − π/4) within
+  10 % (0.808 of 0.869 mm³ half a millimetre from the edge kept; 0.616 on a cylinder of r 15 and −0.453 flush with the edge
+  taken back; BC-17, `rootOutcome`).
 - `sketch.insert_svg {text, at, width, align: center}` takes the SVG as text (no file access needed)
   and keeps it upright (SVG's y runs down, the sketch's up). `solid.emboss` without `profiles`
   takes every region, so a ring's hole is filled; `solid.extrude` keeps a loop inside a hole as
@@ -363,8 +395,9 @@ SolidCraft notes were checked on 0.30.1; recheck them on 0.40 (solidcore) when a
   which `tools/test-app/deliver-test-app.ps1` builds and copies there over SSH (target `user@host`
   in `%USERPROFILE%\.partbuddy\test-pc.txt`). The server reaches the PC, not the other way round.
   The same run unpacks it on the server too: shortcut »PartBuddy (Test)« on the server desktop,
-  own profile via `--user-data-dir=…\.partbuddy\test-app\profile`, SolidCraft 0.40.0-rc.2 set once
-  in that profile's `solidcraft-settings.json`.
+  own profile via `--user-data-dir=…\.partbuddy\test-app\profile`. That profile uses the installed
+  SolidCraft: the script removes an older choice of a portable rc.3 or rc.4 from its
+  `solidcraft-settings.json`, since those are under the minimum 0.40.1.
 - On the server the Claude app hands out TEMP as the 8.3 short path (`ADMINI~1` in place of the user
   folder); the SolidCraft contract E2E tests that build a template then open no project. Run them with
   TEMP and TMP set to the long path (`%USERPROFILE%\AppData\Local\Temp` spelled out). The same holds

@@ -91,3 +91,14 @@ export function rowsOf(items: readonly ConversationItem[], busy = false): Row[] 
   });
   return rows;
 }
+
+/** The `done` detail of a turn that used all its tool rounds (main/agents/loop.ts ROUNDS_DETAIL). */
+export const ROUNDS = 'rounds';
+
+/**
+ * What "send again" sends after a failed turn: the last request once more, but after the round limit (audit R57)
+ * `onward` ("continue"), since the request again would build the half-built part a second time.
+ */
+export function retryMessage(failed: ConversationItem | undefined, request: string, onward: string): string {
+  return failed?.kind === 'stopped' && failed.detail === ROUNDS ? onward : request;
+}
