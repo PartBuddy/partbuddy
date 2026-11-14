@@ -178,6 +178,9 @@ describe('the ready-to-print check (M7)', () => {
     const onTop = checkPrint([{ ...table, printFace: 'F2:+z' }], PLA).findings;
     expect(onTop.map((f) => f.kind)).toEqual(['overhang']);
     expect(onTop[0]).toMatchObject({ area: 4, places: [{ body: 'Table', faces: ['F1:+z'] }] });
+    // A cut split the print face: until the next save the store holds the old name, the pieces carry it before "#".
+    const split = { ...table, model: { ...table.model, table: { ...table.model.table, faces: table.model.table.faces.map((face) => (face.name === 'F2:+z' ? { ...face, name: 'F2:+z#[F1:-x,F2:-x]' } : face)) } } };
+    expect(checkPrint([{ ...split, printFace: 'F2:+z' }], PLA).findings).toEqual(onTop);
     // A print face that is gone is said, not passed over (audit H-29).
     const gone = checkPrint([{ ...table, printFace: 'gone' }, { ...boxesBody('Block', [[[40, 0, 0], [60, 20, 10]]]), printFace: 'F1:-z' }, box('Plain', [80, 0, 0], [100, 20, 10])], PLA).findings;
     expect(gone.map((f) => f.kind)).toEqual(['faceLost', 'overhang', 'contact']);

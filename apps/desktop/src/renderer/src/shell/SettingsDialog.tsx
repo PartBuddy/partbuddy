@@ -431,7 +431,7 @@ function ResearchToggle() {
 }
 
 /**
- * Designing without support and the design rule groups (2026-11-07): kept with the print settings,
+ * The design rule groups (2026-11-07): kept with the print settings,
  * which the assistant reads. One copy for all rows, so no switch saves over another with a stale one.
  */
 function PrintRuleSettings() {

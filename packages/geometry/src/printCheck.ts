@@ -10,7 +10,7 @@ import type { ViewerModel } from './viewerModel';
  * TypeScript on the mirrored render meshes, no sidecar. It checks what only the design decides:
  * whether the part fits the printer, walls the nozzle cannot print, bodies that touch, how much of
  * the part lies on the bed, bodies that are no closed solid, and features SolidCraft could not build. Overhangs are a hint by angle
- * only (yellow, never red): whether something needs support, and how, is the slicer's job; small
+ * only (yellow, never red): a part with support prints, and how the support is built is the slicer's job; small
  * ones that hang from the material below, as the slicers ignore them, and ceilings the printer
  * bridges are left out.
  * The part is checked as designed, Z up, or lying on its print face where SolidCraft has one for the
@@ -218,9 +218,14 @@ function triangle(positions: ArrayLike<number>, index: ArrayLike<number>, t: num
   };
 }
 
-/** The direction that points at the bed as the body lies: the normal of its print face, if it has a flat one. */
+/**
+ * The direction that points at the bed as the body lies: the normal of its print face, if it has a flat one. A face a cut
+ * split is named `F1:+z#[…]` per piece until the next save renames the stored face; the pieces share its normal, so the
+ * body lies on them (as `resolvePrintFaces` takes them).
+ */
 function printDown({ model, printFace }: PrintCheckBody): Vector3 | undefined {
-  const down = printFace ? model.table.faces.find((face) => face.name === printFace)?.planeNormal : undefined;
+  const flat = printFace ? model.table.faces.filter((face) => face.planeNormal) : [];
+  const down = (flat.find((face) => face.name === printFace) ?? flat.find((face) => face.name.startsWith(`${printFace ?? ''}#`)))?.planeNormal;
   return down ? new Vector3(...down).normalize() : undefined;
 }
 

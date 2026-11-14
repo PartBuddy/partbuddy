@@ -111,7 +111,7 @@ const uncheckedLine = (bodies: readonly string[]) =>
 /** What a clean check says nothing about (audit R3); the model must not pass the verdict on as more. */
 const NOT_CHECKED = 'Not checked: strength and layer direction under load, the fits and hole allowances you chose, details and text too fine to print, bed-edge chamfers. Judge those yourself.';
 
-/** Findings about parts that overlap, fit too tight, fuse or stop a joint: each piece prints, the whole does not work. */
+/** Findings about parts that overlap, fit too tight, fuse or stop a joint: each piece prints, the whole may not work. */
 const FIT_KINDS = new Set<Finding['kind']>(['overlap', 'tight', 'fused', 'blocked']);
 /** What the model must do before "done" (audit H-12): a warning about how the parts go together is fixed or told, never passed over. */
 const FIX_BEFORE_DONE =
@@ -170,7 +170,7 @@ export function printCheckNote(report: PrintCheckReport, view = false): string {
     return [`${head} nothing found ${report.measuring ? `so far (${CHECKED_MESH})` : `in what it checks (${CHECKED_MESH}${measured})`}.`, ...preliminary, ...measureLines(report), `${NOT_CHECKED}]`].join('\n');
   // An assembly whose parts do not go together or move is no finished part, though each piece prints (audit H-12).
   const fitting = report.findings.some((finding) => FIT_KINDS.has(finding.kind));
-  const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? (fitting ? 'prints, but its parts do not go together or move as designed' : 'prints, with warnings') : 'ready to print';
+  const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? (fitting ? 'prints, but its parts may not go together or move as designed' : 'prints, with warnings') : 'ready to print';
   return [`${head} ${verdict}.`, ...findingLines(report), ...preliminary, ...measureLines(report), `${FIX_BEFORE_DONE} ${NOT_CHECKED}]`].join('\n');
 }
 

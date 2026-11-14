@@ -90,7 +90,7 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     ];
     for (const finding of fits) {
       const note = printCheckNote({ status: 'warn', nozzle: 0.4, revision: 1, findings: [finding] });
-      expect(note, finding.kind).toContain('prints, but its parts do not go together or move as designed.');
+      expect(note, finding.kind).toContain('prints, but its parts may not go together or move as designed.');
       expect(note, finding.kind).toContain(closing);
     }
     // Other warnings keep the plain verdict; the closing sentence stands with every finding.

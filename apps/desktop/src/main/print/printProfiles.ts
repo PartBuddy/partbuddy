@@ -250,11 +250,13 @@ const MOVING_GAP = printInPlaceGap({ nozzle: 0, layer: 0 });
  * them itself (plan step R1). The spans are the print check's own (audit T25, D18).
  */
 function withoutSupportLines(overhang: number, nozzle: number): string[] {
+  // The material's angle where it prints less than 45° (PETG 40°, TPU 35°), so a chamfer or roof built to these rules is no overhang itself.
+  const lean = `leaning at most ${String(Math.min(45, overhang))}° from the vertical`;
   return [
     'Design it to print without support wherever the shape allows, as designed or on the print face you set; where it cannot, tell the user which faces need support and why:',
-    `- Edges that face down towards the bed: chamfer them at 45° instead of filleting (the bottom of a fillet ends flat; Prusa); fillets that face up or sideways are fine.`,
-    `- Holes lying across the layers: up to ${String(LYING_HOLE)} mm across they print round without support (MakerVerse); wider ones get a teardrop roof (45° to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
-    `- Ceilings and ledges: walls at most ${String(BRIDGE_SPAN)} mm apart are bridged (UltiMaker; Hubs names 5 mm for a bridge that does not sag at all), and ledges reaching out at most ${mm(smallLedge(nozzle))} (four lines) from the material below are left without support (OrcaSlicer); the print check counts both the same way. Anything wider gets a 45° slope underneath, or say which side the part should rather stand on.`,
+    `- Edges that face down towards the bed: where you would round them, chamfer them instead, ${lean} (the bottom of a fillet ends flat; Prusa); fillets that face up or sideways are fine.`,
+    `- Holes lying across the layers: up to ${String(LYING_HOLE)} mm across they print round without support (MakerVerse); wider ones get a teardrop roof (its sides ${lean} up to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
+    `- Ceilings and ledges: walls at most ${String(BRIDGE_SPAN)} mm apart are bridged (UltiMaker; Hubs names 5 mm for a bridge that does not sag at all), and ledges reaching out at most ${mm(smallLedge(nozzle))} (four lines) from the material below are left without support (OrcaSlicer); the print check counts both the same way. Anything wider gets a slope underneath, ${lean}, or say which side the part should rather stand on.`,
     'Model these as their own features with parameters (layer height, roof angle) and name them when you report.',
   ];
 }
