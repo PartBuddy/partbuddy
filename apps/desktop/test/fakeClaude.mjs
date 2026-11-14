@@ -26,12 +26,12 @@ const HINGE = [
 ];
 const WALL_HOLDER = [
   ...[
-    ['plate_height', '100 mm'],
-    ['plate_width', '50 mm'],
-    ['wall', '6 mm'],
-    ['hook_width', '40 mm'],
-    ['lip_height', '25 mm'],
-  ].map(([name, expression]) => ({ command: 'parameters.add', params: { name, expression } })),
+    ['plate_height', '100 mm', '[Platte] Höhe'],
+    ['plate_width', '50 mm', '[Platte] Breite'],
+    ['wall', '6 mm', '[Platte] Wandstärke'],
+    ['hook_width', '40 mm', '[Haken] Weite'],
+    ['lip_height', '25 mm', '[Haken] Lippenhöhe'],
+  ].map(([name, expression, comment]) => ({ command: 'parameters.add', params: { name, expression, comment } })),
   { command: 'solid.box', params: { length: 'plate_width', width: 'wall', height: 'plate_height', name: 'Wandplatte', body_name: 'Wandhalter' } },
   {
     command: 'solid.box',
@@ -463,6 +463,23 @@ if (args[0] === '--version') {
       for (const step of HINGE) await client.callTool({ name: 'execute', arguments: step });
       await client.close();
       out({ type: 'assistant', message: { content: [{ type: 'text', text: 'The hinge is built.' }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
+    // "a cable clip" (parameter rules): adds a parameter without a group, a clearance and one as the rules want it, and
+    // tells what PartBuddy answered to each.
+    if (content.includes('a cable clip')) {
+      const answers = [];
+      for (const params of [
+        { name: 'clip_width', expression: '20 mm', comment: 'Clip width' },
+        { name: 'steckpassung', expression: '0.2 mm', comment: '[Clip] Steckpassung' },
+        { name: 'cable_d', expression: '12 mm', comment: '[Kabel] Durchmesser' },
+      ]) {
+        const result = await client.callTool({ name: 'execute', arguments: { command: 'parameters.add', params } });
+        answers.push(`${params.name}: ${result.isError ? 'refused' : 'added'}`);
+      }
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: answers.join('; ') }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }

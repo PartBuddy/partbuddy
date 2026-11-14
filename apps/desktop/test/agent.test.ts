@@ -540,6 +540,20 @@ describe('agent service with a fake Claude Code', { timeout: 20_000 }, () => {
     expect(events.filter((e) => e.type === 'tool').at(-1)).toMatchObject({ name: 'export', decision: 'denied' });
   }, 30_000);
 
+  it('refuses a new parameter without a group and a clearance parameter before SolidCraft sees them (parameter rules)', async () => {
+    const { service, events, calls } = setup();
+    await service.refresh();
+    await service.send('Build a cable clip');
+    await vi.waitFor(() => expect(events.some((e) => e.type === 'done')).toBe(true), { timeout: 15_000 });
+    // Only the grouped one reached SolidCraft.
+    expect(calls).toEqual(['execute']);
+    expect(events.find((e) => e.type === 'text')).toEqual({ type: 'text', text: 'clip_width: refused; steckpassung: refused; cable_d: added' });
+    const denied = events.filter((e) => e.type === 'tool' && e.decision === 'denied').map((e) => (e as { reason?: string }).reason ?? '');
+    expect(denied).toHaveLength(2);
+    expect(denied[0]).toContain('needs a comment that starts with the parameter\'s group');
+    expect(denied[1]).toContain('"steckpassung" would be a clearance or allowance parameter');
+  }, 30_000);
+
   it('counts a compacted session as fresh once, so the print profile goes along again (audit H-11)', async () => {
     const { service, events } = setup();
     await service.refresh();
