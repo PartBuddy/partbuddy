@@ -143,3 +143,22 @@ alten Stand bzw. 0,3-mm-Deckel jetzt `warn`); nach dem Anpassen 29 Dateien, 109 
 | D19 | – | weiter offen | Prisma 46°: `ready` (287,9 mm² grenzwertig) | G |
 | N-druckpruefung-4 | – | weiter offen | Würfel 10 mm über dem Bett, eigener Körper: `ready` | G |
 | N-druckpruefung-3 / D41 | – | weiter offen | Stäbe über Kreuz (gestapelt und durchdrungen): `checkPrint` allein `ready` | G |
+
+## Nachmessung 14.11.2026 (SolidCraft 0.41.0)
+
+Harness auf dem Audit-Zweig nach dem Merge von `origin/main` (`35653de`, alle PRs bis #405), installiertes
+SolidCraft 0.41.0, ein Worker, ohne Fenster. Erster Lauf (`tools/audit/phase4-2026-11-14.log`): 29 Dateien, 109 Tests,
+13 rot, alle 13 wegen Erwartungen am Stand vor den BC-Paketen; kein Fehler von SolidCraft 0.41.0. Die betroffenen Fälle
+sind angepasst und einzeln nachgefahren, grün. Verglichen ist mit den Werten der Nachmessung 13.11. (bei Fällen ohne
+Zeile dort mit der Tabelle oben). Werte in `tools/audit/out/…` (nicht im Repo).
+
+| Kennung / Wert | 13.11. | 14.11. | Grund |
+|---|---|---|---|
+| D19: Prisma 46° | `ready` (287,9 mm² grenzwertig) | `warn`, `overhang` 288 mm²; 45° und 44° `ready` | BC-19 (#391): ebene Flächen ab Grenze + 0,1° |
+| N-druckpruefung-3 / D41: Stäbe über Kreuz | `checkPrint` allein `ready` | gestapelt: `warn` `separate` („touch but are separate“); durchdrungen: `separate`, mit Abstandsmessung zusätzlich `overlap` 1000 mm³ | BC-02 (#371) |
+
+Unverändert: D1, D2 (Kontrolle 370 × 10 × 5 `block`), D3, D4, D6 (363–364 mm²), MG-01 (1600 / 800 / 10 000 mm²,
+Brücke 3 mm `ready`), MG-04, N-druckpruefung-1, N-druckpruefung-2 (`open`, `block`), G1 (1253 mm²),
+N-druckpruefung-4 (Würfel über dem Bett `ready`, Status „widerlegt“). Ungeklärte Änderungen: keine.
+
+**Angepasste Fälle:** keine. **Echte Fehler:** keine.

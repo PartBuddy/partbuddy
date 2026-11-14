@@ -97,3 +97,33 @@ alten Stand bzw. 0,3-mm-Deckel jetzt `warn`); nach dem Anpassen 29 Dateien, 109 
 | R4 | #351 | behoben bestätigt | Satz: „draw the pilot hole 0.8 times the screw's diameter (2.0 mm for M2.5, 2.4 mm for M3) plus the hole allowance of the print profile“ | `passung-texte-standards` |
 | N-passung-texte-4 | #357 | behoben bestätigt | siehe R1: die Werkzeugantwort sagt „unchanged …“ auch bei gleichem Wortlaut | `passung-texte-r1-r3` |
 | N-passung-texte-1 | – | weiter offen | `usePrintCheck.ts` nimmt `clearance.push` ungeskaliert (`scaleClearance` kommt nicht vor) | `passung-texte-t2` |
+
+## Nachmessung 14.11.2026 (SolidCraft 0.41.0)
+
+Harness auf dem Audit-Zweig nach dem Merge von `origin/main` (`35653de`, alle PRs bis #405), installiertes
+SolidCraft 0.41.0, ein Worker, ohne Fenster. Erster Lauf (`tools/audit/phase4-2026-11-14.log`): 29 Dateien, 109 Tests,
+13 rot, alle 13 wegen Erwartungen am Stand vor den BC-Paketen; kein Fehler von SolidCraft 0.41.0. Die betroffenen Fälle
+sind angepasst und einzeln nachgefahren, grün. Verglichen ist mit den Werten der Nachmessung 13.11. (bei Fällen ohne
+Zeile dort mit der Tabelle oben). Werte in `tools/audit/out/…` (nicht im Repo). Die Fälle hier brauchen kein SolidCraft.
+
+| Kennung / Wert | 13.11. (bzw. Tabelle oben) | 14.11. | Grund |
+|---|---|---|---|
+| T2: Kammloch „0.3“ | Ø 6,6 gezeichnet = 0,30 mm je Seite | Ø 6,75 gezeichnet (6,6 + PLA-Aufmaß 0,15), nach Druck 0,30 mm je Seite, bei jeder Düse | BC-16 (#398), N-nach-6 |
+| T2: Spiel an den Assistenten (gelesen bei 0,6), Düse 0,2 / 0,4 / 0,8 | slide 0,1 / 0,2 / 0,4 | slide 0,2 / 0,2 / 0,4; bei 0,6 0,3 | BC-14 (#386): nie unter dem Wert für 0,4 mm |
+| N-passung-texte-5: Rundung der skalierten Spiele | 0,08 / 0,23 | 0,033 / 0,233 (auf 0,001) | BC-05 (#377) |
+| T22: Profil gegen Katalog | 5 von 30 Werten verschieden | 0 von 30 | BC-05 (#377) |
+| T10: Zugaben der Bausteine | fest; `blockOf` mit `material: 'PP'` = ohne | aus dem Material: Mutter M3 Schlüsselweite PLA 5,8 / PETG, ASA, ABS, PA, PC, PP 5,9 / TPU 5,7 (Mutter + 2 × push), gezeichnet + Lochaufmaß; Magnet glue Raum PLA 0,3 / PETG … PP 0,4 / TPU 0,2, press −0,1 überall; Einsatz M3 4,0 ohne Aufmaß; `blockOf` mit `material` abgelehnt: „nutTrap takes no material, nozzle, holeShrink“ | BC-16 (#398); Ablehnung BC-03 (#369) |
+| T24 | 1,2 mm; `fitSize` warnt | Satz: „bars at least 3 lines … 1.35 mm on a 0.4 mm nozzle“; `fitSize` entfernt | BC-22 (#394), BC-14 (#386) |
+| T25 | 5 gegen 10 mm; Gelenkauge bis 16,3 mm | Normen und Notiz: „the print check takes up to 10 mm (UltiMaker), and from 5 mm it sags (Hubs)“; Scharnier 20 / 30 / 50 mm: 3 / 5 / 7 Augen à 6,4 / 5,68 / 6,8 mm, ab 90 mm abgelehnt („each at most 86 mm long“); Schlüsselloch-Eingang weiter 8 … 11 mm (sein Dach hier nicht nachgemessen) | BC-05 (#377), BC-10 (#382) |
+| R4 / T26 | Satz neu seit #351 | „draw the pilot hole 0.8 times the screw's diameter (2 mm for M2.5, 2.4 mm for M3) plus the hole allowance of the print profile“ | #351 |
+| MG-05 / N-passung-texte-6 | 0,3 mm | unverändert: Marke ergibt bei Düse 0,2 / 0,25 / 0,3 0,3 mm, `refit` lässt den genannten Spalt | #352 |
+
+Ungeklärte Änderungen: keine.
+
+**Angepasste Fälle.** `t22-t10-profile`: T22 erwartet 0 Unterschiede; T10 rechnet die Zugaben mit `nutFlats`,
+`magnetRoom` und `magnetPocket` je Material (`MAGNET.room` und `NUT_ALLOWANCE.flats` gibt es seit BC-16 nicht mehr)
+und erwartet die Ablehnung von `material` im Aufruf. `t2-toleranz`: das Spiel des Kamms nach Druck (Loch minus
+Aufmaß). `standards`: `fitSize` entfernt (BC-14), stattdessen nennt der Stegsatz 1,35 mm; die Satzsuche für R4/T26
+trifft jetzt „draw the pilot hole“ statt des Satzes über Dome.
+
+**Echte Fehler:** keine.

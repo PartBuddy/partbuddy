@@ -126,3 +126,37 @@ alten Stand bzw. 0,3-mm-Deckel jetzt `warn`); nach dem Anpassen 29 Dateien, 109 
 | N-bloecke-6 | – | weiter offen | `nutTrap` M3 in 2-mm-Wand: „Not built: SolidCraft refused solid.hole: … `position` [2.8, 20, 15] is not on a face …“ – die Ursache (Tasche tiefer als die Wand) wird nicht genannt | `bloecke-w2` |
 | N-bloecke-7 | – | weiter offen | M5 Senkkopf, Deckel 4,2 mm: „leaves 1.2 mm under the countersink; make it at least 4.2 mm thick“ | `bloecke-findings -t "T7"` |
 | W31 | – | weiter offen | `text height: 0.5` (−0,097 mm³), `slot` 0,05 × 0,05, `text depth: 500` (−321,8 mm³, durch den ganzen Würfel), `nutTrap flats: 0.1` – alle „Built“ | `bloecke-findings -t "W31"` |
+
+## Nachmessung 14.11.2026 (SolidCraft 0.41.0)
+
+Harness auf dem Audit-Zweig nach dem Merge von `origin/main` (`35653de`, alle PRs bis #405), installiertes
+SolidCraft 0.41.0, ein Worker, ohne Fenster. Erster Lauf (`tools/audit/phase4-2026-11-14.log`): 29 Dateien, 109 Tests,
+13 rot, alle 13 wegen Erwartungen am Stand vor den BC-Paketen; kein Fehler von SolidCraft 0.41.0. Die betroffenen Fälle
+sind angepasst und einzeln nachgefahren, grün. Verglichen ist mit den Werten der Nachmessung 13.11. (bei Fällen ohne
+Zeile dort mit der Tabelle oben). Werte in `tools/audit/out/…` (nicht im Repo).
+
+| Kennung / Wert | 13.11. (bzw. Tabelle oben) | 14.11. | Grund |
+|---|---|---|---|
+| Lochmaße aller Bausteine | gezeichnet = Tabellenmaß | gezeichnet = Tabellenmaß + Lochaufmaß des Materials (PLA 0,15 mm, ab Ø 8 0,16–0,18): screwHole M3 3,55; Langloch 3,55; nutTrap M3 Schlüsselweite 5,8, gezeichnet 5,95; Holzschraube 4 → 4,65 / Senkung 8,75; Magnet 6 × 2 → 6,45 (glue) / 6,05 (press, gedruckt 5,9); Einsatzsitze weiter ohne Aufmaß (M2.5/M3 4,0) | BC-16 (#398), BC-20 (#392) |
+| W1: Loch auf der gemeinsamen Kante | A −90,792 mm³, B 0 | A −99,742 mm³, B 0 | Loch 3,55 statt 3,4 (BC-16) und Mündungsfase 0,5 mm (BC-12, #387) |
+| W2: Langloch / screwHole / tappedHole M5 in der Dose | −86,158 / −18,158 / −32,395 mm³ | −90,796 / −21,321 / −37,850 mm³; Gegenwand weiter 2,000 mm, `Behind`/`Far`/`Beyond` 0 | wie W1; Gewinde M5.3 × 0,8, gebohrt 4,5 (BC-12) |
+| MV-02: Dom M2 … M6 | Ø 7,2 / 8 / 8 / 9,8 / 11,6 / 14,6, Wand 2,0 / 2,0 / 2,0 / 2,1 / 2,6 / 3,3 | Ø 7,7 / 8,5 / 8,5 / 10,1 / 11,8 / 15,2, Wand 2,25 / 2,25 / 2,25 / 2,25 / 2,7 / 3,6 | Wand auf ganze Bahnen (`snapSize('wall')`, BC-12) |
+| N-bloecke-6: `nutTrap` M3 in 2-mm-Wand | SolidCrafts „position … is not on a face“ | „Dose is 2 mm thick …; the pocket of an M3 nut trap is 2.8 mm deep and needs 0.9 mm of plastic under it …, 3.7 mm in all“ | BC-03 (#369) |
+| N-bloecke-7 / T7: M5 Senkkopf, Deckel 4,2 | „leaves 1.2 mm …; at least 4.2 mm“ | „leaves 1.05 mm under the countersink; make it at least 4.35 mm thick“ | BC-07 (#378); Senkung mit Aufmaß (BC-16): 4,2 − 3,15 = 1,05 |
+| W31 | text 0,5 hoch, slot 0,05, text 500 tief, nutTrap flats 0,1 gebaut | alle abgelehnt mit Grund (Strich 0,1 < 0,8 mm; „an M3 screw … would not pass“; „500.9 mm in all“; „an M3 nut … would not go in“), 0 mm³; snapFit 3 / 4 mm lang abgelehnt (35,56 / 17,05 % Dehnung) | BC-03 (#369), BC-11 / BC-17 |
+| N-bloecke-5: `lip` `groove` am Deckel, Rand 2 mm | gebaut, Restwand 0,6 mm | abgelehnt: „a groove 1.45 mm wide … leaves 0.55 mm of wall beside it“ | BC-03 (#369) |
+| N-bloecke-8: Langloch | Länge = Mittenabstand, nicht gesagt | „The length is centre to centre …: the slot is 13.4 mm long“ | BC-03 (#369) |
+| N-bloecke-9: `tappedHole` | Nennmaß 2,0 / 5,0 / 10,0 | M2 abgelehnt; M5.3 / M10.3, gebohrt 4,5 / 8,8 | BC-12 (#387) |
+| knob | Bohrung 6,2 / 6,0 (knurl); Überhang 58 mm² | gedruckt 6,1 / 6,0, gezeichnet 6,25 / 6,15; Stellschraube M3 in 2,55 mm; Prüfung `ready` | BC-12 (#387), BC-16 |
+| R54 | 8 / 8 gut gebaut, 10 / 10 schlecht abgelehnt, review2 6 / 6 | unverändert (nach dem Anpassen der Eingaben, siehe unten) | – |
+| N-bloecke-2 | Magnet/Holzschraube auf A, Punkt auf B: abgelehnt, 0 mm³ | Magnet: „A has less than 0.5 mm of plastic where 3.1 mm are needed“; Holzschraube: „it would change nothing on A“; 0 mm³ | – |
+
+Ungeklärte Änderungen: keine.
+
+**Angepasste Fälle.** `bloecke-sizes` „knob“: `shaft` und `shaftDiameter: 6` (seit BC-03 Pflicht, vorher brach der Fall
+mit „nothing to export“ ab). Dazu, ohne roten Test: seit BC-03 verlangen `magnet` Durchmesser und Höhe und
+`keyhole`/`woodScrew` die Schraube. `bloecke-sizes` „magnet“ (#2, #3), `bloecke-w1`, `bloecke-findings` (R54),
+`r54-probe` und `r54-review2` riefen sie ohne diese Angaben und maßen damit nur die Ablehnung „needs diameter and
+height“; sie bekommen jetzt die früheren Vorgaben (6 × 2 mm, Schraube 4).
+
+**Echte Fehler:** keine.

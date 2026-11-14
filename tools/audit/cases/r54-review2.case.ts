@@ -31,8 +31,8 @@ test('r54 review 2: chamfer, stepped plate, tab', async () => {
     await call('seat M3 4 mm from an edge with a 3 mm chamfer: refuse', { block: 'insertSeat', body: 'Chamfered', point: [4, 20, 20] });
     await call('seat M3 6 mm from that edge: refuse (the wall is under 2 mm over the chamfer)', { block: 'insertSeat', body: 'Chamfered', point: [6, 20, 20] });
     await call('seat M3 12 mm from that edge: build', { block: 'insertSeat', body: 'Chamfered', point: [12, 20, 20] });
-    await call('two wood screws on the stepped plate, 8 and 4 mm: build', { block: 'woodScrew', body: 'Stepped', point: [115, 20, 8], more: [[155, 20, 4]] });
-    await call('wood screw 4 in the middle of a 15 mm tab: build', { block: 'woodScrew', body: 'Tab', point: [20, 67.5, 5] });
+    await call('two wood screws on the stepped plate, 8 and 4 mm: build', { block: 'woodScrew', body: 'Stepped', point: [115, 20, 8], more: [[155, 20, 4]], screw: 4 });
+    await call('wood screw 4 in the middle of a 15 mm tab: build', { block: 'woodScrew', body: 'Tab', point: [20, 67.5, 5], screw: 4 });
     await call('two seats, one over a pocket from below: refuse, nothing stays', { block: 'insertSeat', body: 'Pocketed', point: [115, 80, 10], more: [[140, 80, 10]] });
     await audit.finish({ steps });
   } finally {

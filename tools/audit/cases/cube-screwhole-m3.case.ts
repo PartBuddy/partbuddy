@@ -1,7 +1,10 @@
 import { CLEARANCE_NORMAL } from '../../../apps/desktop/src/shared/screwSizes';
+import { drawnHole } from '../../../apps/desktop/src/shared/toolFit';
 import { cylinders, openAudit, PLA_04, ray } from '../harness';
 
-// A 20 mm cube with partbuddy_block screwHole M3, head none: the hole against ISO 273 medium (screwSizes.ts).
+// A 20 mm cube with partbuddy_block screwHole M3, head none: the hole against ISO 273 medium (screwSizes.ts),
+// drawn since BC-16 (#398) with PLA's hole allowance so that it prints at the table's size.
+const DRAWN = drawnHole(CLEARANCE_NORMAL.M3);
 test('cube 20 mm, screwHole M3 plain', async () => {
   const audit = await openAudit('cube-screwhole-m3');
   try {
@@ -20,7 +23,7 @@ test('cube 20 mm, screwHole M3 plain', async () => {
     const result = {
       refused,
       tool: built,
-      table: { clearanceNormalM3: CLEARANCE_NORMAL.M3 },
+      table: { clearanceNormalM3: CLEARANCE_NORMAL.M3, drawnPla: DRAWN },
       solidcraft: { bodies: bodies.length, before: before.solidcraft, after: cube.solidcraft, cylinders: cylinders(cube) },
       mesh: { before: before.metrics, after: cube.metrics },
       holeByRayX: acrossX,
@@ -32,11 +35,11 @@ test('cube 20 mm, screwHole M3 plain', async () => {
     };
     await audit.finish(result);
     expect(built.isError).toBe(false);
-    expect(cylinders(cube).map((entry) => entry.diameter)).toEqual([CLEARANCE_NORMAL.M3]);
+    expect(cylinders(cube).map((entry) => entry.diameter)).toEqual([DRAWN]);
     expect(alongAxis).toEqual([]);
     expect(refused.isError).toBe(true);
     // The ray on the mesh agrees with SolidCraft's exact cylinder within the chord tolerance.
-    expect(Math.abs(result.holeDiameterByRay.x - CLEARANCE_NORMAL.M3)).toBeLessThan(0.01);
+    expect(Math.abs(result.holeDiameterByRay.x - DRAWN)).toBeLessThan(0.01);
   } finally {
     await audit.close();
   }

@@ -51,7 +51,9 @@ test('hole 0.1 mm from the edge (solid.hole raw)', async () => {
     const { bodies } = await audit.measure();
     return { cylinders: cylinders(bodies[0]!), wallByRay: ray(bodies, [-1, 10, 10], [1, 0, 0]) };
   });
-  expect(result.run[0]!.allow).toBe(true);
+  // Since BC-13 (#390) the policy refuses the raw command and points to the block.
+  expect(result.run[0]!.allow).toBe(false);
+  expect(result.run[0]!.reason).toContain('"block": "screwHole"');
 });
 
 test('hole breaking out of the edge (solid.hole raw)', async () => {
@@ -59,7 +61,9 @@ test('hole breaking out of the edge (solid.hole raw)', async () => {
     const { bodies } = await audit.measure();
     return { wallByRay: ray(bodies, [-1, 10, 10], [1, 0, 0]) };
   });
-  expect(result.run[0]!.allow).toBe(true);
+  // Since BC-13 (#390) the policy refuses the raw command and points to the block.
+  expect(result.run[0]!.allow).toBe(false);
+  expect(result.run[0]!.reason).toContain('"block": "screwHole"');
 });
 
 for (const size of ['M2', 'M3']) {
@@ -69,7 +73,9 @@ for (const size of ['M2', 'M3']) {
       const [threads] = await audit.batch([{ command: 'model.threads', params: {} }]);
       return { cylinders: cylinders(bodies[0]!), acrossByRay: ray(bodies, [0, 10, 17], [1, 0, 0]).filter((hit) => hit.distance > 5 && hit.distance < 15), threads };
     });
-    expect(result.run[0]!.allow).toBe(true);
+    // Since BC-13 (#390) the policy refuses the raw command and points to the block.
+    expect(result.run[0]!.allow).toBe(false);
+    expect(result.run[0]!.reason).toContain('"block": "screwHole"');
   });
 }
 
@@ -78,12 +84,16 @@ test('snap hook 4 mm long, 2 mm thick, catch 1 mm (plastic.snap_fit raw, way W3)
     // The strain PartBuddy's own formula gives this hook (shared/blocks.ts snapStrain), in percent.
     Promise.resolve({ strainPercent: snapStrain({ length: 4, thickness: 2, catchDepth: 1, catchLength: 1.5 }) }),
   );
-  expect(result.run[0]!.allow).toBe(true);
+  // Since BC-13 (#390) the policy refuses the raw command and points to the block.
+  expect(result.run[0]!.allow).toBe(false);
+  expect(result.run[0]!.reason).toContain('"block": "snapFit"');
 });
 
 test('boss 3 mm with a 2.6 mm hole: 0.2 mm wall (plastic.boss raw)', async () => {
   const result = await way('boss', [cube()], [execute('plastic.boss', { position: [10, 10, 20], diameter: '3 mm', height: '10 mm', hole_diameter: '2.6 mm', body: 'Cube' })]);
-  expect(result.run[0]!.allow).toBe(true);
+  // Since BC-13 (#390) the policy refuses the raw command and points to the block.
+  expect(result.run[0]!.allow).toBe(false);
+  expect(result.run[0]!.reason).toContain('"block": "boss"');
 });
 
 test('a body with a 0.3 mm wall, hidden (browser.visibility)', async () => {
@@ -125,7 +135,9 @@ test('a screw hole from the block, then scaled to half (solid.scale)', async () 
     const { bodies } = await audit.measure();
     const result = { block: built, decision, reply: text(reply), cylinders: cylinders(bodies[0]!), holeByRay: ray(bodies, [-1, 5, 5], [1, 0, 0]), state: await appState(audit, PLA_04) };
     await finish(audit, name, result);
-    expect(decision.allow).toBe(true);
+    // Since BC-13 (#390) solid.scale is refused; the harness sends it anyway to measure what it would do.
+    expect(decision.allow).toBe(false);
+    expect(decision.allow ? '' : decision.reason).toContain('set_parameter');
   } finally {
     await audit.close();
   }

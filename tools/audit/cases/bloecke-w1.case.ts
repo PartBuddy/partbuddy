@@ -20,10 +20,10 @@ test('W1: the named body against the body that was cut', async () => {
       // On the shared edge of both bodies.
       { block: 'screwHole', body: 'A', point: [20, 20, 20], head: 'none' },
       // The blocks that do pass the body on (targets): the same wrong body.
-      { block: 'magnet', body: 'A', point: [30, 20, 20], normal: [0, 0, 1] },
-      { block: 'magnet', body: 'Ghost', point: [40, 20, 20], normal: [0, 0, 1] },
-      { block: 'woodScrew', body: 'A', point: [50, 20, 20] },
-      { block: 'woodScrew', body: 'Ghost', point: [60, 20, 20] },
+      { block: 'magnet', body: 'A', point: [30, 20, 20], normal: [0, 0, 1], diameter: 6, height: 2 },
+      { block: 'magnet', body: 'Ghost', point: [40, 20, 20], normal: [0, 0, 1], diameter: 6, height: 2 },
+      { block: 'woodScrew', body: 'A', point: [50, 20, 20], screw: 4 },
+      { block: 'woodScrew', body: 'Ghost', point: [60, 20, 20], screw: 4 },
     ];
     const steps = [];
     let before = await volumes(audit);

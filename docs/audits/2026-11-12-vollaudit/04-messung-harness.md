@@ -117,3 +117,23 @@ Antwort: „Built insertSeat on Cube at [10, 10, 20]: size M2.5, diameter 3.6, d
   einträgt; das Harness fährt kein Gelenk selbst.
 - `wallMount.ts`, `magnet.ts`, `knob.ts` laufen über denselben `partbuddy_block`-Aufruf, `templates.ts`
   ließe sich über `audit.batch(...)` einspielen – beides in diesem Lauf nicht gebaut.
+
+## Nachmessung 14.11.2026 (SolidCraft 0.41.0)
+
+Harness auf dem Audit-Zweig nach dem Merge von `origin/main` (`35653de`, alle PRs bis #405), installiertes
+SolidCraft 0.41.0, ein Worker, ohne Fenster. Erster Lauf (`tools/audit/phase4-2026-11-14.log`): 29 Dateien, 109 Tests,
+13 rot, alle 13 wegen Erwartungen am Stand vor den BC-Paketen; kein Fehler von SolidCraft 0.41.0. Die betroffenen Fälle
+sind angepasst und einzeln nachgefahren, grün. Verglichen ist mit den Werten der Nachmessung 13.11. (bei Fällen ohne
+Zeile dort mit der Tabelle oben). Werte in `tools/audit/out/…` (nicht im Repo).
+
+| Fall / Wert | 12.11. | 14.11. | Grund |
+|---|---|---|---|
+| a: Lochdurchmesser `screwHole` M3 | 3,4 mm | gezeichnet 3,55 mm (3,4 + PLA-Aufmaß 0,15), Strahl 3,546 mm; Mündungsfase 0,5 mm | BC-16 (#398), BC-12 (#387) |
+| a: entferntes Volumen | 181,584 mm³ | 199,485 mm³ (Netz 199,141) | wie oben |
+| b: Standardscharnier | 3 Augen à 9,733 mm; Base 5333,728 / Flap 4855,691 mm³; `warn` `overhang` 156 mm² | 5 Augen à 5,68 mm; Base 5270,199 / Flap 4885,281 mm³; `warn` `overhang` 53 mm²; Grenzen weiter −145° … 67°, Spalt 0,400 mm | BC-10 (#382) |
+| c: `insertSeat` M2.5 | 3,6 mm | 4,0 mm | #347 (T1, schon 13.11.) |
+
+**Angepasste Fälle.** `cube-screwhole-m3`: erwartet das gezeichnete Maß `drawnHole(CLEARANCE_NORMAL.M3)` = 3,55 mm.
+Das Feld `expected` in `hinge-standard` nennt weiter 3 Augen; es wird nicht geprüft, nur ausgegeben.
+
+**Echte Fehler:** keine.

@@ -91,8 +91,8 @@ const WOOD = [3.5, 4, 4.5, 5] as const;
 sizes('keyhole', [box('Cube', [100, 40, 12])], row(WOOD, (screw, i) => ({ block: 'keyhole', body: 'Cube', point: [15 + 23 * i, 28, 12], normal: [0, 0, 1], up: [0, 1, 0], screw })));
 sizes('woodscrew', [box('Cube', [100, 40, 12])], row(WOOD, (screw, i) => ({ block: 'woodScrew', body: 'Cube', point: [15 + 23 * i, 20, 12], screw })));
 sizes('magnet', [box('Cube', [120, 60, 30])], [
-  { block: 'magnet', body: 'Cube', point: [10, 10, 30], normal: [0, 0, 1] },
-  { block: 'magnet', body: 'Cube', point: [25, 10, 30], normal: [0, 0, 1], hold: 'press' },
+  { block: 'magnet', body: 'Cube', point: [10, 10, 30], normal: [0, 0, 1], diameter: 6, height: 2 },
+  { block: 'magnet', body: 'Cube', point: [25, 10, 30], normal: [0, 0, 1], hold: 'press', diameter: 6, height: 2 },
   { block: 'magnet', body: 'Cube', point: [40, 10, 30], normal: [0, 0, 1], diameter: 2, height: 1 },
   { block: 'magnet', body: 'Cube', point: [85, 30, 30], normal: [0, 0, 1], diameter: 40, height: 20 },
   { block: 'magnet', body: 'Cube', point: [10, 40, 30], normal: [0, 0, 1], diameter: 1.9, height: 1 },
@@ -101,9 +101,10 @@ sizes('magnet', [box('Cube', [120, 60, 30])], [
   { block: 'magnet', body: 'Cube', point: [10, 40, 30], normal: [0, 0, 1], diameter: 6, height: 20.1 },
 ]);
 sizes('knob', [], [
-  { block: 'knob', body: 'KnobD', point: [0, 0, 0] },
-  { block: 'knob', body: 'KnobKnurl', point: [50, 0, 0], shaft: 'knurl' },
-  { block: 'knob', body: 'KnobRound', point: [100, 0, 0], shaft: 'round' },
+  // Since BC-03 (#369) shaft and shaftDiameter are needed, as the user measured them.
+  { block: 'knob', body: 'KnobD', point: [0, 0, 0], shaft: 'd', shaftDiameter: 6 },
+  { block: 'knob', body: 'KnobKnurl', point: [50, 0, 0], shaft: 'knurl', shaftDiameter: 6 },
+  { block: 'knob', body: 'KnobRound', point: [100, 0, 0], shaft: 'round', shaftDiameter: 6 },
 ]);
 // T1 / MV-01 through the mechanism too: the insert seat of kind screw, M2.5.
 sizes(

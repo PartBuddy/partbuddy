@@ -151,14 +151,14 @@ test('W31: sizes without an FDM limit', async () => {
 
 // R54: conditions on the plastic round a block are only told in the reply.
 const r54: [string, Step[], string, Args, [Vec3, Vec3][]][] = [
-  ['r54-keyhole-3mm', [box('Plate', [60, 60, 3])], 'partbuddy_block', { block: 'keyhole', body: 'Plate', point: [30, 40, 0], normal: [0, 0, -1], up: [0, 1, 0] }, [[[30, 40, -1], [0, 0, 1]], [[30, 32, -1], [0, 0, 1]], [[33.5, 36, -1], [0, 0, 1]]]],
-  ['r54-magnet-2mm', [box('Plate', [60, 60, 2])], 'partbuddy_block', { block: 'magnet', body: 'Plate', point: [30, 30, 2], normal: [0, 0, 1] }, [[[30, 30, 5], [0, 0, -1]]]],
-  ['r54-magnet-2_5mm', [box('Plate', [60, 60, 2.5])], 'partbuddy_block', { block: 'magnet', body: 'Plate', point: [30, 30, 2.5], normal: [0, 0, 1] }, [[[30, 30, 5], [0, 0, -1]]]],
-  ['r54-magnet-edge', [box('Plate', [60, 60, 5])], 'partbuddy_block', { block: 'magnet', body: 'Plate', point: [3.5, 30, 5], normal: [0, 0, 1] }, [[[-1, 30, 4], [1, 0, 0]]]],
+  ['r54-keyhole-3mm', [box('Plate', [60, 60, 3])], 'partbuddy_block', { block: 'keyhole', body: 'Plate', point: [30, 40, 0], normal: [0, 0, -1], up: [0, 1, 0], screw: 4 }, [[[30, 40, -1], [0, 0, 1]], [[30, 32, -1], [0, 0, 1]], [[33.5, 36, -1], [0, 0, 1]]]],
+  ['r54-magnet-2mm', [box('Plate', [60, 60, 2])], 'partbuddy_block', { block: 'magnet', body: 'Plate', point: [30, 30, 2], normal: [0, 0, 1], diameter: 6, height: 2 }, [[[30, 30, 5], [0, 0, -1]]]],
+  ['r54-magnet-2_5mm', [box('Plate', [60, 60, 2.5])], 'partbuddy_block', { block: 'magnet', body: 'Plate', point: [30, 30, 2.5], normal: [0, 0, 1], diameter: 6, height: 2 }, [[[30, 30, 5], [0, 0, -1]]]],
+  ['r54-magnet-edge', [box('Plate', [60, 60, 5])], 'partbuddy_block', { block: 'magnet', body: 'Plate', point: [3.5, 30, 5], normal: [0, 0, 1], diameter: 6, height: 2 }, [[[-1, 30, 4], [1, 0, 0]]]],
   ['r54-insert-edge', [box('Cube', [20, 20, 20])], 'partbuddy_block', { block: 'insertSeat', body: 'Cube', point: [2.5, 10, 20] }, [[[-1, 10, 18], [1, 0, 0]]]],
   ['r54-insert-thin', [box('Plate', [20, 20, 7])], 'partbuddy_block', { block: 'insertSeat', body: 'Plate', point: [10, 10, 7] }, [[[10, 10, 9], [0, 0, -1]]]],
-  ['r54-woodscrew-1_5mm', [box('Plate', [60, 60, 1.5])], 'partbuddy_block', { block: 'woodScrew', body: 'Plate', point: [30, 30, 1.5] }, [[[32.5, 30, 3], [0, 0, -1]], [[25, 30, 0.01], [1, 0, 0]]]],
-  ['r54-woodscrew-edge', [box('Plate', [60, 60, 5])], 'partbuddy_block', { block: 'woodScrew', body: 'Plate', point: [5, 30, 5] }, [[[-1, 30, 4.9], [1, 0, 0]]]],
+  ['r54-woodscrew-1_5mm', [box('Plate', [60, 60, 1.5])], 'partbuddy_block', { block: 'woodScrew', body: 'Plate', point: [30, 30, 1.5], screw: 4 }, [[[32.5, 30, 3], [0, 0, -1]], [[25, 30, 0.01], [1, 0, 0]]]],
+  ['r54-woodscrew-edge', [box('Plate', [60, 60, 5])], 'partbuddy_block', { block: 'woodScrew', body: 'Plate', point: [5, 30, 5], screw: 4 }, [[[-1, 30, 4.9], [1, 0, 0]]]],
   ['r54-screw-insert-edge', [box('Base', [40, 40, 10]), box('Cover', [40, 40, 5], [0, 0, 10])], 'partbuddy_mechanism', { kind: 'screw', fixed: 'Base', moving: 'Cover', from: [2.5, 20, 15], to: [2.5, 20, 10], screws: false }, [[[-1, 20, 8], [1, 0, 0]], [[-1, 20, 13], [1, 0, 0]]]],
 ];
 for (const [name, scene, tool, args, rays] of r54) {

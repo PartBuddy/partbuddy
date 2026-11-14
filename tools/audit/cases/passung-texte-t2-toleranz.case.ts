@@ -21,6 +21,8 @@ test('T2: a clearance read off the test pieces, as the assistant gets it', () =>
       nozzle,
       combHoleDiameter: hole?.params.diameter,
       combClearancePerSide: (Number(hole?.params.diameter) - PIN) / 2,
+      // Since BC-16 (#398) the comb is drilled with the material's hole allowance: what prints is the drawn hole less it.
+      combClearancePerSideAfterPrint: Math.round(((Number(hole?.params.diameter) - pla.holeShrink - PIN) / 2) * 1000) / 1000,
       storedSlide: applied.material.clearance.slide,
       scaled: {
         clamp: scaleClearance(applied.material.clearance.clamp, { nozzle, layer }, from),
@@ -51,7 +53,7 @@ test('T2: a clearance read off the test pieces, as the assistant gets it', () =>
   };
   save('t2-toleranz', result);
   const at06 = perNozzle.find((row) => row.nozzle === 0.6);
-  expect(at06?.combClearancePerSide).toBeCloseTo(0.3, 9);
+  expect(at06?.combClearancePerSideAfterPrint).toBe(0.3);
   expect(at06?.storedSlide).toBe(0.3);
   // T2 fixed (PR #349): on the nozzle of the reading the fit is used as read.
   expect(at06?.scaled.slide).toBe(0.3);

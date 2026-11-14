@@ -155,3 +155,30 @@ alten Stand bzw. 0,3-mm-Deckel jetzt `warn`); nach dem Anpassen 29 Dateien, 109 
 | T3 | #358 | weiter offen (Rest) | Vorlage `hingedBox` unverändert: `warn`, `overhang` 63 mm² am Deckel (Seiten `F18`/`F20` am Verschluss `F10`/`F12`), vorher 134,86 mm² an den Augen. Dasselbe Scharnier über das Werkzeug auf den Schalen: `ready` | H "T3", `mechanik-fix` |
 | N-mechanik-6 | #358 | erledigt (Text) | Antwort sagt jetzt „The two print apart, each with up pointing up“ | O "T5" |
 | neu | – | neu falsch | Vorlage nach Änderung im Parameterfeld (height 24, length 80, wall 3): `block`, `thinWall` 0,26 mm auf 93 mm² am Deckel → N-nach-1. Vorlage mit height 5: `block`, „Closure ◢: the reference … no longer exists“ → N-nach-2. `joint.sweep` 0 → 180° der Vorlage stoppt bei 175,6° → N-nach-3 | `mechanik-fix`, `mechanik-review` "review 6" |
+
+## Nachmessung 14.11.2026 (SolidCraft 0.41.0)
+
+Harness auf dem Audit-Zweig nach dem Merge von `origin/main` (`35653de`, alle PRs bis #405), installiertes
+SolidCraft 0.41.0, ein Worker, ohne Fenster. Erster Lauf (`tools/audit/phase4-2026-11-14.log`): 29 Dateien, 109 Tests,
+13 rot, alle 13 wegen Erwartungen am Stand vor den BC-Paketen; kein Fehler von SolidCraft 0.41.0. Die betroffenen Fälle
+sind angepasst und einzeln nachgefahren, grün. Verglichen ist mit den Werten der Nachmessung 13.11. (bei Fällen ohne
+Zeile dort mit der Tabelle oben). Werte in `tools/audit/out/…` (nicht im Repo).
+
+| Kennung / Wert | 13.11. (bzw. Tabelle oben) | 14.11. | Grund |
+|---|---|---|---|
+| T3: Vorlage `hingedBox` unverändert | `warn`, `overhang` 63 mm² am Deckel | PLA 0,4: `ready` | BC-01 (#370) |
+| N-nach-1: Vorlage height 24, length 80, wall 3 (`fix-template`) | `block`, `thinWall` 0,26 mm | `ready` | BC-01 (#370) |
+| N-nach-2: Vorlage height 5 (`r-template-low`) | `block`, Referenz des Verschlusses verloren | `warn`, `overhang` 6 mm² (`F10:start`), Gelenk 0 … 180° | BC-01 (#370) |
+| T12 / N-passung-texte-2: Scharnier-Vorgabe stehend bei Düse 0,6 / 0,8 | Rollenwand 0,894 mm bzw. abgelehnt | gebaut: Ø 8, Stift 4, Spalt 0,6 bzw. Ø 10,5, Stift 5,25, Spalt 0,8 | BC-10 (#382) |
+| T13: Verschluss bei Düse 0,6 (`closure-default-n06`) | Lippe 1,2 < 1,35 mm auf 1383 mm² | Lippe 1,4 mm, Wand hinter der Rille ≥ 1,8 mm; Prüfung 0,6: nur noch `thinWall` 1 < 1,2 mm auf 1 mm² am Wulst (`F12`) → N-nach-8 | BC-01 / BC-11 / BC-17 |
+| M-1: 185 Körper, Scharnier scheitert | Zeitleiste 187 vorher und nachher | unverändert 187; neu mitgelesen: Undo-Tiefe 188 → 149 | – |
+
+Unverändert: T5 (Firstbrücke 5 mm, `ready`; 101,9 mm breite Nutdecke), N-mechanik-1 (3058 mm²), N-mechanik-2
+(Wulst bis y 38,25), N-mechanik-3, N-mechanik-4, N-mechanik-5, H-02, G1 (1265 mm²), M-2 (418 mm²).
+Ungeklärte Änderungen: keine.
+
+**Angepasste Fälle:** keine.
+
+**Echte Fehler:** N-nach-8 (BEFUNDE.md): der Wulst des Verschlusses ist fest 1 mm hoch und 0,5 mm tief (`LIP` in
+`shared/mechanisms.ts`); bei Düse 0,6 meldet die eigene Prüfung ihn als zu dünn (1 < 1,2 mm), die Antwort sagt
+nichts. Dasselbe am Wulst der Vorlage `hingedBox` (`F18`), geprüft mit Düse 0,6.

@@ -1,6 +1,6 @@
 import { hingeOf } from '../../../apps/desktop/src/main/agents/mechanismTool';
 import { printNote } from '../../../apps/desktop/src/main/print/printProfiles';
-import { fitSize, lineWidth, snapSize } from '../../../apps/desktop/src/shared/designFit';
+import { lineWidth, snapSize } from '../../../apps/desktop/src/shared/designFit';
 import { MATERIAL_CATALOG } from '../../../apps/desktop/src/shared/materialCatalog';
 import { STANDARDS } from '../../../apps/desktop/src/shared/standards';
 import { WALL, WOOD_SCREWS } from '../../../apps/desktop/src/shared/wallMount';
@@ -12,7 +12,7 @@ const r3 = (value: number) => Math.round(value * 1000) / 1000;
 // R4, T24, T25, T26: the figures of standards.ts recomputed with PartBuddy's own functions.
 test('R4/T24/T25/T26: sentences of standards.ts recomputed', () => {
   // R4 / T26: the pilot hole.
-  const pilot = sentence(STANDARDS.boardMount.rules, /pilot hole/);
+  const pilot = sentence(STANDARDS.boardMount.rules, /draw the pilot hole/);
   const stated = { 'M2.5': 2.0, M3: 2.5 };
   const pilotRows = ([['M2.5', 2.5], ['M3', 3]] as const).map(([size, screw]) => ({
     size,
@@ -34,7 +34,7 @@ test('R4/T24/T25/T26: sentences of standards.ts recomputed', () => {
     lineWidth: lineWidth(printer),
     lines: [1, 2, 3, 4].map((count) => r3(count * lineWidth(printer))),
     linesIn1_2: r3(1.2 / lineWidth(printer)),
-    fitSizeUser: fitSize('wall', 1.2, 'user', printer),
+    // fitSize is gone since BC-14 (#386); since BC-22 (#394) the sentence takes its bars from lineWidth.
     snapSizeAssistant: snapSize('wall', 1.2, printer),
   };
 
@@ -56,5 +56,5 @@ test('R4/T24/T25/T26: sentences of standards.ts recomputed', () => {
   save('standards', { pilot: { sentence: pilot, rows: pilotRows }, wall: { sentence: bars, hexagons, ...wall }, bridges });
   expect(pilotRows.map((row) => row.by025Less)).toEqual([2.25, 2.75]);
   expect(wall.lines[2]).toBe(1.35);
-  expect(wall.fitSizeUser.warning).not.toBeNull();
+  expect(bars).toContain(`${String(wall.lines[2])} mm`);
 });

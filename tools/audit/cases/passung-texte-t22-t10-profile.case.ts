@@ -1,9 +1,10 @@
 import { blockOf } from '../../../apps/desktop/src/main/agents/blockTool';
 import { DEFAULT_PRINT_SETTINGS } from '../../../apps/desktop/src/main/print/printProfiles';
-import { defaultBlock, stepsOf } from '../../../apps/desktop/src/shared/blocks';
-import { magnetPocket, MAGNET } from '../../../apps/desktop/src/shared/magnet';
+import { defaultBlock, nutFlats, stepsOf } from '../../../apps/desktop/src/shared/blocks';
+import { magnetPocket, magnetRoom, MAGNET } from '../../../apps/desktop/src/shared/magnet';
 import { MATERIAL_CATALOG } from '../../../apps/desktop/src/shared/materialCatalog';
-import { HEAD_ALLOWANCE, INSERT, NUT_ALLOWANCE } from '../../../apps/desktop/src/shared/screwSizes';
+import { HEAD_ALLOWANCE, INSERT, NUT, NUT_ALLOWANCE } from '../../../apps/desktop/src/shared/screwSizes';
+import { DEFAULT_PRINTER } from '../../../apps/desktop/src/shared/toolFit';
 import { save, source } from '../passung-texte-helpers';
 
 const r3 = (value: number) => Math.round(value * 1000) / 1000;
@@ -25,7 +26,8 @@ test('T22: starting profiles against the material catalog', () => {
     return pairs.map(([value, own, catalog]) => ({ material: `${profile.name} / ${entry.name}`, value, profile: own, catalog, equal: own === catalog }));
   });
   save('t22-profile', { rows, different: rows.filter((row) => !row.equal) });
-  expect(rows.filter((row) => !row.equal).length).toBeGreaterThan(0);
+  // T22 fixed (BC-05, #377): profiles and catalog agree.
+  expect(rows.filter((row) => !row.equal).length).toBe(0);
 });
 
 // T10: what a block's allowance leaves once the material's hole allowance is taken off.
@@ -36,11 +38,17 @@ test('T10: block allowances per material', () => {
   const perMaterial = MATERIAL_CATALOG.map((material) => ({
     material: material.name,
     holeShrink: material.holeShrink,
-    nutFlatsLeft: r3(NUT_ALLOWANCE.flats - material.holeShrink),
-    magnetGlueLeft: r3(MAGNET.room.glue - material.holeShrink),
-    magnetPressLeft: r3(MAGNET.room.press - material.holeShrink),
+    // Since BC-16 (#398) the blocks take the part's material: nut flats from its push fit, pockets and holes drawn with its
+    // hole allowance (BC-20: by diameter). What is left after the allowance is what prints.
+    nutFlatsM3: nutFlats('M3', { ...DEFAULT_PRINTER, material }),
+    nutFlatsM3Left: r3(nutFlats('M3', { ...DEFAULT_PRINTER, material }) - NUT.M3[0]),
+    magnetGlueRoom: magnetRoom('glue', { ...DEFAULT_PRINTER, material }),
+    magnetPressRoom: magnetRoom('press', { ...DEFAULT_PRINTER, material }),
+    magnet6Glue: magnetPocket({ diameter: 6, height: 2, hold: 'glue' }, { ...DEFAULT_PRINTER, material }),
+    magnet6Press: magnetPocket({ diameter: 6, height: 2, hold: 'press' }, { ...DEFAULT_PRINTER, material }),
     headLeft: r3(HEAD_ALLOWANCE.diameter - material.holeShrink),
-    insertSeatM3Printed: r3((INSERT.M3?.diameter ?? NaN) - material.holeShrink),
+    // An insert's seat is drawn at its maker's size, without the allowance: the insert melts into it.
+    insertSeatM3: INSERT.M3?.diameter,
   }));
   const blockTool = source('main/agents/blockTool.ts');
   const result = {
@@ -55,5 +63,8 @@ test('T10: block allowances per material', () => {
     perMaterial,
   };
   save('t10-zugaben', result);
-  expect(result.blockOfWithMaterial).toEqual(result.blockOfPlain);
+  // Since BC-03 (#369) the tool refuses arguments a block does not take: the model cannot set material or nozzle.
+  expect(result.blockOfWithMaterial).toContain('takes no material, nozzle, holeShrink');
+  // The material reaches the block from the print profile instead (BC-16): PP gets wider nut flats than PLA.
+  expect(perMaterial.find((row) => row.material === 'PP')!.nutFlatsM3).toBeGreaterThan(perMaterial.find((row) => row.material === 'PLA')!.nutFlatsM3);
 });

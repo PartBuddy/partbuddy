@@ -42,25 +42,25 @@ test('r54 ratios: blocks on flat, sloping and curved faces', async () => {
     };
     const mid = [20, 120, 20];
     // Good: must be built and say that it was measured.
-    await call('good keyhole, 8 mm plate', { block: 'keyhole', body: 'P8', point: [30, 40, 0], normal: [0, 0, -1], up: [0, 1, 0] });
-    await call('good magnet, 4 mm plate', { block: 'magnet', body: 'P4', point: [100, 20, 4], normal: [0, 0, 1] });
+    await call('good keyhole, 8 mm plate', { block: 'keyhole', body: 'P8', point: [30, 40, 0], normal: [0, 0, -1], up: [0, 1, 0], screw: 4 });
+    await call('good magnet, 4 mm plate', { block: 'magnet', body: 'P4', point: [100, 20, 4], normal: [0, 0, 1], diameter: 6, height: 2 });
     await call('good insert M3, 10 mm plate', { block: 'insertSeat', body: 'P10', point: [160, 20, 10] });
-    await call('good wood screw, 8 mm plate', { block: 'woodScrew', body: 'P8', point: [30, 15, 8] });
-    await call('good magnet, sloping face', { block: 'magnet', body: 'Wedge', point: mid, normal: [s, 0, s] });
+    await call('good wood screw, 8 mm plate', { block: 'woodScrew', body: 'P8', point: [30, 15, 8], screw: 4 });
+    await call('good magnet, sloping face', { block: 'magnet', body: 'Wedge', point: mid, normal: [s, 0, s], diameter: 6, height: 2 });
     await call('good insert M3, sloping face', { block: 'insertSeat', body: 'Wedge', point: [20, 108, 20], more: [[20, 132, 20]] });
-    await call('good magnet, curved face', { block: 'magnet', body: 'Rod', point: [15, 220, 40], normal: [0, 0, 1] });
+    await call('good magnet, curved face', { block: 'magnet', body: 'Rod', point: [15, 220, 40], normal: [0, 0, 1], diameter: 6, height: 2 });
     await call('good insert M3, curved face', { block: 'insertSeat', body: 'Rod', point: [40, 220, 40] });
     // Bad: must be refused and leave nothing.
-    await call('bad keyhole, 3 mm plate', { block: 'keyhole', body: 'P3', point: [220, 30, 0], normal: [0, 0, -1], up: [0, 1, 0] });
-    await call('bad keyhole, entry over the edge', { block: 'keyhole', body: 'P8', point: [30, 5, 0], normal: [0, 0, -1], up: [0, 1, 0] });
-    await call('bad magnet, 2.5 mm under it missing', { block: 'magnet', body: 'P3', point: [220, 20, 3], normal: [0, 0, 1], height: 2.5 });
-    await call('bad magnet, 1 mm from the wall', { block: 'magnet', body: 'P10', point: [144.15, 30, 10], normal: [0, 0, 1] });
+    await call('bad keyhole, 3 mm plate', { block: 'keyhole', body: 'P3', point: [220, 30, 0], normal: [0, 0, -1], up: [0, 1, 0], screw: 4 });
+    await call('bad keyhole, entry over the edge', { block: 'keyhole', body: 'P8', point: [30, 5, 0], normal: [0, 0, -1], up: [0, 1, 0], screw: 4 });
+    await call('bad magnet, 2.5 mm under it missing', { block: 'magnet', body: 'P3', point: [220, 20, 3], normal: [0, 0, 1], height: 2.5, diameter: 6 });
+    await call('bad magnet, 1 mm from the wall', { block: 'magnet', body: 'P10', point: [144.15, 30, 10], normal: [0, 0, 1], diameter: 6, height: 2 });
     await call('bad insert M3, 3 mm plate', { block: 'insertSeat', body: 'P3', point: [210, 10, 3] });
     await call('bad insert M3, plate as thick as the seat is deep', { block: 'insertSeat', body: 'P67', point: [280, 20, 6.7] });
     await call('bad insert M3, 2.5 mm from the edge', { block: 'insertSeat', body: 'P10', point: [142.5, 10, 10] });
     await call('bad insert M3, on a 3 mm pilot hole through the part', { block: 'insertSeat', body: 'Pilot', point: [120, 120, 20] });
     await call('bad wood screw, 1.5 mm left of a 3 mm plate is too little', { block: 'woodScrew', body: 'P3', point: [230, 10, 3], screw: 5 });
-    await call('bad wood screw, 5 mm from the edge', { block: 'woodScrew', body: 'P10', point: [175, 30, 10] });
+    await call('bad wood screw, 5 mm from the edge', { block: 'woodScrew', body: 'P10', point: [175, 30, 10], screw: 4 });
     await audit.finish({ steps });
   } finally {
     await audit.close();

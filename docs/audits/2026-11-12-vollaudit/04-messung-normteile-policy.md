@@ -177,3 +177,36 @@ alten Stand bzw. 0,3-mm-Deckel jetzt `warn`); nach dem Anpassen 29 Dateien, 109 
 | N-normteile-policy-4 | #356 | teilweise | `path` als Liste und als Kurven-Id lesbarer Pfad: weiter allow; `screenshot`, `compare_picture`, `sketch.replace {file}` deny | `… normteile-policy-decide` |
 | N-normteile-policy-6 / -7, S-18, X3, W14, R2 | – | weiter offen | Körper verstecken → `ready`; Gewinde M2/M3 modelliert → `ready`; `solid.scale` 0,5 → `ready`; `timeline.suppress` → `ready`; `set_parameter wnad` legt neuen Parameter an; rohe `solid.*`/`plastic.*` allow | `… normteile-policy-raw` |
 | neu | – | neu | Erste Erkennung aller Größen (185 Teile): 66,5 s, beim ersten Spiegeln alle 185 „ausstehend“; zweiter Lauf aus dem Speicher 0,19 s → N-nach-4 | `… normteile-policy-library` "every size" |
+
+## Nachmessung 14.11.2026 (SolidCraft 0.41.0)
+
+Harness auf dem Audit-Zweig nach dem Merge von `origin/main` (`35653de`, alle PRs bis #405), installiertes
+SolidCraft 0.41.0, ein Worker, ohne Fenster. Erster Lauf (`tools/audit/phase4-2026-11-14.log`): 29 Dateien, 109 Tests,
+13 rot, alle 13 wegen Erwartungen am Stand vor den BC-Paketen; kein Fehler von SolidCraft 0.41.0. Die betroffenen Fälle
+sind angepasst und einzeln nachgefahren, grün. Verglichen ist mit den Werten der Nachmessung 13.11. (bei Fällen ohne
+Zeile dort mit der Tabelle oben). Werte in `tools/audit/out/…` (nicht im Repo).
+
+| Kennung / Wert | 13.11. | 14.11. | Grund |
+|---|---|---|---|
+| W42 (a): `execute` in `execute`, `batch` als Befehl, `batch` als Batch-Schritt | allow | deny („execute is a tool, not an engine command“, „batches do not nest“) | BC-09 (#383) |
+| N-normteile-policy-4: `path` als Liste und als Kurven-Id | allow | deny („… with path reads or writes a file“) | BC-09 (#383) |
+| R2: rohe `solid.hole` (auch Gewinde M2/M3 modelliert), `plastic.snap_fit`, `plastic.boss`, `plastic.lip`, `solid.thread` | allow | deny mit Verweis auf `partbuddy_block` (screwHole, snapFit, boss …) | BC-13 (#390) |
+| S-18: `solid.scale` 0,5 | allow, `ready` | deny („Change the sizes with set_parameter …“); vom Harness trotzdem gesendet: Loch 3,55 → 1,775 mm, Prüfung `warn` `smallHole` 1,77 < 2 mm | BC-13; Fund aus BC-24 (#405) |
+| X3: `timeline.suppress` eines gescheiterten Features | `ready` | `warn`, `leftOut` („Round“) | BC-02 (#371) |
+| unbekannte Befehls-Ids (`save` als `execute`, `screenshot` als Batch-Schritt) | deny über andere Regeln | deny: „is not an engine command id“ | BC-26 (#401) |
+| `kind: screw, head: countersunk` | 2 × M3×8 | 2 × M3×10 (ISO 10642); Loch 3,55 gezeichnet | BC-07 (#378), BC-16 |
+| N-nach-4: erste Erkennung aller 185 Teile | 66,5 s; zweiter Lauf 0,19 s | 12,9 s; zweiter Lauf 0,10 s; beim ersten Spiegeln weiter alle 185 ausstehend | teils PR #379 (parallel, dort ~35 s); der Rest bis 12,9 s **ungeklärt** (SolidCraft 0.41.0 vermutet, nicht eingegrenzt) |
+| N-normteile-policy-2: Loch 1 mm neben der Außenwand | `block`, `thinWall` 0 mm | auf diesem Weg nicht mehr messbar: rohes `solid.hole` ist gesperrt; der Bausteinweg lehnt ab (R54 in 04-messung-bloecke) | BC-13 |
+
+Unverändert: S-01 (13 von 13 Familien), G2, H-01 / P-1, P-2, P-3, P-4, P-6. Weiter offen wie am 13.11.:
+N-normteile-policy-6 (Körper versteckt → `ready`, teilweise wie D24). Nicht nachgemessen: R17 / Weg W14
+(`set_parameter wnad`) – das Harness ruft SolidCraft hinter `decide()` direkt und geht nicht durch die Namensprüfung
+aus #383; SolidCraft selbst legt den Parameter weiter an. N-normteile-policy-7 (feines Gewinde → `ready`) ist über
+die Werkzeuge nicht mehr erreichbar (rohes `solid.hole` gesperrt, `tappedHole` erst ab M5); ob die Prüfung ein
+modelliertes M2-Gewinde erkennt, bleibt ungemessen.
+
+**Angepasste Fälle.** `normteile-policy-raw`: die sieben Wege über rohe Befehle (Loch am Rand, Loch über den Rand,
+Gewinde M2/M3, Schnapphaken, Dom, `solid.scale`) erwarten jetzt deny und den Verweis auf den Baustein bzw. auf
+`set_parameter`.
+
+**Echte Fehler:** keine.
