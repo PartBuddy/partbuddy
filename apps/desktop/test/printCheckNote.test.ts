@@ -5,7 +5,7 @@ import { printCheckNote } from '../src/main/print/printCheckNote';
 import { printNote } from '../src/main/print/printProfiles';
 import { asksBeforeExport, checkNow, fitsOf, jointRuns, lateOn, reachOf, reportOf, sweepInBlocks } from '../src/renderer/src/print/report';
 import type { ModelState, StudioPrintCheck } from '../src/renderer/src/state/store';
-import { DESIGN_DEFAULTS, printCheckReportSchema, type PartPrint } from '../src/shared/contract';
+import { DESIGN_DEFAULTS, HINT_RULE, PRINT_HINTS, printCheckReportSchema, type PartPrint } from '../src/shared/contract';
 
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
   it('says what it looked at when nothing was found, and what it did not (audit R3)', () => {
@@ -91,8 +91,11 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     expect(printCheckReportSchema.safeParse(report).success).toBe(true);
     const note = printCheckNote(report);
     expect(note).toContain('- warning: 8 sharp edges (200 mm) on bodies with no rounded or chamfered edge at all (faces "F1:+z", "F1:+x" of body "Box"): the design rules round outer edges that are seen or touched, 2 mm on a part of 40 mm');
-    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).toContain('Design hints looked for (how the part looks and holds; yellow, never a block): bodies with no rounded or chamfered edge.');
-    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1, [], { off: ['sharpEdge'] }))).not.toContain('Design hints looked for');
+    const radii = reportOf({ status: 'warn', findings: [{ kind: 'edgeRadii', severity: 'warn', radii: [1, 2, 4, 8], families: 4, most: 3, places: [{ body: 'Box', faces: ['F2:blend(F1:+x|F1:+y)'] }], box: null }] }, 0.4, 3);
+    expect(printCheckReportSchema.safeParse(radii).success).toBe(true);
+    expect(printCheckNote(radii)).toContain('- warning: outer edges rounded with 4 families of radii (1, 2, 4, 8 mm) (faces "F2:blend(F1:+x|F1:+y)" of body "Box"): the design rules use at most 3 radii per part');
+    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).toContain('Design hints looked for (how the part looks and holds; yellow, never a block): bodies with no rounded or chamfered edge, more than three radii on outer edges.');
+    expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1, [], { off: PRINT_HINTS.filter((hint) => HINT_RULE[hint]) }))).not.toContain('Design hints looked for');
   });
 
   it('claims no hint the user turned off (BC-24)', () => {

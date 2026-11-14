@@ -164,6 +164,8 @@ export function reportOf(result: PrintCheck, nozzle: number, revision: number, b
           return { kind: finding.kind, severity: finding.severity, holes: finding.holes, diameter: finding.diameter, minimum: finding.minimum, places };
         case 'sharpEdge':
           return { kind: finding.kind, severity: finding.severity, edges: finding.edges, length: finding.length, size: finding.size, radius: finding.radius, places };
+        case 'edgeRadii':
+          return { kind: finding.kind, severity: finding.severity, radii: finding.radii, families: finding.families, most: finding.most, places };
         case 'narrowGap':
           return { kind: finding.kind, severity: finding.severity, gap: finding.gap, minimum: finding.minimum, area: finding.area, places };
       }

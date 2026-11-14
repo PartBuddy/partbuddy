@@ -1156,6 +1156,10 @@
       "sharpEdge": {
         "label": "Körper ohne jede Rundung",
         "hint": "Zeigt Körper ganz ohne Rundung oder Fase, deren Außenkanten scharf sind: Die Gestaltungsregeln runden sichtbare Kanten je nach Teilgröße mit 1, 2 oder 3 mm. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
+      },
+      "edgeRadii": {
+        "label": "Zu viele Radien",
+        "hint": "Zeigt Körper, deren Außenkanten mit mehr als drei verschiedenen Radien gerundet sind (Radien, die weniger als ein Viertel auseinanderliegen, zählen als einer): Die Gestaltungsregeln nehmen zwei bis drei je Teil. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
       }
     }
   },
@@ -1210,7 +1214,8 @@
       "posed": "{joint} steht auf {value}, nicht wie konstruiert – exportiert und geprüft wird diese Stellung",
       "smallHole": "{count, plural, one {Eine Bohrung unter {minimum} mm ({diameter} mm)} other {# Bohrungen unter {minimum} mm, die kleinste {diameter} mm}}: So kleine Bohrungen wachsen zu oder werden zu klein – nach dem Druck aufbohren",
       "narrowGap": "Schlitze bis {gap} mm, unter den {minimum} mm, die mit dieser Düse offen bleiben: Die Wände daneben drücken sich zusammen und schließen sie",
-      "sharpEdge": "{count, plural, one {Eine scharfe Kante} other {# scharfe Kanten}} ({length} mm) an Körpern ganz ohne Rundung oder Fase: Die Gestaltungsregeln runden sichtbare Außenkanten bei {size} mm Teilgröße mit {radius} mm"
+      "sharpEdge": "{count, plural, one {Eine scharfe Kante} other {# scharfe Kanten}} ({length} mm) an Körpern ganz ohne Rundung oder Fase: Die Gestaltungsregeln runden sichtbare Außenkanten bei {size} mm Teilgröße mit {radius} mm",
+      "edgeRadii": "Außenkanten mit {count} verschiedenen Radien ({radii} mm): Die Gestaltungsregeln nehmen höchstens {most} Radien je Teil, damit die Rundungen zusammenpassen"
     },
     "confirm": {
       "title": "Trotzdem exportieren?",

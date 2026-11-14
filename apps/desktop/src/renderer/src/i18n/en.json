@@ -1156,6 +1156,10 @@
       "sharpEdge": {
         "label": "Bodies with no rounding at all",
         "hint": "Says where a body has no rounded or chamfered edge at all and its outer edges are sharp: the design rules round seen edges by 1, 2 or 3 mm, by the size of the part. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
+      },
+      "edgeRadii": {
+        "label": "Too many radii",
+        "hint": "Says where the outer edges of a body are rounded with more than three different radii (radii less than a quarter apart count as one): the design rules use two or three per part. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
       }
     }
   },
@@ -1210,7 +1214,8 @@
       "posed": "{joint} stands at {value}, not as designed – the part is exported and checked the way it stands",
       "smallHole": "{count, plural, one {A hole under {minimum} mm across ({diameter} mm)} other {# holes under {minimum} mm across, the smallest {diameter} mm}}: holes that small close up or come out under size – drill them out after printing",
       "narrowGap": "Slots down to {gap} mm, under the {minimum} mm that stay open with this nozzle: the walls beside them squeeze together and close them",
-      "sharpEdge": "{count, plural, one {A sharp edge} other {# sharp edges}} ({length} mm) on bodies with no rounded or chamfered edge at all: the design rules round seen outer edges {radius} mm on a part of {size} mm"
+      "sharpEdge": "{count, plural, one {A sharp edge} other {# sharp edges}} ({length} mm) on bodies with no rounded or chamfered edge at all: the design rules round seen outer edges {radius} mm on a part of {size} mm",
+      "edgeRadii": "Outer edges rounded with {count} different radii ({radii} mm): the design rules use at most {most} per part, so the rounds match"
     },
     "confirm": {
       "title": "Export anyway?",

@@ -37,7 +37,7 @@ export interface PrintCheckProfile {
  * hints (`withDesign`, Manuel 2026-11-14) say how the part looks and holds, not whether it prints.
  */
 export type PrintHint = 'smallHole' | 'narrowGap' | DesignHint;
-export type DesignHint = 'sharpEdge';
+export type DesignHint = 'sharpEdge' | 'edgeRadii';
 
 export interface PrintCheckBody {
   name: string;
@@ -97,6 +97,8 @@ export type PrintFinding =
    * radius the design rules ask for the largest such body (`size` its longest side).
    */
   | ({ kind: 'sharpEdge'; severity: FindingSeverity; edges: number; length: number; size: number; radius: number } & Located)
+  /** Outer fillets of more than `most` radius families on one body (design hint): `radii` of the body with the most, smallest first. */
+  | ({ kind: 'edgeRadii'; severity: FindingSeverity; radii: number[]; families: number; most: number } & Located)
   /** The bodies with too little on the bed: how many, and the area of the one with the least. */
   | ({ kind: 'contact'; severity: FindingSeverity; area: number; bodies: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
@@ -1150,7 +1152,7 @@ export function withMotion(check: PrintCheck, measured: MeasuredMotion): PrintCh
 }
 
 /** The design hints, in the order the note names them. */
-export const DESIGN_HINTS: readonly DesignHint[] = ['sharpEdge'];
+export const DESIGN_HINTS: readonly DesignHint[] = ['sharpEdge', 'edgeRadii'];
 
 /** Within 10° two faces run on smoothly: a fillet into its faces, the facets of one curved face. */
 const SMOOTH = Math.cos((10 * Math.PI) / 180);
@@ -1353,6 +1355,41 @@ function sharpEdges(bodies: readonly DesignBody[]): PrintFinding | null {
   return { kind: 'sharpEdge', severity: 'warn', edges, length: round(length, 0), size: round(size, 0), radius: edgeRadius(size), places: found.places, box: found.box };
 }
 
+/** The design rules: at most two or three radii per part, so they match (printProfiles.ts, "Edges"). */
+export const MOST_RADII = 3;
+/** Radii less than a quarter apart read as one (5 and 6 mm; own choice): the eye does not tell them apart on a part. */
+const RADIUS_FAMILY = 1.25;
+
+/**
+ * `edgeRadii` (research O1, H6): the fillets on a body's outer edges (SolidCraft's `blend(` cylinders the material lies
+ * inside of) in more than three families of radii. Inner fillets (a root, a pocket's corner) are left out, as are holes,
+ * threads and rounds that are no fillet (a knuckle, a boss).
+ * shortcut: only fillets along straight edges are cylinders; a fillet's corner patch (a sphere or torus) and a fillet along a
+ * curve carry no radius in `model.faces` and are not counted. Read their radius from SolidCraft if a part rounds only so.
+ */
+function edgeRadii(bodies: readonly DesignBody[]): PrintFinding | null {
+  let worst: number[] = [];
+  let families = 0;
+  const tallies = bodies.map(({ body, hollow }) => {
+    const faces = body.model.table.faces;
+    const tally = new FaceTally(faces.length);
+    const fillets = faces.filter((face) => face.cylinder && face.name.includes('blend(') && !hollow[face.index]);
+    const radii = [...new Set(fillets.map((face) => round(face.cylinder?.radius ?? 0)))].sort((a, b) => a - b);
+    let count = 0;
+    let start = -Infinity;
+    for (const radius of radii) {
+      if (radius > start * RADIUS_FAMILY + EPSILON) [count, start] = [count + 1, radius];
+    }
+    if (count <= MOST_RADII) return tally;
+    for (const face of fillets) tally.add(face.index, Math.max(face.area, EPSILON), face.cylinder?.radius ?? 0, face.centroid);
+    if (count > families) [families, worst] = [count, radii];
+    return tally;
+  });
+  if (families === 0) return null;
+  const found = locate(bodies.map(({ body }) => body), tallies, 0);
+  return { kind: 'edgeRadii', severity: 'warn', radii: worst.slice(0, 12), families, most: MOST_RADII, places: found.places, box: found.box };
+}
+
 /**
  * Adds the design hints (Manuel, 2026-11-14) to the check: how the part looks and holds, not whether it prints, so yellow
  * only and each turned off on its own (in the print settings, or with the design rule it belongs to). Each body lies as the
@@ -1369,7 +1406,7 @@ export function withDesign(check: PrintCheck, bodies: readonly PrintCheckBody[],
     pairs: [...faceEdges(body.model, laid[b]).values()],
     hollow: hollowFaces(body.model),
   }));
-  const found: (PrintFinding | null)[] = [off.includes('sharpEdge') ? null : sharpEdges(read)];
+  const found: (PrintFinding | null)[] = [off.includes('sharpEdge') ? null : sharpEdges(read), off.includes('edgeRadii') ? null : edgeRadii(read)];
   const findings = [...check.findings, ...found.filter((finding): finding is PrintFinding => finding !== null)];
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
   return { status: statusOf(findings), findings };

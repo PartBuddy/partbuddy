@@ -83,6 +83,33 @@ describe('bodies with no rounded or chamfered edge (sharpEdge)', () => {
   });
 });
 
+describe('outer edges rounded with more than three radii (edgeRadii)', () => {
+  // radii.script.json: 80 × 50 × 20 blocks, the four upright edges rounded. [body, families and radii, or 'none']
+  const cases: [string, [number, number[]] | 'none'][] = [
+    ['Radii4', [4, [1, 2, 4, 8]]],
+    ['Radii3', 'none'],
+    // 5 and 6 mm read as one, the 1 mm top edge as a second: as PartBuddy's housing (0.6, 1, 5 and 6 mm).
+    ['RadiiNear', 'none'],
+  ];
+
+  it.each(cases)('%s', (name, want) => {
+    everywhere(solidcraft('radii', name), (findings, what) => {
+      const found = one(findings, 'edgeRadii');
+      if (want === 'none') expect(found, what).toBeUndefined();
+      else expect(found, what).toMatchObject({ severity: 'warn', families: want[0], radii: want[1], most: 3 });
+    });
+  }, 60_000);
+
+  it('counts no inner fillet, hole or round that is no fillet', () => {
+    // An inner fillet of 0.5 mm, holes of 1.5 to 20 mm, a fillet round a hole's foot, a shell rounded inside.
+    for (const [set, name] of [['detail', 'InnerFillet05'], ['edges', 'HoleFillet1'], ['edges', 'ShellRound10'], ['holes', 'Rod10M5']] as const) expect(one(design([solidcraft(set, name)]), 'edgeRadii'), name).toBeUndefined();
+  });
+
+  it('is not looked for when turned off', () => {
+    expect(one(design([solidcraft('radii', 'Radii4')], { ...PLA, off: ['edgeRadii'] }), 'edgeRadii')).toBeUndefined();
+  });
+});
+
 describe("PartBuddy's templates", () => {
   // templates.faces.json (templateFixtures.test.ts): the bodies on their print faces and in their print-in-place groups.
   const tables = JSON.parse(readFileSync(new URL('templates.faces.json', fixture), 'utf8')) as Record<string, FaceTable & { printFace?: string; group?: string }>;
