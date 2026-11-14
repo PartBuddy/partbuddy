@@ -150,12 +150,20 @@ Opus 5.5 · Mittel (PR #354); Claude Codes Eintrag „Default (recommended)“ i
 - **Gemergt in der Nacht:** BC-11 #389, BC-13 #390 (vor BC-12, Text zum Lochspiel stimmt seit #387), BC-21 #388, BC-12 #387,
   BC-20 #392, BC-08 #385, E2E-Wackler #393 (Shader je Revision neu kompiliert: drei-Patch `<Line>` + `thumbnail.ts`; Kamera-Flow
   ein Screenshot je Versuch; `partReference` startete nach dem Stopp noch einen Lauf). BEFUNDE.md je Paket nachgezogen, neu N-nach-6.
-- **Später gemergt (14.11. früh):** BC-15 #395, BC-22 #394, BC-23 #396, BC-25 #397 (alle mit BEFUNDE.md-Status).
-- **Offen:** BC-19 #391 Entwurf – **nicht mergen vor Manuels Entscheidung** (Überhang mit „stützfrei“ wird Sperre; eigenes
-  Scharnier, Gewinde, Wandhalter werden rot); BC-16 lokal in Nachbesserung nach Review (`../partbuddy-wt-bc-16`; behebt N-nach-6
-  mit, Presssitz Magnet, Einsatz-Sitz ohne Aufmaß); danach BC-17; BC-24 nach BC-19. Dann voller Vertragstest auf main.
-- **Fragen für Manuel:** im Notizordner der Sitzungen `MORGEN-FRAGEN.md` (Überhang-Standard, Lochzugabe-Richtung,
-  Folgepakete Erlaubnisliste je Befehl und rohe fillet/chamfer/shell in der Druckprüfung, Drucklage Zapfen/Schnapphaken).
+- **Später gemergt (14.11. früh):** BC-15 #395, BC-22 #394, BC-23 #396, BC-25 #397, BC-16 #398 (behebt N-nach-6), BC-17 #399
+  (neu N-nach-7). Damit 23 von 25 B/C-Paketen auf main (`1fbb88b`); BEFUNDE.md je Paket nachgezogen.
+- **Offen:** BC-19 #391 Entwurf, PR-CI grün – **nicht mergen vor Manuels Entscheidung** (Frage 1); BC-24 baut auf BC-19 auf.
+- **Voller Vertragstest auf main** (`1fbb88b`, ohne BC-19/24): Lauf 43539100830 – Ergebnis unten nachtragen.
+- **Fragen an Manuel (Fragerunde am Morgen):**
+
+  1. **BC-19 „Stützfrei konstruieren“ wirkt jetzt:** Die Einstellung `supportFree` stand auf main schon auf `true` (Standard), wurde von der Prüfung aber nicht beachtet. Mit BC-19 macht sie Überhang über dem Grenzwinkel zur Sperre (rot, Export/Slicer fragen). Alle fünf Vorlagen bleiben auf ihrer Druckfläche grün, ABER (Review): PartBuddys eigenes Scharnier (Deckel 50 mm²), Rundgewinde M20/M30, liegende Stäbe mit Bohrung, Bodenrundung r ≥ 3 und Vorlagen ohne Druckfläche werden rot; Export/Slicer fragen dann jedes Mal. BC-19 deshalb NICHT gemergt, bis Manuel entscheidet. Belegt am echten SolidCraft (Vertragstest 43512682116): der Wandhalter aus Bausteinen (Schlüssellöcher, Senkungen, Magnettaschen) wird rot (`block`) – auf main-Stand ohne BC-12 (dessen Schlüsselloch-Dach mit 30°-Wangen ist noch nicht drin). Wege: (a) eigene Gelenkrollen/Gewindeflanken ausnehmen bzw. Gelenkrollen mit Tropfendach bauen (Empfehlung – eigene Bausteine sollen grün sein), (b) Rot-Standard so lassen, (c) Standard `supportFree` auf `false`.
+  2. **BC-20 Lochzugabe:** Nach dem Review gilt: Prusas Druckwert, wo es einen gibt (ABS), sonst Mitte des SpecialChem-Bereichs; Fasertypen nie über dem Grundtyp. Änderungen gegen main nur PLA-/PETG-/PET-CF 0,1→0,15, PA 0,2→0,25, PA-CF 0,15→0,2, PA12-CF 0,1→0,2. Der Audit-Maßstab nennt Obergrenzen – bewusst abgewichen, weil Zugabe und Spiel bei Passungen doppelt zählen (neuer offener Befund). Empfehlung: Mitte so lassen, die Doppelzählung als eigenes Paket beheben.
+  3. **Folgepakete aus BC-13-Review:** (a) Erlaubnisliste je Befehlsnummer statt je Gruppe (neue SolidCraft-Befehle sonst ungeprüft offen), (b) rohe fillet/chamfer/shell in der Druckprüfung melden (nach #385). Als eigene Pakete BC-26/BC-27 einplanen?
+  4. **BC-15 Drucklage bei Zapfen und Schnapphaken:** Das Mechanik-Werkzeug setzt jetzt die Druckfläche für flachen Verschluss und Riegel selbst; bei Zapfen und Schnapphaken weiß es nicht, ob die Hälften auf der Trennfläche drucken sollen. Empfehlung: Trennfläche aufs Bett (stützfrei, Zapfen stehend = rund), sonst wie bisher dem Assistenten überlassen.
+  5. **Öffentliches Repo auf eigenen Runnern (BC-25-Fund):** ADR 0022 verlangt bei öffentlichem Repo GitHub-gehostete Runner; PartBuddy/partbuddy ist öffentlich, PR-CI läuft auf den Runnern dieses Servers, Freigabe nur für Erstbeiträger. Empfehlung: Freigabe für alle externen Beiträger („all outside collaborators“) einstellen – kleiner Schritt, kein Runner-Umzug.
+  6. **electron-updater 6.8.11 statt 6.8.12** (6.8.12 behebt mitgeschickte Anmelde-Header bei Weiterleitungen). Empfehlung: anheben (eigener kleiner PR).
+  7. **N-nach-6 Doppelzählung Lochzugabe + Spiel:** wird in BC-16 mit behoben (Kamm bohrt mit Aufmaß), da BC-16 das Aufmaß in jede Geometrie bringt. Nur zur Kenntnis.
+  8. **BC-16 ändert Standardmaße für alle Nutzer:** Löcher, Sitze und Taschen gelten als Maß nach dem Druck und werden um das Lochaufmaß des Materials größer gezeichnet (PLA M3-Loch 3,55 statt 3,4). Einsatz-Sitze bleiben auf Herstellermaß (Schmelzsitz). Ungeprüft im Druck. Empfehlung: Testdruck Toleranzkamm + Schraube M3 vor Release 0.3.1.
 - **Merke:** Die Testattrappe `fakeClaude.mjs` wählt ihre Szene nach Wörtern im ganzen Nachrichtentext samt Notizen
   (`content.includes('a hinge')`) – ein neuer Regeltext mit „a hinge“ ließ den Wandhalter-Vertragstest das Scharnier bauen.
 
