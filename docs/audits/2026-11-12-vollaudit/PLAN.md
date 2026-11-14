@@ -1,0 +1,292 @@
+# Vollaudit – Plan und Stand
+
+Auftrag und Maßstab: [AUFTRAG.md](AUFTRAG.md). **Diese Datei ist der Stand.** Jede Sitzung liest sie
+zuerst, arbeitet am ersten offenen Punkt weiter und hakt ab, sobald ein Punkt belegt fertig ist.
+
+## So geht es in einer frischen Sitzung weiter
+
+1. `AUFTRAG.md` und diese Datei lesen.
+2. Ersten offenen Punkt unten nehmen. Befunde stehen in [BEFUNDE.md](BEFUNDE.md) (eine Zeile je
+   Befund, fortlaufende Nummer, Status), Prüflisten in den `01-…`-Dateien (Spalte „Status“).
+3. Nach jedem abgeschlossenen Punkt: hier abhaken, Befund-/Prüflistenstatus setzen, committen.
+4. Dokumente des Audits liegen auf dem Zweig `docs/vollaudit-2026-11` bis zum ersten Merge nach
+   `main`; Fixes laufen als eigene PRs von `main`.
+
+## Dateien
+
+| Datei | Inhalt |
+|---|---|
+| `01-inventur-werkzeuge.md` | Prüfliste Assistenten-Werkzeuge |
+| `01-inventur-tabellen.md` | Prüfliste Fachtabellen |
+| `01-inventur-druck-export-ui.md` | Prüfliste Druckprüfung, Export, SolidCraft-Anbindung, Oberfläche |
+| `02-solidcraft-abgleich.md` | SolidCraft roh / PartBuddy heute / PartBuddy soll |
+| `03-massstab-geometrie.md` | Soll-Werte Geometrie mit Quellen |
+| `03-massstab-verbindungen.md` | Soll-Werte Verbindungen, Passungen, Mechanik mit Quellen |
+| `05-ki-regeln.md` | Regeltexte Satz für Satz |
+| `09-gegenpruefung-*.md` | Was die Gegenprüfer zusätzlich fanden |
+| `BEFUNDE.md` | Alle Befunde, nummeriert, mit Status |
+
+## Stand
+
+### Phase 1 – Inventur
+- [x] Prüfliste Werkzeuge (286 Zeilen)
+- [x] Prüfliste Fachtabellen (594 Zeilen)
+- [x] Prüfliste Druck/Export/SolidCraft-Anbindung/Oberfläche
+- [ ] 62 fehlende Elemente aus `09-gegenpruefung-inventur.md` Tabelle 1 in die Prüflisten nachtragen (22 IPC, 15 SolidCraft-Anbindung, 4 Geometrie, 13 shared, 8 agents); 80 IPC-Kanäle ohne Zeile
+- [ ] Gegenprüfung Inventur ohne neue Funde (1. Durchgang 12.11.: 62 fehlende Elemente, 10 neue Befunde → nach dem Nachtragen wiederholen)
+
+### Phase 2 – SolidCraft-Abgleich
+- [x] Tabelle roh/heute/soll (22 MCP-Werkzeuge, 633 Engine-Befehle: 549 ungeprüft durchgereicht)
+- [ ] Gegenprüfung ohne neue Funde (1. Durchgang 12.11.: 33 neue Befunde H-01…H-30 → nach Phase 6 wiederholen)
+
+### Phase 3 – Maßstab
+- [x] Geometrie
+- [x] Verbindungen, Passungen, Mechanik
+- [ ] Jede Zahl aus den Fachtabellen gegen den Maßstab gehalten – offen: `printProfiles.ts`, Werkzeugtexte, die in den 03-Dateien unter „Nicht geprüft“ genannten Zeilen von `standards.ts`, Material- und Druckerkatalog gegen Herstellerangaben
+
+### Phase 5 (statischer Teil) – KI-Regeln
+- [x] Regeltexte Satz für Satz gegen Code
+- [ ] Texte ohne Zeile aus `09-gegenpruefung-regeln-solidcraft.md` Abschnitt 1 nachtragen
+- [ ] Gegenprüfung ohne neue Funde
+- [ ] Regeltexte gegen Maßstab und Befunde aus Phase 2/4
+
+### Befunde zusammenführen
+- [x] `BEFUNDE.md` als Index: 349 Befunde (A 30, B 195, C 124), Kennung = Präfix der Quelldatei
+- [ ] Dubletten bei B und C abgleichen (bei A erledigt)
+- [ ] „Nicht geprüft, weil …“ aller Dateien zu einer Restliste zusammenführen und abarbeiten
+
+### SolidCraft 0.40.1 (stabil, seit 12.11.2026) – Maßstab des Audits ab jetzt
+Fest installiert in `C:Program FilesSolidCraft` (MSI, Prüfsumme geprüft, ersetzt 0.30.1; `solidcraft-cli` auf dem PATH ist damit 0.40.1). Die CI-Runner nutzen weiter ihre portable rc.4 (`contract.yml`, `site-sync.yml`). Gegenüber rc.4: 634 statt 633
+Befehle, neu `assembly.constraint.edit`, geänderte Parameter bei `solid.hole`, `solid.box`, `solid.sweep`,
+`surface.sweep`, `parts.insert`, `parts.fastener`, `body.rename`, `file.export`, `file.export_view_dxf`,
+`document.inspect`, `sketch.insert_svg`, `sketch.insert_dxf`, `sketch.drawing_bounds`, `sketch.scale`,
+`sketch.move`, `config.*`.
+- [ ] Parameteränderungen der 19 Befehle einzeln lesen und gegen jede Stelle halten, an der PartBuddy sie aufruft
+- [ ] alle Fälle unter `tools/audit/cases/` gegen 0.40.1 wiederholen; Abweichungen zu rc.4 sind Befunde
+- [ ] `02-solidcraft-abgleich.md` auf 0.40.1 nachziehen (neuer Befehl, geänderte Parameter)
+- [ ] App auf 0.40.1 umstellen (`RECOMMENDED_VERSION` in `engineVersion.ts`, Vertragstests, Runner-Pfad in `contract.yml`/`site-sync.yml`, `docs/engineering-notes.md` „PATH ist 0.30.1“) – eigener PR
+- [ ] `MINIMUM_VERSION` 0.30.1: lokal gibt es dafür kein Programm mehr – entscheiden, ob die Mindestversion auf 0.40.1 steigt (Dateiformat 50 liest 0.30.1 ohnehin nicht)
+
+### Phase 4 – Bauen und Messen
+- [x] Mess-Harness `tools/audit/` (README dort; Aufruf aus `apps/desktop`: `pnpm exec vitest run --config ../../tools/audit/vitest.config.mts <fall>`)
+- [x] A-Befunde und ausgewählte B-Befunde gemessen (rc.4): 52 gemessen, 49 bestätigt, 2 teilweise (H-02, T12), 1 widerlegt (G2); 52 neue Befunde, davon 12 A (`04-messung-*.md`, Status in `BEFUNDE.md`)
+- [ ] Harness-Lücken schließen: STL/STEP wieder einlesen, Gelenk über den Weg fahren, dünnste Wand suchen, `withPrintFaces`/`partbuddy_standard`/Baugruppe einhängen, `knob`/`magnet`/`wallMount`/`templates` bauen
+- [ ] Harness auf das installierte SolidCraft 0.40.1 umstellen (statt Pfad der portablen rc.4)
+- [ ] je Prüflisten-Datei: alle Zeilen gebaut und gemessen (Status in der Prüfliste)
+- [ ] Kombinationen
+- [ ] Export wieder eingelesen
+- [ ] Druckprüfung mit absichtlich fehlerhaften Körpern
+
+### Phase 6 – Beheben und Ausbauen
+- [ ] alle A behoben und nachgemessen
+- [ ] alle B behoben und nachgemessen
+- [ ] alle C behoben und nachgemessen
+
+### Phase 7 – Abnahme im echten Chat und Modelltest
+Entscheidung Manuel 12.11.2026: Der Modelltest läuft mit Phase 7, erst nach den A-Fixes. Dieselbe feste
+Auftragsreihe je Modell einmal, streng nacheinander, jedes Ergebnis mit dem Harness nachgemessen. Modelle:
+Haiku 5.5, Sonnet 5.5, Opus 5.5, Fable 5.2 (Claude-Code-Route) und die Modelle des ChatGPT-Abos (ChatGPT-Route).
+Ergebnis: eine belegte Empfehlung für den Standard je Route (Modell und Aufwand). Bis dahin gilt vorläufig
+Opus 5.5 · Mittel (PR #354); Claude Codes Eintrag „Default (recommended)“ ist ausgeblendet.
+- [ ] Auftragsreihe festgelegt (je Funktionsbereich ein typischer, ein schwieriger, ein unklarer Auftrag)
+- [ ] Bewertung festgelegt: Messwerte je Lauf (Maße, Druckprüfung, Regelverstöße), Zahl der Werkzeugaufrufe, Dauer, Kontingent
+- [ ] alle Läufe je Modell gemessen
+- [ ] Standard je Route aus den Messwerten festgelegt und in der App gesetzt (`CLAUDE_STANDARD` in `modelChoice.ts`, ChatGPT-Route entsprechend)
+- [ ] Abnahme: Läufe mit dem gewählten Standard ohne neuen Befund
+
+### Abschluss
+- [x] Bericht `BERICHT.md`, Audit-Dokumente nach `main`
+
+## Verlauf der Läufe
+
+| Datum | Was | Ergebnis |
+|---|---|---|
+| 12.11.2026 | Workflow Lesephase (7 Prüfer + 2 Gegenprüfer) für Phase 1, 2, 3, 5 statisch | fertig, 9/9 Dateien, 349 Befunde. Alles statisch aus dem Code – nichts gebaut oder gemessen. |
+| 12.11.2026 | Workflow Messung A (Harness unter `tools/audit/`, dann 5 Messgruppen → `04-messung-*.md`) | gestartet. Nach Ende: Urteile in `BEFUNDE.md` als Status eintragen, neue Befunde aufnehmen, Harness-Punkt abhaken. |
+| 12.11.2026 | PR PartBuddy/partbuddy#346: Mindest- und empfohlene Version 0.40.1, Runner auf installiertes SolidCraft | offen. Erst mergen, wenn PR-CI grün UND `contract.yml` auf dem Zweig `feat/solidcraft-0.40.1` grün (von Hand starten, sobald der Messlauf fertig ist: `gh workflow run contract.yml --ref feat/solidcraft-0.40.1`). Worktree: `../partbuddy-wt-sc0401` neben dem Repo. |
+| 12.11.2026 | PR #346 gemergt: Mindest- und empfohlene Version SolidCraft 0.40.1, Vertragstests grün | erledigt |
+| 12.11.2026 | PR #347 gemergt: Einschmelz-Einsatz M2.5 4,0 mm, Dom-Wand nach Hersteller (T1, MV-01, MV-02) | erledigt; Nachmessung mit Harness auf 0.40.1 offen |
+| 12.11.2026 | PR #348: Baustein nur auf dem genannten Körper, sonst zurückgenommen (W1, N-bloecke-2, Teil von W2/N-bloecke-1) | offen, bei Grün mergen. Arbeits-Worktree für Fixes: `../partbuddy-wt-fix` (Harness dorthin kopieren, nicht committen). |
+| 12.11.2026 | SolidCraft 0.40.1: `rollback`-Stapel und `edit.restore_checkpoint` taugen nicht als Rückweg (steht in `docs/engineering-notes.md`, PR #348) | betrifft auch `mechanismTool` (H-02) – dort denselben Undo-Weg nehmen |
+| 12.11.2026 | PR #348 PR-CI grün; Vertragstests auf dem Zweig laufen (Run 43215281329) | bei Grün mergen, dann `fix/block-limits` (lokal im Worktree, 1 Commit: W3, S-02, N-bloecke-4) auf main umsetzen, pushen, PR |
+| 12.11.2026 | PR #349 (T2 Messdüse), #350 (D5 Stützen-Aussage, Vertragstest-Erwartung angepasst → vor Merge `contract.yml` auf dem Zweig laufen lassen), #351 (R4 Kernloch) | offen, bei Grün mergen |
+| 12.11.2026 | Subagent behebt die A-Befunde der Druckprüfung auf `fix/print-check-audit` (eigener Worktree, eigener PR) | Ergebnis prüfen (Diff lesen, Harness-Fälle `druckpruefung`), dann mergen |
+
+## Noch offene A-Befunde ohne Fix (Stand 12.11.2026)
+
+- Bausteine: W2/T4/N-bloecke-1 Rest (Durchgangsloch/Langloch geht durch beide Wände des eigenen Hohlkörpers)
+- Mechanik: T3 (Vorlage hingedBox ohne Stege), T5 (Nutdecke der Führung), H-02 (Fehler nach dem Bau lässt Geometrie stehen → Undo-Weg wie in #348), N-mechanik-2 (Wulst ohne Überdeckung), N-mechanik-3 (zweites Scharnier ohne Grenzen), N-mechanik-4/-5 (Stege: „without support“ stimmt nicht)
+- Normteile: S-01/G2/H-01, N-normteile-policy-1 (Senkkopfschrauben landen im Export)
+- Regeln: R1 (Druckprüfung vor „fertig“ nur Bitte), R3 („ready to print, nothing found“), R54 (Bedingungen nur im Erfolgstext), MG-05 (Marke 1×nozzle ohne Untergrenze)
+| 12.11.2026 | #349, #351, #352 gemergt | erledigt |
+| 12.11.2026 | #348: 1. Vertragstest-Lauf rot (2 von 52, beide 30-s-Zeitüberschreitung unter Last; Schlitz auf Klappe mit Harness nachgestellt: baut). Versuch 2 läuft | grün → mergen; rot → Formular-Weg (`ActionService.applyBlock`) untersuchen |
+| 12.11.2026 | #353 Druckprüfung (Subagent): 12 Kennungen behoben, G1 und N-normteile-policy-2 offen. Unabhängiges Review läuft | Review-Funde einarbeiten, `contract.yml` auf dem Zweig, dann mergen. Danach im Audit-Zweig `tools/audit`: `layer` in die Profile (`harness.ts`, `mechanik-helpers.ts`), `body` im `size`-Fund von `passung-texte-d5-stuetzen.case.ts`. Folge: die Standardführung warnt jetzt (Nutdecke 13,9 mm > Brücke 10 mm) → mit T5 beheben |
+| 12.11.2026 | Testversion 0.1.0-test.20261112.132 (main bis #352) an Server und Gaming-PC geliefert; gebaut im Worktree `../partbuddy-wt-main` (für weitere Lieferungen: dort `git checkout --detach origin/main`, dann das Lieferskript aus PowerShell) | erledigt. Gaming-PC hat SolidCraft 0.40.1 installiert |
+| 12.11.2026 | #353 Druckprüfung: 8 Review-Funde eingearbeitet (Kragarm als Brücke, hängender Anker, entartetes Dreieck …) | PR-CI abwarten, dann `contract.yml` auf dem Zweig, dann mergen |
+| 12.11.2026 | Vertragstest „a slot built into a hinged flap“ rot auf #348 UND #350 (dort ohne Baustein-Änderung): App meldet „built the function block slot“, Ansicht bleibt 30 s bei „2 bodies · 35 faces“. Mit Harness auf main-Code: Schlitz schneidet richtig. | bei ruhigem Server `contract.yml` für #350 und #348 wiederholen; wieder rot → eigener Befund „Ansicht aktualisiert nach applyBlock auf Scharnierklappe nicht“ (Spiegelung), vor dem Merge beheben |
+| 12.11.2026 | Subagent Mechanik (T3, T5, H-02, N-mechanik-2 bis -5) auf `fix/mechanism-audit`, aufgesetzt auf `fix/print-check-audit`, PR gegen diesen Zweig | Ergebnis unabhängig prüfen lassen (wie bei #353), nach Merge von #353 auf main umhängen |
+| 12.11.2026 | #348 gemergt (Wiederholung der Vertragstests grün – der rote Lauf war Serverlast). `fix/block-limits` (lokal) jetzt auf main umsetzen und als PR öffnen | offen |
+| 12.11.2026 | PR #354: neuer Chat startet mit Opus · Mittel statt mit Claude Codes Vorgabe (Fable); Eintrag „Default (recommended)“ ausgeblendet | bei Grün mergen |
+| 12.11.2026 | Drei Subagenten parallel: Mechanik (`fix/mechanism-audit`), Normteile (`fix/standard-parts-audit`, von main), Regeln R1/R3/R54 (`fix/assistant-check-rules`, auf `fix/print-check-audit`) | je Ergebnis: Diff unabhängig prüfen lassen (wie #353), `contract.yml` auf dem Zweig, dann mergen. Reihenfolge: #353 zuerst, dann die beiden darauf aufgesetzten PRs auf main umhängen |
+| 12.11.2026 | Danach noch offen bei A: W2/T4/N-bloecke-1 Rest (Durchgangsloch durch beide Wände des eigenen Hohlkörpers) und N-normteile-policy-2 (Loch schneidet die Außenwand auf) – beides im Baustein-Werkzeug, erst nach #355 und dem Regel-PR (gleiche Dateien). G1 (zusammen gedruckte Teile): Vorschlag – die Mechanik-Werkzeuge kennen ihre Print-in-place-Arten (Scharnier, Führung); diese Körperpaare als Gruppe merken und in der Druckprüfung auf ein gemeinsames Bett stellen; erst nach dem Mechanik-PR | offen |
+| 12.11.2026 | Nutzer-Befund U-1 (A): Assistent optimiert Druckzeit und Material nicht von allein – keine Regel, kein Messwert. An den Regel-Subagenten als Zusatzpunkt gegeben (Maßstab mit Quellen, schaltbare Regelgruppe, Messwerte je Körper in der Prüfnotiz) | mit dem Regel-PR prüfen; die Maßstab-Tabelle aus dem PR-Text nach `03-massstab-druckzeit-material.md` übernehmen; in Phase 7 eigene Aufträge dazu (Auftrag ohne das Wort „optimieren“ → Volumen/Höhe gegen eine Referenzlösung messen) |
+| 12.11.2026 | #354 Oberflächen-Tests rot: 1 Test (`app.spec.ts:718`, Gelenke abspielen, „Expected < -5, Received 0“) – berührt die Modellwahl nicht, Server unter Last (drei Subagenten) | Lauf wiederholt; wieder rot → ansehen |
+| 12.11.2026 | #355 gemergt. Vertragstest „a slot built into a hinged flap“ zum dritten Mal rot (#350, zweimal; #348 einmal rot, einmal grün; #346 grün). Auffällig: grün nur auf Ständen MIT dem Körper-Fix (#348, `targets`) bzw. vor #347; #350 basierte auf main ohne #348 | #350 auf aktuelles main umgesetzt, Vertragstests neu (Run 43229167123). Grün → der Schnitt ohne `targets` in einer Komponente war auf 0.40.1 unzuverlässig und ist mit #348 behoben (als Befund nachtragen). Rot → Spiegelung nach `applyBlock` untersuchen |
+| 12.11.2026 | #354 gemergt (Opus · Mittel als Standard). #356 Normteile: Review fand 5 neue Befunde (P-1 bis P-5), darunter P-1: jede Policy-Regel ist per Großschreibung des Befehlsnamens umgehbar. An den Subagenten zurückgegeben | Nachtrag prüfen, `contract.yml` auf dem Zweig, mergen. Danach `tools/audit` nachziehen (`normteile-policy-families` an `isLibraryPart(description, library)`) |
+| 12.11.2026 | #353: Vertragstests grün, aber das 2. Review (nur die drei Nachtrags-Commits) hält ihn für nicht merge-reif: Brückenlogik hängt an 12 festen Richtungen (schräge Brücke/Loch fälschlich gemeldet), Loch in der Brücke meldet die ganze Decke, Ankerprüfung quadratisch (bis 56 s im UI-Thread), spitz endende hängende Lippe bleibt „ready“. An den Subagenten zurückgegeben | nach dem Nachtrag: 3. Review nur dieser Commits, `contract.yml`, dann mergen |
+| 12.11.2026 | #357 (R1, R3, R54, U-1): Review fand 11 Punkte (u. a. Rippenregel 50–75 % führt unter die Mindestwand, Vollvolumen täuscht Ersparnis vor, Logo-Werkzeuge fehlen in `CHANGING_TOOLS`, 5-s-Wartezeit bei Mehrkörper-Entwürfen). Zurückgegeben | nach dem Nachtrag: Review der neuen Commits, `contract.yml`, mergen (nach #353) |
+| 12.11.2026 | Beobachtung: Jeder Subagenten-PR brauchte bisher mindestens eine Review-Runde mit echten Fehlern. Regel für den Rest des Audits: kein Subagenten-PR ohne unabhängiges Review des Diffs; Review der Nachträge wiederholen, bis nichts Ernstes mehr kommt | gilt |
+| 12.11.2026 | Ursache des wiederholt roten Vertragstests gefunden: Befund V-1 (A), Wettlauf zwischen stillen Checks der Probeläufe und echten Änderungen (`headless.ts`/`supervisor.ts`) – kein Lastproblem und nicht durch #348 behoben (meine frühere Vermutung war falsch). #350 gemergt (sein Diff berührt den Wettlauf nicht). Subagent behebt V-1 auf `fix/quiet-check-race` und lässt die Vertragstests dreimal laufen | Ergebnis unabhängig prüfen lassen, mergen. Bis dahin kann JEDER Vertragstest-Lauf an diesem einen Test scheitern – dann nicht als Fehler des jeweiligen PRs werten |
+| 12.11.2026 | #356 Normteile: 2. Review „merge-reif“, aber die Referenz blockiert die Modellanzeige (30 Teile 4,2 s je App-Start, Fehlschläge nie gemerkt). Zurückgegeben: nicht blockierend, Fehlschläge merken, Cache über Neustart, zusätzlicher Formvergleich | nach dem Nachtrag kurzes Review, `contract.yml`, mergen |
+| 12.11.2026 | #358 Mechanik: Review „nicht merge-reif“ – Dach der Führung zerschneidet Schieber mit Knopf (M-2), Rücknahme scheitert ab Undo-Tiefe 200 (M-1, betrifft auch das gemergte `blockTool.ts` aus #348!), koaxiales zweites Scharnier fälschlich abgelehnt, „without support“ stimmt für 40°-Material nicht. Zurückgegeben | nach dem Nachtrag Review, Vertragstests, mergen. **Danach `blockTool.ts` auf die gemeinsame Rücknahme `takeBack.ts` umstellen (M-1) – eigener kleiner PR, nach #357** |
+| 12.11.2026 | Merke für Squash-Merges: PR-Titel höchstens 93 Zeichen, sonst sprengt „ (#nnn)“ die 100-Zeichen-Grenze von commitlint in PRs, die main hineinmergen (#354 hat 101; deshalb ist „Conventional Commits“ in #357 rot, bis #357 auf main umgehängt ist) | gilt |
+| 12.11.2026 | #357: 2. Review „nicht merge-reif“ – Prüfnotiz entfällt ab Undo-Tiefe 200 (Regression), Rücknahme scheitert am Deckel, Messrichtung bei mehreren Löchern bis 68° daneben, Sonde ab halber Tiefe übersieht Sitz an Fase. Zurückgegeben. Neuer Befund X-1 (Ampel/Export während laufender Abstandsmessung) | nach dem Nachtrag 3. Review nur der neuen Commits |
+| 12.11.2026 | Offene Nacharbeit nach den Merges: Rücknahme in `blockTool.ts` (lokal, #357) und `takeBack.ts` (#358) zu EINER Funktion zusammenführen | offen |
+| 12.11.2026 | #353: 3. Runde gepusht (Brückenrichtung aus den Auflagern, Flutung vom Bett, Laufzeit 56 s → 0,4 s); 3. Review läuft, Vertragstests in der Schlange. #356: 3. Review „merge-reif“, letzte kleine Runde (Absturz nicht dauerhaft merken, Cache validieren, Zeitfenster der Druckprüfung) plus neuer Befund P-6 (`screenshot {path}` überschreibt Nutzerdateien) | je nach Push: Vertragstests, mergen |
+| 12.11.2026 | Merke: `contract.yml` hat nur EINEN wartenden Platz – ein neu angestoßener Lauf bricht den wartenden ab. Vertragstests immer einzeln anstoßen, erst wenn kein Lauf mehr läuft oder wartet; `cancelled` zählt nicht. Der Test „starts SolidCraft without a window“ zählt `solidcraft-cli`-Prozesse auf dem Rechner und kippt, wenn nebenher ein Harness-Lauf endet | gilt |
+
+## Stand 14.11.2026 Tag – ZUERST LESEN
+
+- **Gemergt nach der Fragerunde:** #400 electron-updater 6.8.12, #401 BC-26 (Erlaubnisliste je Befehl), #402 BC-28 (Drucklage
+  Zapfen/Schnapphaken), #391 BC-19 (Schalter „Stützfrei“ gestrichen, Überhang nur Hinweis), #403 Issues #326/#374 (Fenster leer
+  nach Klick in Fragekarte), #404 BC-27 (nur `roundBedEdge`; `wallLines` gestrichen, Arachne + Fehlalarme an eigenen Teilen).
+- **Repo:** Actions-Freigabe für alle externen Beiträger (`all_external_contributors`).
+- **Server:** SolidCraft 0.41.0 seit 08:18 (UniGetUI); PowerShell 7 war von UniGetUI durch die Store-Version ersetzt worden →
+  Runner fanden `pwsh` nicht; per `winget … --installer-type wix --scope machine` zurück.
+- **In Arbeit:** BC-24 (Worktree `../partbuddy-wt-bc-24`, Zweig `feat/bc24-new-checks`), danach Phase 4 und Phase 7.
+- **Lehre:** Neue Prüfungen immer an allen Vorlagen und eigenen Bausteinen (mehrere Düsen/Materialien) messen, bevor sie reviewt werden.
+
+## Stand Nacht 13./14.11.2026 (neue Sitzung, laufend fortgeschrieben)
+
+- **Gemergt in der Nacht:** BC-11 #389, BC-13 #390 (vor BC-12, Text zum Lochspiel stimmt seit #387), BC-21 #388, BC-12 #387,
+  BC-20 #392, BC-08 #385, E2E-Wackler #393 (Shader je Revision neu kompiliert: drei-Patch `<Line>` + `thumbnail.ts`; Kamera-Flow
+  ein Screenshot je Versuch; `partReference` startete nach dem Stopp noch einen Lauf). BEFUNDE.md je Paket nachgezogen, neu N-nach-6.
+- **Später gemergt (14.11. früh):** BC-15 #395, BC-22 #394, BC-23 #396, BC-25 #397, BC-16 #398 (behebt N-nach-6), BC-17 #399
+  (neu N-nach-7). Damit 23 von 25 B/C-Paketen auf main (`1fbb88b`); BEFUNDE.md je Paket nachgezogen.
+- **Offen:** BC-19 #391 Entwurf, PR-CI grün – **nicht mergen vor Manuels Entscheidung** (Frage 1); BC-24 baut auf BC-19 auf.
+- **Voller Vertragstest auf main** (`1fbb88b`, ohne BC-19/24): Lauf 43539100830 **grün** – 52 bestanden, 6 übersprungen (Konto/Fenster-Tests), 18,0 min, keine Wiederholung nötig.
+- **Antworten Manuel 14.11.2026 (Fragerunde):** 1 → Schalter `supportFree` streichen, drei Regeln immer an, Überhang nur
+  Warnung, nie Sperre; BC-19 ohne Sperre fertig. 2 → Mitte bleibt. 3 → BC-26 und BC-27 einplanen. 4 → Trennfläche aufs Bett.
+  5 → Freigabe „all outside collaborators“. 6 → electron-updater 6.8.12, eigener PR. 8 → kein Testdruck vor 0.3.1.
+- **Fragen an Manuel (Fragerunde am Morgen, beantwortet):**
+
+  1. **BC-19 „Stützfrei konstruieren“ wirkt jetzt:** Die Einstellung `supportFree` stand auf main schon auf `true` (Standard), wurde von der Prüfung aber nicht beachtet. Mit BC-19 macht sie Überhang über dem Grenzwinkel zur Sperre (rot, Export/Slicer fragen). Alle fünf Vorlagen bleiben auf ihrer Druckfläche grün, ABER (Review): PartBuddys eigenes Scharnier (Deckel 50 mm²), Rundgewinde M20/M30, liegende Stäbe mit Bohrung, Bodenrundung r ≥ 3 und Vorlagen ohne Druckfläche werden rot; Export/Slicer fragen dann jedes Mal. BC-19 deshalb NICHT gemergt, bis Manuel entscheidet. Belegt am echten SolidCraft (Vertragstest 43512682116): der Wandhalter aus Bausteinen (Schlüssellöcher, Senkungen, Magnettaschen) wird rot (`block`) – auf main-Stand ohne BC-12 (dessen Schlüsselloch-Dach mit 30°-Wangen ist noch nicht drin). Wege: (a) eigene Gelenkrollen/Gewindeflanken ausnehmen bzw. Gelenkrollen mit Tropfendach bauen (Empfehlung – eigene Bausteine sollen grün sein), (b) Rot-Standard so lassen, (c) Standard `supportFree` auf `false`.
+  2. **BC-20 Lochzugabe:** Nach dem Review gilt: Prusas Druckwert, wo es einen gibt (ABS), sonst Mitte des SpecialChem-Bereichs; Fasertypen nie über dem Grundtyp. Änderungen gegen main nur PLA-/PETG-/PET-CF 0,1→0,15, PA 0,2→0,25, PA-CF 0,15→0,2, PA12-CF 0,1→0,2. Der Audit-Maßstab nennt Obergrenzen – bewusst abgewichen, weil Zugabe und Spiel bei Passungen doppelt zählen (neuer offener Befund). Empfehlung: Mitte so lassen, die Doppelzählung als eigenes Paket beheben.
+  3. **Folgepakete aus BC-13-Review:** (a) Erlaubnisliste je Befehlsnummer statt je Gruppe (neue SolidCraft-Befehle sonst ungeprüft offen), (b) rohe fillet/chamfer/shell in der Druckprüfung melden (nach #385). Als eigene Pakete BC-26/BC-27 einplanen?
+  4. **BC-15 Drucklage bei Zapfen und Schnapphaken:** Das Mechanik-Werkzeug setzt jetzt die Druckfläche für flachen Verschluss und Riegel selbst; bei Zapfen und Schnapphaken weiß es nicht, ob die Hälften auf der Trennfläche drucken sollen. Empfehlung: Trennfläche aufs Bett (stützfrei, Zapfen stehend = rund), sonst wie bisher dem Assistenten überlassen.
+  5. **Öffentliches Repo auf eigenen Runnern (BC-25-Fund):** ADR 0022 verlangt bei öffentlichem Repo GitHub-gehostete Runner; PartBuddy/partbuddy ist öffentlich, PR-CI läuft auf den Runnern dieses Servers, Freigabe nur für Erstbeiträger. Empfehlung: Freigabe für alle externen Beiträger („all outside collaborators“) einstellen – kleiner Schritt, kein Runner-Umzug.
+  6. **electron-updater 6.8.11 statt 6.8.12** (6.8.12 behebt mitgeschickte Anmelde-Header bei Weiterleitungen). Empfehlung: anheben (eigener kleiner PR).
+  7. **N-nach-6 Doppelzählung Lochzugabe + Spiel:** wird in BC-16 mit behoben (Kamm bohrt mit Aufmaß), da BC-16 das Aufmaß in jede Geometrie bringt. Nur zur Kenntnis.
+  8. **BC-16 ändert Standardmaße für alle Nutzer:** Löcher, Sitze und Taschen gelten als Maß nach dem Druck und werden um das Lochaufmaß des Materials größer gezeichnet (PLA M3-Loch 3,55 statt 3,4). Einsatz-Sitze bleiben auf Herstellermaß (Schmelzsitz). Ungeprüft im Druck. Empfehlung: Testdruck Toleranzkamm + Schraube M3 vor Release 0.3.1.
+- **Merke:** Die Testattrappe `fakeClaude.mjs` wählt ihre Szene nach Wörtern im ganzen Nachrichtentext samt Notizen
+  (`content.includes('a hinge')`) – ein neuer Regeltext mit „a hinge“ ließ den Wandhalter-Vertragstest das Scharnier bauen.
+
+## Übergabe 13.11.2026 nachts – ersetzt ältere Übergaben
+
+Die Nacht wird autonom durchgearbeitet (Manuel 13.11.2026: „die nacht durch arbeiten ohne mich“). Kein Release, keine
+Rückfragen außer bei echten Entscheidungen; die stehen dann als Frage am Ende für den Morgen.
+
+### Gemergt am 13.11.2026
+BC-01 #370, BC-02 #371, BC-03 #369, BC-04 #379, BC-05 #377, BC-06 #381, BC-07 #378, BC-09 #383, BC-10 #382, BC-14 #386,
+BC-18 #380; CI-Umbau #376 (PR-CI ~5 statt ~15 min, Pfadfilter, 2 Shards, Vertragstest `retries: 1`, eigene
+Prozesszählung, 1 Worker); #384 (Zeitgrenze der Überhang-Fälle). BEFUNDE.md ist für alle nachgezogen (Status-Spalte).
+WSL-VM der Runner seit 19:54 auf 20 Threads / 16 GB (`%USERPROFILE%\.wslconfig`, Sicherung `.bak-2026-11-13`).
+
+### Offen bei Übergabe – zuerst prüfen
+
+Die alte Sitzung läuft weiter, bis ihre Subagenten (BC-08-Nachreview, BC-11, BC-12, BC-13) fertig sind, und leitet deren Berichte als Nachricht an die neue Sitzung weiter. Bis ein Bericht da ist, in diesen vier Worktrees nichts ändern.
+Vor jeder Arbeit an einem Zweig `git fetch`, Kopf und `git status` im Worktree ansehen; uncommittete Arbeit übernehmen,
+nicht überschreiben. Die Subagenten der alten Sitzung sind beendet; was sie nicht committet haben, liegt im Worktree.
+
+| Paket | Worktree / Zweig | Stand bei Übergabe | Nächster Schritt |
+|---|---|---|---|
+| BC-08 Auswahlaktionen | `../partbuddy-wt-bc-08`, `fix/bc08-selection-actions`, PR #385 | Kopf `c41bb6c` gepusht, auf main `50c08ac`; Maßprobe jetzt 6,7 s statt 32–46 s (Gruppentest), `fitSize`→`snapSize`/`minimumWall`/`thinnestLine`. Gezielter Vertragstest 43498701724 und PR-CI liefen; Nachreview der neuen Maßfeld-Suche lief in der alten Sitzung (Bericht wird weitergeleitet) | Vertragstest + PR-CI + Nachreview grün → mergen; Funde des Nachreviews einarbeiten lassen |
+| BC-12 Baustein-Löcher | `../partbuddy-wt-bc-12`, `fix/bc12-block-holes` | Review fertig (nicht merge-reif): B1 Import-Konflikt `printProfiles.ts:17`; S1 Formular baut ohne Drucker (an `blockSteps`/`stepsOf` durchreichen); S2 Formular erlaubt modellierte Gewinde < M5; S3 Einsatzsitz-Fase in `drop`. Bauer der alten Sitzung arbeitet das ein und soll pushen + PR öffnen | Bericht abwarten (wird weitergeleitet) bzw. PR prüfen; gezielter Vertragstest: F1 Funktionsbausteine, F1 Skizzenbausteine, Wandaufhängung, Knopf; mergen |
+| BC-13 rohe Befehle | `../partbuddy-wt-bc-13`, `fix/bc13-raw-commands` | Bauer der alten Sitzung baut (Entscheidung „gemischt“, dazu rohe fillet/chamfer/shell nachprüfen), committet nur lokal | Bericht abwarten (wird weitergeleitet), dann Review, Push/PR, gezielter Vertragstest, mergen |
+| BC-11 Riegel/Schnapphaken | `../partbuddy-wt-bc-11`, `fix/bc11-latch-snap` | Bauer der alten Sitzung baut, committet nur lokal | Wie BC-13 |
+
+### Danach (Reihenfolge nach Nutzen, je Spur nacheinander, höchstens 3 Bauer gleichzeitig)
+L1 BC-19 (Aussagen der Prüfung) → BC-24 (neue Prüfungen, alle sieben als Hinweis); L2 BC-15 (Führung) → BC-16 (Druckprofil
+in die Werkzeuge, auch Klappbox-Vorlage mit Düse, `templateSteps` ohne Profil) → BC-17; L4 BC-20; L5 BC-21 → BC-22;
+L7 BC-23 (nach BC-08); L9 BC-25 (Doku, dazu ADR 0022 mit den neuen WSL-Werten und alle in PR-Texten als „docs open“
+genannten Stellen). Dann: voller Vertragstest auf main (`gh workflow run contract.yml --ref main`), Phase 4, Phase 7.
+
+### Ablauf je Paket (bewährt am 13.11.)
+1. Worktree `../partbuddy-wt-bc-NN` von `origin/main`; Subagent baut nach dem Brief-Muster (Paketabschnitt, Kennungen,
+   Spurgrenzen, offene Reste anderer Pakete, `PRUEFLISTE.md`, **nur lokal committen**, `PR-BODY.md`).
+2. Unabhängiges Review auf dem lokalen Zweig (Diff gegen Basis, `merge-tree` gegen main und offene Zweige, Prüfliste).
+3. Nachbesserung durch denselben Bauer, dann rebasen, pushen, PR öffnen. Nur bei tiefen Eingriffen ein Nachreview.
+4. Gezielter Vertragstest `gh workflow run contract.yml --ref <zweig> -f only='<Titelteile|…>'` parallel zur PR-CI;
+   nur ein Lauf + ein wartender. Beide grün → `gh pr merge <n> --squash` → BEFUNDE.md-Status (Skript-Muster im Scratchpad
+   der alten Sitzung: Status je Kennung als „behoben PR #n … · vorher: …“ voranstellen).
+5. Rote Checks: Log lesen. Last-Wackler → `gh run rerun <id> --failed`; wiederholt → Ursache beheben (z. B. #384).
+
+### Regeln, die heute Zeit gekostet haben
+- SolidCraft-Messungen nur, wenn `gh run list --workflow contract.yml -L 3 --json status` nichts aktiv/wartend zeigt –
+  als **eigener Befehl** vor dem Messblock. Drei Bauer haben es im selben Befehl geprüft und Läufe gestört.
+- Wartende Prüf-Schleifen auf `.status != "COMPLETED"` zählen, nicht auf leere `conclusion` (zwei Wächter endeten zu früh).
+- Server ist der Engpass: Bauer keine vollen Testsuiten, während CI läuft.
+- Lauf-Zeiten: gezielter Vertragstest 3–6 min, PR-CI ~5 min ohne Wartezeit.
+
+## Übergabe 13.11.2026 abends – ZUERST LESEN, ersetzt ältere Übergaben
+
+- **Gemergt heute:** #363–#368 (alle A-Befunde, Fensterschleife), #370 BC-01 Klappbox (`f87f020`), #372 (CI lädt Ergebnisse roter Desktop-Flows hoch; Erwartungen 15 s, Pixel 45 s), #373 (X-1-E2E robust). Harness am main nachgemessen (Audit-Zweig `44f6e08`).
+- **Offen, fertig bis auf Vertragstest:** #369 BC-03 (Kopf `f99f167`, Lauf 43455173515) und #371 BC-02 (Kopf `5e0e48c`, Lauf 43458712691, wartet). Beide nach mehreren Reviews merge-reif; bei grünem Vertragstest + grünen PR-Checks mergen. Rot → Artefakt `contract-test-results` lesen (`gh run download <id> -n contract-test-results`). Test „starts SolidCraft without a window“ zählt `solidcraft-cli`-Prozesse: rot, wenn parallel CLI-Läufe liefen → neu anstoßen.
+- **Danach:** Status in BEFUNDE.md für BC-01/02/03 nachziehen (Kennungen in BC-PAKETE.md, offene Reste in den PR-Texten), dann nächste Welle aus `BC-PAKETE.md` (je Spur ein Paket, höchstens 3 parallel, jede in eigenem Worktree `../partbuddy-wt-bc-NN`, Ablauf: Subagent baut → unabhängiges Review → Nachbesserung bis merge-reif → `contract.yml` (nur EIN Lauf + ein wartender) → mergen). Entscheidungen BC-13 (gemischt) und BC-24 (alle sieben als Hinweis) stehen in BC-PAKETE.md.
+- **Neue Befunde heute:** N-nach-1…5 (BEFUNDE.md unten); offene Reste aus den PRs: Formular misst Wand/Rand nicht (#369), Vorlage kennt Düse nicht (BC-16), Kugel/Rundung-Wand am Netz (#371 `shortcut:`), 0,25-Düse-Wand rot (#371 `shortcut:`), rohe SolidCraft-Ablehnung bei Parameter außerhalb des Bereichs (`ParametersSection.tsx`, #370 PR-Text).
+- **Regeln:** Subagenten keine CLI-/E2E-Läufe während `contract.yml` läuft; Release 0.3.1 erst nach dem ganzen Audit.
+
+## Übergabe an die nächste Sitzung (12.11.2026 spät, Kontext der Sitzung voll)
+
+**Zuerst lesen:** Dieser Abschnitt ersetzt alle älteren Zeilen im Verlauf oben, wo sie sich widersprechen.
+
+### Stand 12.11.2026 abends (Folgesitzung) – ersetzt die Tabelle und den Nachtrag unten
+
+- **Gemergt (alle fünf):** #359 (Wettlauf V-1), #353 (Druckprüfung), #356 (Normteile), #357 (Regeln), #358 (Mechanik), dazu #360 (Testkorrekturen). Vertragstests von #357 und #358 zuletzt komplett grün (#358 auf dem mit #357 zusammengeführten Stand). **Testversion 0.1.0-test.20261112.133 aus main an Server und Gaming-PC geliefert.** Die Worktrees unter `.claude/worktrees` sind damit entbehrlich (nicht aufgeräumt; `tools/audit/cases` darin vorher sichten, Schritt 5 unten).
+- **Als Nächstes:** Schritte 1–5 und 7–9 unter „Danach“ (Schritt 6 ist erledigt). Mac-Build ist gemergt (#361/#362). **Release 0.3.1 erst nach dem ganzen Audit (A, B, C, Phase 4, Phase 7) – Entscheidung Manuel 13.11.2026.** Status-Spalte in BEFUNDE.md ist veraltet (gemergte A-Befunde aus #356–#358 stehen noch als „in Arbeit“) – vor B/C nachziehen.
+- **#363 schichtweise Druckprüfung – gemergt 13.11.2026 (`928a54d`)** nach vier Reviews; 4. Review merge-reif, Vertragstest 43371637946 grün. Beginn in der Luft je Zusammenhangsteil ohne Flächentoleranz, hängende Fläche aus den Schnitten statt vier Stichpunkten, gleiche Aussage in jeder Höhenlage (Tests 0,00–0,20 in 0,01-Schritten). Sollwert Kiel zwischen zwei Füßen auf 267,3 mm² gesenkt (vom Review nachgerechnet). Hingenommen (4. Review „Klein“): Spitze 0,05–0,095 mm über dem Bett gilt als auf dem Bett stehend (main meldet sie; liegt in der ersten Schicht); Klinge auf 0,2–0,4 breiter Kante wird gemeldet (`THIN`); Lippe auf nicht überbrückbarer Brücke zählt zusätzlich. Weiter offen: die 17 grundlosen Meldungen in `OPEN` (Kanäle, Tunnel mit Rundung, Mutterntaschen); Schichthöhe fest 0,2; offene Netze fallen auf das alte Verfahren zurück (`layered` liest niemand); Laufzeit Treppe 740 Stufen 0,24 s (main 0,05).
+- **#353 – Entscheidung Manuel 12.11.2026:** mit 27 bekannten Fehlfällen von 178 gemergt (Liste `OPEN` in `packages/geometry/src/overhangCases.test.ts`, als erwartete Fehlschläge). Falsches „ready“: Treppen aus niedrigen Stufen, Tropfkante/Schürze mit Wange. Falsches „warn“: L-/T-/Kreuz-/Ringkanäle, Tunnel mit Rundung oder Schnitt, Mutterntaschen M4–M6. **Nächster eigener PR: Prüfung schichtweise neu bauen** (Teil in Schichten schneiden, je Schicht Auflage und Spannweite, `clipper2-ts`), gemessen an den 178 Fällen. Zwei verworfene Umbauten des Flächenansatzes liegen in `wip-353/` (rekursiv: läuft endlos; feste Tiefe: 44 druckbare Formen falsch gemeldet).
+- **#358 Mechanik:** drei Review-Runden eingearbeitet (Dachprobe mit Flankenstäben an der richtigen Stelle, Überlappung zweier Scharniere über die Stifte, ehrliche Texte). In CLI gemessen: SolidCraft 0.40.1 rechnet die Stab-Überlappung exakt (4e-10 bei 300 mm). Bekannte Grenzen als `shortcut:` im Code: schräge Schiene und runde/gefaste Schlitten bekommen kein Dach; umbenannter oder verschobener Stift wird nicht erkannt.
+- **#357 Regeln:** Werkzeugantwort wartet auf die Druckprüfung (bis 3 s je änderndem Aufruf, lokal 150–350 ms). Die Vertragstests warten deshalb jetzt auf das Zugende (`turnEnded`). Punkte 1–7 des 3. Reviews weiter offen (Folge-PR mit der Vereinheitlichung der Rücknahme).
+- **#360:** nur Tests – Text-Test setzt die Draufsicht vor jedem Klick neu (Taste 7 ging verloren, Ursache unbewiesen), Gelenk-Tests lesen die Revision erst, wenn nicht mehr „rebuilding“ steht. Beide Wackler traten erst am 12.11. nachmittags auf; ungeklärt, ob #359 „rebuilding“-Momente häufiger macht.
+- **Mac-Build (Manuel 12.11.2026):** Der erste Mac-Build (unsigniertes dmg) soll mit dem nächsten Update 0.3.1 erscheinen. Einordnung: nach Schritt 6 „Testversion“ unten, vor der Freigabe von Release-PR #310; eigener PR, Schritte im Gedächtnis (`vorhaben\partbuddy\mac-version.md`). Release 0.3.1 erst freigeben, wenn das dmg gebaut ist.
+- **Merke:** Nach einem Squash-Merge der Basis einen abhängigen Zweig so nachziehen: erst den echten Endstand des Basiszweigs hineinholen, dann main; Konfliktdateien, die auf main dem Basis-Endstand gleichen, mit dem Zweigstand auflösen. Konfliktliste vollständig lesen (nicht mit `tail` kürzen) – ein pauschales `checkout --theirs` hat am 12.11. Änderungen von #357 verworfen.
+
+Auf main gemergt am 12.11.2026: #346 (SolidCraft 0.40.1 Mindestversion), #347 (Einschmelz-Einsätze), #348 (Baustein auf dem genannten Körper), #349 (Messdüse), #350 (Stützen-Aussage), #351 (Kernloch-Regel), #352 (Spalt-Marke), #354 (Opus · Mittel als Standard), #355 (Baustein-Grenzen).
+
+### Fünf offene PRs – Arbeitsverzeichnisse unter `.claude/worktrees/` NICHT aufräumen
+
+In der vorigen Sitzung liefen dazu Subagenten. Ob sie noch laufen, weiß die neue Sitzung nicht: **vor jeder Arbeit an einem Zweig `git fetch` und den Kopf des Zweigs mit dem hier genannten vergleichen**, im Worktree `git status` ansehen (uncommittete Arbeit übernehmen, nicht überschreiben) und den PR-Text lesen (die Subagenten haben ihre Berichte dort eingetragen).
+
+| PR / Zweig | Worktree | Kopf bei Übergabe | Stand | Nächster Schritt |
+|---|---|---|---|---|
+| #359 `fix/quiet-check-race` – Wettlauf V-1 | `agent-a92980055acef80e8` | `0e1ba80` | PR-CI grün. Vertragstests: Lauf 1 (43238880716) 51/52, Schlitz-Test grün, rot „a built text is picked … under a click“ (3-s-Wartezeit); Lauf 2 (43245381541) wartete. Noch KEIN unabhängiges Review | Läufe auswerten (bis drei saubere; tritt der Text-Test wieder auf, prüfen, ob die neue Serialisierung Klick-Treffer verzögert). Unabhängiges Review des Diffs. Mergen. **Vorrang:** ohne diesen Fix kippt in jedem Vertragstest-Lauf zufällig „a slot built into a hinged flap“ |
+| #356 `fix/standard-parts-audit` – Normteile, Policy | `agent-a4b14993fe6a97320` | `155e2c3` | 3. Review: merge-reif. Letzte kleine Runde war in Arbeit (a–g, darunter P-6: `screenshot {path}` und alle Pfad-Argumente der direkt erlaubten Werkzeuge sperren) | Kopf/Worktree prüfen; ist die Runde gepusht: kurzes Review nur des Policy-Commits, `contract.yml`, mergen. Sonst die Runde fertigstellen (Punkte stehen im Verlauf, Zeile „#356: 3. Review“) |
+| #353 `fix/print-check-audit` – Druckprüfung | `agent-ad58394fa92920f35` | `89274a3` | 3. Review: NICHT merge-reif (Treppe aus niedrigen Stufen und Tropfkante mit Wange sind „ready“; falsches „warn“ bei L-/T-/Kreuz-/Ringkanälen, Tunneln mit Rundung, Mutterntaschen ab M4). 4. Runde war in Arbeit, Vorgabe: zuerst alle Fälle der drei Reviews als Tests (neun Drehungen, gespiegelt), dann ändern. Fälle des Reviewers: Scratchpad der alten Sitzung, Ordner `r3` (kann weg sein – dann aus dem PR-Text und dem Verlauf oben nehmen). Vertragstest-Lauf 43243307606 lief auf `89274a3` | Kopf/Worktree prüfen; 4. Review nur der neuen Commits. Zeigt es wieder falsches „ready“: Manuel den Wechsel auf eine schichtweise Prüfung vorschlagen (Teil in Schichten schneiden, je Schicht Auflage und Spannweite messen; `clipper2-ts` ist vorhanden) – nicht allein entscheiden |
+| #357 `fix/assistant-check-rules` – R1, R3, R54, U-1 (Material/Druckzeit) | `agent-afbe1a91e3152bf83` | `0a3f08c` | Zwei Review-Runden eingearbeitet, PR-CI lief. 3. Review (nur `d19ec0a`, `0a3f08c`) war gestartet: prüft `takeBack` (nimmt es zu viel zurück?), Einzelschnitt bei mehreren Löchern, Undo-Deckel, Volumenprobe, Holzschrauben-Lesart. Basis ist `fix/print-check-audit`; „Conventional Commits“ dort rot wegen des main-Commits von #354 (101 Zeichen) – wird grün nach dem Umhängen | Ergebnis des 3. Reviews fehlt der neuen Sitzung → Review neu starten. Dann nach #353 auf main umhängen (`gh pr edit 357 --base main`), `contract.yml`, mergen |
+| #358 `fix/mechanism-audit` – Mechanik | `agent-a7796255c86d74bc4` | `f37a9c7` (im Worktree lagen 5 ungepushte Commits) | 1. Review: nicht merge-reif (M-2 Dach der Führung zerschneidet Schieber; M-1 Rücknahme am Undo-Deckel, neue `takeBack.ts`; koaxiales zweites Scharnier fälschlich abgelehnt; „without support“ bei 40°-Material; kleine Schiene; Vorlagen-Mindesthöhe). Nachbesserung war in Arbeit | Kopf/Worktree prüfen, ggf. fertigstellen und pushen; 2. Review; nach #353 auf main umhängen, `contract.yml`, mergen |
+
+### Regeln, die sich in dieser Sitzung bewährt haben
+- Kein Subagenten-PR ohne unabhängiges Review des Diffs; Nachträge erneut prüfen, bis nichts Ernstes mehr kommt (jeder PR brauchte 2–3 Runden).
+- `contract.yml` einzeln anstoßen, erst wenn kein Lauf mehr läuft oder wartet (nur EIN wartender Platz; `cancelled` zählt nicht). Währenddessen möglichst keine Harness-Läufe (der Test „starts SolidCraft without a window“ zählt `solidcraft-cli`-Prozesse).
+- PR-Titel höchstens 93 Zeichen (Squash hängt „ (#nnn)“ an; commitlint-Grenze 100).
+- Fixes in eigenen Worktrees neben dem Repo bzw. unter `.claude/worktrees`; der Haupt-Checkout bleibt auf `docs/vollaudit-2026-11` (nur Audit-Dokumente und `tools/audit`, nicht gepusht).
+- Ersetzungen mit Backslashes nie über Heredoc/sed, sondern mit dem Edit-Werkzeug oder einer mit Write angelegten Skriptdatei.
+
+### Danach, in dieser Reihenfolge
+1. ~~Rücknahme vereinheitlichen~~ **erledigt 13.11.2026, #364 (`2e09800`)** nach vier Reviews, Vertragstest 43382740874 grün: eine Rücknahme (`takeBack.ts`) für Bausteine und Mechanik, Meldung back/kept/partly, Rückfall ohne `joint.list`, `marker` neben `UNDO_CAP`, Netzkörper und unfertige Paare der Abstandsmessung als „nicht gemessen“, Punkte 1–7 aus dem Review von #357. Einsatz-Sitz: äußerer Ring muss voll sein; Spielraum nur, wo das Fehlende wie eine Wölbung aussieht (Schwerpunkt aus `inspect.interference` `center`, an 0.40.1 gemessen: exakter Volumenschwerpunkt). Bekannte Grenze als `shortcut:` in `curvedWall`: Wölbung plus flache einseitige Fase ist vom Kegel nicht sicher zu trennen (M3 auf Stab R8 mit Fase ab 0,6 mm hinter dem Lochrand geht durch, wie auf main); Ausbau: Sonde auf der Gegenseite. M3-Kegel 60° liegt genau an der Grenze, steilere Kegel werden abgelehnt.
+2. **Erledigt 13.11.2026, #365 (`1993749`)** nach zwei Reviews, Vertragstest 43394684471 grün: „durch“ nur durch die getroffene Wand (Probeschnitt in eine 30 m beiseitegeschobene Kopie; `solid.hole` scheitert neben einer deckungsgleichen Kopie), neue Option `through: 'body'` (nur Assistent, nicht im Formular); Formular sagt, wenn nicht gemessen wurde (nur bei der Vorschau, nicht beim zweiten Messen im Bau). Druckprüfung: Bohrung, die eine Außenwand öffnet, ist Wand 0 mm (nur Flächen ≤ 15° zur Bohrachse; schräge Außenwand ab ~20°, Senkungen und Langlöcher nicht erfasst, wie main). Schraubverbindung misst Ring, Boden (Sitz als ungebohrt) und Kopfsenkung vor dem Bau, Kopfsenkung mit Wölbungstoleranz. Echte Netze als Fixtures `packages/geometry/fixtures/holes-*.3mf`. Harness-Fälle `bloecke-w2`, `r54-screw`, `normteile-policy-raw` nicht neu gelaufen (Schritt 5). — Ursprünglich: Rest-A-Befunde im Baustein-Werkzeug: Durchgangsloch/Langloch geht durch beide Wände des eigenen Hohlkörpers (W2/T4/N-bloecke-1 Rest); Loch schneidet die Außenwand auf (N-normteile-policy-2); Mechanik-Fall `r54-screw-insert-edge`.
+3. **Erledigt 13.11.2026, #366 (`cd752c8`)** nach zwei Reviews, Vertragstest 43407662537 grün: Scharnier aus dem Mechanik-Werkzeug und Vorlage hingedBox kennzeichnen ihre zwei Komponenten (Komponenten-Metadaten `…partbuddy.together.<label>`, gilt nur bei vorhandenem Gelenk zwischen genau diesen Komponenten). Druckprüfung, Körpermaße und Druckplatte legen die Gruppe gemeinsam; Berührung in der Gruppe → Warnung `fused`. 3MF-Export und „An den Slicer“ schreiben die Gruppe als ein Objekt mit Teilen (`print/pieces3mf.ts`), in Bambu Studio belegt; PrusaSlicer/Cura ungeprüft, nicht gesliced. Vorhandene Entwürfe werden nicht nachträglich gekennzeichnet. — Ursprünglich: Zusammen gedruckte Teile (G1): Print-in-place-Paare der Mechanik-Werkzeuge als Gruppe merken, Druckprüfung stellt sie auf ein gemeinsames Bett.
+4. **Erledigt 13.11.2026, #367 (`a6e52eb`)** nach zwei Reviews, Vertragstest 43420544388 grün: Ampel „Prüft noch“ (erst nach 500 ms sichtbar, Bildschirmleser nur Endzustände), solange gemessen wird, eine Revision gespiegelt wird (`mirror: rebuilding`) oder der Check nicht zu Revision/Dokument passt; „Nicht vollständig geprüft“ bei gescheiterter/teilweiser Messung oder gescheiterter Spiegelung eines neueren Stands; Export/Teilen/Slicer fragen in all diesen Fällen (vorhandene Rückfrage). Gelenkläufe in 40er-Blöcken bis 200. Netzkörper als neutrale Zeile im Panel. Startseiten-Kachel ohne falsches Grün (gescheiterte Spiegelung dort nicht ausgewertet). Laufzeittest der Treppe auf ×40 (lokal linear ×3,8, CI unter Last ×13–14). **Offen:** Fensterbetrieb – ob Messungen im SolidCraft-Fenster Revisionsmeldungen auslösen und so eine Dauerschleife „Prüft noch“ ergeben, ist ungemessen. Der neue Vertragstest „… stays quiet … (X-1)“ (nur mit `window=true`) kann im CI-Dienst (Session 0) kein Fenster öffnen; lokal gemessen 13.11. (Manuel erlaubt): Snap-Fit-Probe ließ je Prüfung zwei Undo-Schritte und eine neue Revision zurück → Dauerschleife; behoben mit #368 (`b7f475e`, Probe endet mit scheiterndem Leseschritt), Fenstertest lokal grün. — Ursprünglich: X-1: Ampel und Export während laufender Abstandsmessung.
+5. **Erledigt 13.11.2026:** `origin/main` (`a6e52eb`) in den Audit-Zweig gemergt, Fälle aus den Worktrees übernommen (`normteile-policy-library`, `mechanik-fix`, `mechanik-review`, `r54-probe`, `r54-review2`, `check-timing`), Harness an den heutigen Code angepasst (Druckgruppen an `checkPrint`, Schema der Funde, R1-Weg über `withCheckOfChange`), ganze Harness gelaufen. Ergebnisse je Befund im Abschnitt „Nachmessung 13.11.2026“ der `04-messung-*.md`, Status in BEFUNDE.md, vier neue Befunde N-nach-1 … 4. — Ursprünglich: Harness auf dem Audit-Zweig nachziehen: neue Fälle der Subagenten liegen uncommittet in ihren Worktrees unter `tools/audit/cases/`; `normteile-policy-*` an die neue Erkennung anpassen; `passung-texte-r1-r3-pruefnotiz` an das Schema von #353.
+6. Testversion aus main bauen und liefern (Worktree `../partbuddy-wt-main`: `git checkout --detach origin/main`, dann `tools/test-app/deliver-test-app.ps1` aus PowerShell). Manuel wartet darauf: auf dem Gaming-PC liegt noch …132 ohne Opus-Standard, Druckprüfung, Normteile.
+7. B- und C-Befunde (BEFUNDE.md, Status „offen“), Dubletten bei B/C abgleichen, „Nicht geprüft“-Restliste.
+8. Phase 4 für die ganze Prüfliste, alle Messfälle gegen 0.40.1 wiederholen, `02-solidcraft-abgleich.md` auf 0.40.1 nachziehen.
+9. Phase 7: Abnahme im echten Chat mit Modelltest (Haiku 5.5, Sonnet 5.5, Opus 5.5, Fable 5.2, ChatGPT-Modelle; streng nacheinander), eigene Aufträge zu Material/Druckzeit ohne das Wort „optimieren“.
+
+### Nachtrag nach der Übergabe (Berichte, die noch in der alten Sitzung ankamen)
+- **#358 Mechanik**: Nachbesserung gepusht, Kopf jetzt `864e273` (enthält `origin/fix/print-check-audit` bis `89274a3`). Laut Bericht behoben: Dach nur noch, wo fünf Probestäbe entlang der Nut im Körper liegen; jeder Schritt, der einen Körper teilt, lässt den Aufruf scheitern und nimmt ihn zurück; Rücknahme über neue `apps/desktop/src/main/agents/takeBack.ts` (`markOf(run)` vor dem ersten Bauschritt, `takeBack(run, mark)` im Fehlerzweig, hängt `component.activate {component: 0}` selbst an) – so auch in `blockTool.ts` einzusetzen; koaxiales zweites Scharnier wird gebaut und teilt das Gelenk; „without support“ nur ab 45° Materialgrenze; kleine Schiene als Brücke benannt; Vorlage bei `height = 5` ohne Steg unter dem Boden. Offen: Einsatz-Sitz der Schraubverbindung am Rand (N-mechanik-8), zweite Führung wird weiter abgelehnt, Vorlage `hingedBox` bei `height = 5` blockt an der Fase des Verschlusses (ungeklärt, ob schon vorher). **Nächster Schritt: 2. unabhängiges Review nur der Commits `29786b8` und `6623081`, dann nach #353 auf main umhängen, `contract.yml`, mergen.**
+- **#357 Regeln**: 3. Review (nur `d19ec0a`, `0a3f08c`) liegt vor: **merge-reif, kein Fund blockiert** – das Review muss NICHT neu gestartet werden. Kleine Punkte, vor oder direkt nach dem Merge: (1) `takeBack` in `blockTool.ts` nimmt bis „gesendet + 4“ Schritte zurück, der letzte Undo wird nicht mehr geprüft, und `sent` zählt die zwei `component.activate` mit (belegen keinen Undo-Schritt) → bis zu 6 fremde Schritte; (2) nach gescheiterter Rücknahme stimmt die Meldung nicht mit dem Zustand überein (Undos zählen und bei Misserfolg `edit.redo`). Beides erledigt sich, wenn `blockTool.ts` auf `takeBack.ts` aus #358 umgestellt wird (Schritt 1 unter „Danach“) – dort gleich mit prüfen. (3) Erfolgstext „needs 2 mm … it is there“ behauptet mehr, als die Schwelle misst: `slack` für gekrümmte Flächen gilt auch auf ebenen (M3-Sitz geht ab ~5,0 mm von einer Kante mit 3-mm-Fase durch, Wand oben unter 1,6 mm; Holzschraube bis ~5,7 statt 6,35 mm an die Kante) → `slack` nur bei wirklich abfallender Fläche oder Text ehrlich machen; (4) `UNDO_CAP = 200` hart kodiert → Vertragstest „205 Schritte lesen `undo` 200“, `marker` aus `document.inspect` als Zusatzkriterium (zählt über 200 weiter, bewegt sich aber nicht bei reinen Skizzenänderungen); (5) Gelenkläufe über 40 und ungeprüfte Netzkörper ebenfalls als `unmeasured` melden; (6) Sitz auf vorhandenem Vorloch wird jetzt immer abgelehnt – Text ergänzen; (7) Tests: Undo wirkt, Vorher-Stand nie erreicht; `edit.undo` wirft; ein schlechtes Loch unter mehreren. An SolidCraft 0.40.1 gemessen: ein Befehl = ein Undo-Schritt; `component.activate` belegt keinen, bewegt aber die Revision; Undo stellt das Volumen bitgenau wieder her; `edit.undo` am Anfang scheitert mit „nothing to undo“. **Nächster Schritt: nach #353 auf main umhängen, `contract.yml`, mergen; Punkte 1–7 als Folge-PR zusammen mit der Vereinheitlichung der Rücknahme.**
+- **CI von #357 rot in „Lint, typecheck, test, build“** (Kopf `0a3f08c`): nicht wegen #357, sondern wegen des Laufzeittests aus #353 (`packages/geometry/src/overhangSpeed.test.ts`, „finds the flanks of a long thread small“: 3890 ms gegen die Grenze 3000 ms auf dem belasteten Linux-Runner). An den Subagenten von #353 gegeben: Laufzeit über das Wachstum (n gegen 4n) statt über eine feste Zeit prüfen. Bis das in `fix/print-check-audit` ist und #357/#358 es hineingeholt haben, kann dieser Check dort zufällig rot sein.
+- **#356 Normteile**: letzte Runde gepusht, Kopf jetzt `c38f5b6` (davor `46e330a` = Sperre der Datei-Argumente `path`/`file`/`reference`/`output` für alle direkt erlaubten Werkzeuge, Befund P-6; Ausnahmen: `compare_picture` mit PartBuddys eigenem Foto, `skill_reference` mit bloßem Namen). Laut Bericht: nur echte Ablehnungen dauerhaft gemerkt; Timer nach der Sperre; Export scheitert mit Meldung statt einen ungeprüften Körper hinauszugeben; `structure.pendingParts` aus der Druckprüfung genommen (Markierung „vorläufig“ fehlt bis zur Zusammenführung mit #357); Cache validiert. Ein letztes kurzes Review der zwei Commits war gestartet (prüft v. a.: Umgehung der Foto-Ausnahme über Pfadschreibweisen; kann ein Körper dauerhaft in `pendingParts` hängen und so ungeprüft bleiben; sperrt der scheiternde Export Nutzer aus). **Nächster Schritt: liegt das Review-Ergebnis der neuen Sitzung nicht vor, dieses kurze Review wiederholen; dann `contract.yml` auf dem Zweig (einzeln!), mergen.**
+- **#356 Normteile, letztes Review** (nur `46e330a`, `c38f5b6`): merge-reif mit einem Vorbehalt. An den Subagenten zurückgegeben (in Arbeit, Kopf bei Übergabe `c38f5b6`): (1) BLOCKER `pendingParts` bleibt hängen, wenn der Nachhol-Spiegel scheitert → Körper dauerhaft ungeprüft; (2) Export/Slicer/Stückliste dauerhaft gesperrt, wenn `solidcraft-cli` fehlt – stattdessen Kandidaten als gedruckt behandeln und es sagen; (3) scheiterndes `parts.library` sperrt den Export auch ohne Normteil; (4) Foto-Ausnahme der Policy ist ein Formmuster (fremdes Projekt, UNC, 8.3 gehen durch) → exakter Vergleich mit den gespeicherten Fotopfaden; (5) Datei-Sperre hängt an vier Argumentnamen → Erlaubnisliste je Werkzeug, auch in `decideCommand`; (6) Timer-Ketten ohne Obergrenze. **Nächster Schritt: Kopf des Zweigs prüfen; ist die Runde gepusht, nur noch nachsehen, dass Punkt 1 mit Test behoben ist (kein volles Review mehr nötig), `contract.yml`, mergen.**

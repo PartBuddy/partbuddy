@@ -1,0 +1,804 @@
+/**
+ * Overhangs for FDM printing (UI upgrade step 12): how far a downward face leans from the vertical,
+ * with the part printed along +Z on a bed at its lowest point. Faces up to 35° from the vertical
+ * print fine, 35–45° are borderline, beyond 45° they need support (the material's profile moves
+ * these limits, M7); faces lying on the bed are not overhangs. Pure, on the render buffers; the
+ * print direction from M7's orientation comes later.
+ */
+
+export const Overhang = { Fine: 0, Bed: 1, Borderline: 2, Support: 3 } as const;
+export type Overhang = (typeof Overhang)[keyof typeof Overhang];
+
+/** Degrees from the vertical where a downward face becomes borderline, and where it needs support. */
+export interface OverhangLimits {
+  borderline: number;
+  support: number;
+}
+
+/** The limits without a print profile. */
+export const OVERHANG_LIMITS: OverhangLimits = { borderline: 35, support: 45 };
+
+/** The limits for a material (M7): support beyond its overhang angle, borderline 10° before. */
+export function overhangLimits(support: number): OverhangLimits {
+  // A profile without an angle is checked at the usual one, not with a limit nothing passes.
+  const limit = Number.isFinite(support) ? support : OVERHANG_LIMITS.support;
+  return { borderline: Math.max(0, limit - 10), support: limit };
+}
+
+/**
+ * Degrees past the limit before a face needs support: a 45° chamfer is exactly at the usual limit,
+ * and rounding in its normals must not tip it over (practice run 2026-11-05: a 45° bottom chamfer
+ * read as 1,006 mm² needing support).
+ */
+export const ANGLE_TOLERANCE = 1;
+
+/** How close to the bed (mm) a face must lie to count as lying on it. */
+const BED_TOLERANCE = 0.05;
+
+/** The class of a direction: `down` is how much it points down (−z of the unit normal). */
+function classifier(limits: OverhangLimits): (down: number) => Overhang {
+  const sinBorderline = Math.sin((limits.borderline * Math.PI) / 180);
+  const sinSupport = Math.sin(((limits.support + ANGLE_TOLERANCE) * Math.PI) / 180);
+  return (down) => {
+    if (down > sinSupport) return Overhang.Support;
+    if (down > sinBorderline) return Overhang.Borderline;
+    return Overhang.Fine;
+  };
+}
+
+export interface OverhangMap {
+  /** Class per render vertex, from its normal: curved faces shade from fine to support. */
+  vertices: Uint8Array;
+  /** Area in mm² per class, from each triangle's own normal. */
+  area: [number, number, number, number];
+  /** Area in mm² per B-rep face that needs support (the print check's findings, M7). */
+  supportByFace: Float64Array;
+}
+
+export interface OverhangInput {
+  positions: Float32Array;
+  normals: Float32Array;
+  index: Uint32Array;
+  vertexFaces: Uint32Array;
+  faceCount: number;
+}
+
+/**
+ * How far (mm) an overhang may reach out from the material that goes on below it and still count as
+ * small: four extrusion lines. OrcaSlicer and Bambu Studio leave such overhangs without support by
+ * default ("Ignore small overhangs": a cluster that is empty after eroding one line width from each
+ * side, or narrower than two more, TreeSupport.cpp), and they hold: thread flanks, the nose of a
+ * snap fit, a lip.
+ */
+export function smallOverhangReach(nozzle: number): number {
+  return Math.round(4 * 1.125 * nozzle * 100) / 100;
+}
+
+/**
+ * `count` points spread evenly over a triangle, each as the weights of its three corners: the middle
+ * first, then the R2 sequence folded into the triangle. A flat face comes as two triangles, so its
+ * middles alone say nothing of what lies between them.
+ */
+export function spread(count: number): [number, number, number][] {
+  const points: [number, number, number][] = [[1 / 3, 1 / 3, 1 / 3]];
+  for (let i = 1; i < count; i += 1) {
+    let u = (0.5 + i * 0.7548776662466927) % 1;
+    let v = (0.5 + i * 0.5698402909980532) % 1;
+    if (u + v > 1) {
+      u = 1 - u;
+      v = 1 - v;
+    }
+    points.push([1 - u - v, u, v]);
+  }
+  return points;
+}
+
+/** Positions closer than this (mm) are one vertex: render buffers repeat corners per face. */
+const WELD = 1e-4;
+
+/**
+ * How far (mm) a flat ceiling may span between the material on both sides and still print as a
+ * bridge without support: UltiMaker, Design for FFF 3D printing (10 mm; Protolabs Network and
+ * Xometry Pro name 5 mm for a bridge that does not sag at all). The assistant designs to the same
+ * number (printProfiles.ts).
+ */
+export const BRIDGE_SPAN = 10;
+
+/**
+ * Up to this diameter (mm) a hole lying across the layers prints round without support, slightly
+ * oval (MakerVerse, FDM Design Guide; the only source of the audit's scale that names a size). The
+ * assistant designs to the same number (printProfiles.ts).
+ */
+export const LYING_HOLE = 8;
+
+/** A face that points down this straight (−z of its unit normal, about 1°) is flat. */
+const FLAT = 0.9998;
+/** Just inside each corner of a triangle: a point on the rim itself belongs to both sides of it. */
+const CORNERS: [number, number, number][] = [[0.998, 0.001, 0.001], [0.001, 0.998, 0.001], [0.001, 0.001, 0.998]];
+/** Two faces that turn less than this (rad) into each other are one curved surface, not an edge. */
+const SMOOTH = Math.PI / 6;
+/** How far (mm) a point is moved off an edge into the material to ask what is under it. */
+const NUDGE = 1e-3;
+/** How many times every vertex is asked anew what it stands on; past that it counts as hanging by what was found. */
+const ROUNDS = 8;
+/** A cell of a grid and the eight around it, the cell itself first. */
+const AROUND: [number, number][] = [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]];
+
+/** The mesh with its corners welded, as the questions below need it. */
+interface Surface {
+  count: number;
+  vertices: number;
+  x: (w: number) => number;
+  y: (w: number) => number;
+  z: (w: number) => number;
+  at: (t: number, k: number) => number;
+  /** Per triangle its unit normal. */
+  normal: Float64Array;
+  edges: Map<number, number[]>;
+  edgeKey: (a: number, b: number) => number;
+  reach: number;
+  /** The run in plan a rise of 1 mm makes good: the tangent of the overhang limit. */
+  slope: number;
+  bedZ: number;
+}
+
+/**
+ * How far over nothing the material at a point of the surface hangs (mm in plan), counted from
+ * material that stands on the bed: 0 on what stands, more along an underside, less again by what
+ * the surface rises at the limit angle (steps 1 mm out and 1 mm up stand, 1.7 mm out per 1 mm up
+ * add up), and nothing (∞) past the reach of a small overhang. What is over an underside hangs as
+ * far as the underside below it, through the material.
+ *
+ * Asked of the geometry, not of the mesh: under a point, straight down through the material, and
+ * along an underside to the nearest point of its edges, so that a wall counts as standing along its
+ * length and a lip that hangs from a shelf does not, however either is cut into triangles.
+ */
+function hangOf(surface: Surface) {
+  const { count, vertices, x, y, z, at, normal, edges, edgeKey, reach, slope, bedZ } = surface;
+  const down = (t: number) => -(normal[t * 3 + 2] ?? 0);
+
+  // Every face that is not upright, in a grid in plan, each cell from the top down: to find what
+  // lies straight below a point without passing every turn of a thread.
+  const faces: number[] = [];
+  let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (let t = 0; t < count; t += 1) {
+    if (Math.abs(down(t)) < 1e-6) continue;
+    faces.push(t);
+    for (let k = 0; k < 3; k += 1) {
+      minX = Math.min(minX, x(at(t, k)));
+      maxX = Math.max(maxX, x(at(t, k)));
+      minY = Math.min(minY, y(at(t, k)));
+      maxY = Math.max(maxY, y(at(t, k)));
+    }
+  }
+  const cell = Math.max(1e-3, Math.sqrt(((maxX - minX) * (maxY - minY)) / Math.max(1, faces.length)) * 2);
+  const columns = Math.max(1, Math.ceil((maxX - minX) / cell)) + 1;
+  const grid = new Map<number, number[]>();
+  const lowest = (t: number) => Math.min(z(at(t, 0)), z(at(t, 1)), z(at(t, 2)));
+  let tallest = 0;
+  for (const t of faces) {
+    const xs = [x(at(t, 0)), x(at(t, 1)), x(at(t, 2))];
+    const ys = [y(at(t, 0)), y(at(t, 1)), y(at(t, 2))];
+    tallest = Math.max(tallest, Math.max(z(at(t, 0)), z(at(t, 1)), z(at(t, 2))) - lowest(t));
+    for (let i = Math.floor((Math.min(...xs) - minX) / cell); i <= Math.floor((Math.max(...xs) - minX) / cell); i += 1) {
+      for (let j = Math.floor((Math.min(...ys) - minY) / cell); j <= Math.floor((Math.max(...ys) - minY) / cell); j += 1) {
+        const list = grid.get(j * columns + i);
+        if (list) list.push(t);
+        else grid.set(j * columns + i, [t]);
+      }
+    }
+  }
+  for (const list of grid.values()) list.sort((a, b) => lowest(b) - lowest(a));
+  /** The face straight below a point, the nearest one, and the height it is met at. */
+  const below = (px: number, py: number, pz: number): { face: number; height: number } | null => {
+    let face = -1;
+    let height = -Infinity;
+    const list = grid.get(Math.floor((py - minY) / cell) * columns + Math.floor((px - minX) / cell)) ?? [];
+    let from = 0;
+    for (let to = list.length; from < to; ) {
+      const middle = (from + to) >> 1;
+      if (lowest(list[middle] ?? 0) > pz) from = middle + 1;
+      else to = middle;
+    }
+    for (let i = from; i < list.length; i += 1) {
+      const t = list[i] ?? 0;
+      const [az, bz, cz] = [z(at(t, 0)), z(at(t, 1)), z(at(t, 2))];
+      // Nothing further down reaches up to the best so far.
+      if (Math.min(az, bz, cz) + tallest < height) break;
+      const [ax, ay, bx, by, cx, cy] = [x(at(t, 0)), y(at(t, 0)), x(at(t, 1)), y(at(t, 1)), x(at(t, 2)), y(at(t, 2))];
+      const area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+      if (area === 0) continue;
+      const u = ((px - ax) * (cy - ay) - (py - ay) * (cx - ax)) / area;
+      const v = ((bx - ax) * (py - ay) - (by - ay) * (px - ax)) / area;
+      if (u < -1e-9 || v < -1e-9 || u + v > 1 + 1e-9) continue;
+      const met = az + u * (bz - az) + v * (cz - az);
+      if (met < pz - WELD && met > height) {
+        height = met;
+        face = t;
+      }
+    }
+    return face < 0 ? null : { face, height };
+  };
+
+  /** Per welded vertex how far it hangs; ∞ until it is known to stand. */
+  const hang = new Float64Array(vertices).fill(Infinity);
+  const atBed = (pz: number) => pz <= bedZ + BED_TOLERANCE;
+  /** What a point hangs by when it hangs from a vertex, straight across a face or along an edge. */
+  const from = (w: number, px: number, py: number, pz: number) => (hang[w] ?? Infinity) + Math.hypot(px - x(w), py - y(w)) - (pz - z(w)) * slope;
+
+  // The three questions ask each other, to a fixed depth: `through` says whether a point on an
+  // edge is still asked what lies under it. Everything else comes from what the vertices hang by.
+  /** Of a point just inside the material: what the column under it stands on. */
+  const column = (px: number, py: number, pz: number, through: boolean): number => {
+    if (atBed(pz)) return 0;
+    const under = below(px, py, pz);
+    // Nothing below, or the top of something: the point was over air.
+    if (!under || down(under.face) < 0) return Infinity;
+    return Math.max(0, underside(px, py, under.height, under.face, through) - (pz - under.height) * slope);
+  };
+  /** Of a point on an edge of the surface, `s` of the way from a to b. */
+  const onEdge = (a: number, b: number, s: number, through = true): number => {
+    const [px, py, pz] = [x(a) + s * (x(b) - x(a)), y(a) + s * (y(b) - y(a)), z(a) + s * (z(b) - z(a))];
+    if (atBed(pz)) return 0;
+    // Along the edge from an end that stands.
+    const best = Math.max(0, Math.min(from(a, px, py, pz), from(b, px, py, pz)));
+    if (best <= 1e-6 || !through) return best;
+    // Through the material under the edge: moved off it, away from where its faces look.
+    let [nx, ny] = [0, 0];
+    const list = edges.get(edgeKey(a, b)) ?? [];
+    for (let i = 0; i < list.length; i += 2) {
+      nx += normal[(list[i] ?? 0) * 3] ?? 0;
+      ny += normal[(list[i] ?? 0) * 3 + 1] ?? 0;
+    }
+    const length = Math.hypot(nx, ny);
+    const move = length > 1e-9 ? NUDGE / length : 0;
+    return Math.min(best, column(px - nx * move, py - ny * move, pz, false));
+  };
+  /** Of a point on an underside: from its corners, and from the nearest point of each of its edges. */
+  const underside = (px: number, py: number, pz: number, t: number, through: boolean): number => {
+    if (atBed(pz)) return 0;
+    let best = Infinity;
+    for (let k = 0; k < 3; k += 1) best = Math.min(best, from(at(t, k), px, py, pz));
+    for (let k = 0; k < 3 && best > 1e-9; k += 1) {
+      const a = at(t, k);
+      const b = at(t, (k + 1) % 3);
+      const [dx, dy] = [x(b) - x(a), y(b) - y(a)];
+      const length = dx * dx + dy * dy;
+      if (length === 0) continue;
+      const s = ((px - x(a)) * dx + (py - y(a)) * dy) / length;
+      if (s <= 0 || s >= 1) continue;
+      const [ex, ey, ez] = [x(a) + s * dx, y(a) + s * dy, z(a) + s * (z(b) - z(a))];
+      // What the way from the edge adds; nothing that hangs less than 0 comes before it.
+      const step = Math.hypot(px - ex, py - ey) - (pz - ez) * slope;
+      if (step >= best || step > reach + WELD) continue;
+      best = Math.min(best, onEdge(a, b, s, through) + step);
+    }
+    // Past the reach of a small overhang nothing stands on it.
+    return best > reach + WELD ? Infinity : Math.max(0, best);
+  };
+
+  // Per vertex the faces at it, and the point just inside the material there.
+  const around: number[][] = Array.from({ length: vertices }, () => []);
+  const inward = new Float64Array(vertices * 2);
+  for (let t = 0; t < count; t += 1) {
+    for (let k = 0; k < 3; k += 1) {
+      const w = at(t, k);
+      around[w]?.push(t);
+      inward[w * 2] = (inward[w * 2] ?? 0) - (normal[t * 3] ?? 0);
+      inward[w * 2 + 1] = (inward[w * 2 + 1] ?? 0) - (normal[t * 3 + 1] ?? 0);
+    }
+  }
+  // Along undersides and upright faces; a face that looks up is asked what is under it instead.
+  const leans = (t: number) => down(t) > -1e-6;
+  /** What a vertex hangs by, from what is known so far. */
+  const settle = (w: number): number => {
+    if (atBed(z(w))) return 0;
+    let best = Infinity;
+    for (const t of around[w] ?? []) if (leans(t) && best > 1e-9) best = Math.min(best, underside(x(w), y(w), z(w), t, true));
+    if (best > 1e-9) {
+      const [ix, iy] = [inward[w * 2] ?? 0, inward[w * 2 + 1] ?? 0];
+      const length = Math.hypot(ix, iy);
+      const move = length > 1e-9 ? NUDGE / length : 0;
+      best = Math.min(best, column(x(w) + ix * move, y(w) + iy * move, z(w), true));
+    }
+    return best > reach + WELD ? Infinity : best;
+  };
+  // From the bed up, so that what a vertex stands on is known before it, each find followed along
+  // the faces at once; then again, until nothing hangs by less than before. What stands is left.
+  const order = Array.from({ length: vertices }, (_, w) => w).sort((a, b) => z(a) - z(b));
+  for (let round = 0, changed = true; changed && round < ROUNDS; round += 1) {
+    changed = false;
+    for (const first of order) {
+      if ((hang[first] ?? 0) <= 1e-9) continue;
+      const queue = [first];
+      for (let head = 0; head < queue.length; head += 1) {
+        const w = queue[head] ?? 0;
+        const found = settle(w);
+        if (!(found < (hang[w] ?? Infinity) - 1e-9)) continue;
+        hang[w] = found;
+        changed = true;
+        for (const t of around[w] ?? []) {
+          if (!leans(t)) continue;
+          for (let k = 0; k < 3; k += 1) if (at(t, k) !== w && (hang[at(t, k)] ?? 0) > 1e-9) queue.push(at(t, k));
+        }
+      }
+    }
+  }
+  return { onEdge };
+}
+
+/** A piece of the rim of a patch of overhang, in plan. */
+interface Rim {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  /** The welded vertices of the edge the piece is of. */
+  a: number;
+  b: number;
+  /** Whether the patch hangs from standing material here, and how far that material itself hangs. */
+  anchor: boolean;
+  hang: number;
+  /** On a curved surface: how far past the rim the overhang really runs, and how far it is to the wall. */
+  ease: number;
+  wall: number;
+  smooth: boolean;
+}
+
+/**
+ * How much of each overhang triangle holds without support, 0 to 1; triangles that hold not at all
+ * are left out.
+ *
+ * A patch (overhang triangles joined by edges) hangs from its anchors: the rims where the surface
+ * goes on downwards into material that stands (`hangOf`), piece by piece along the rim. A point of
+ * it holds
+ * - near an anchor: within the reach of a small overhang, less what the anchor itself hangs by (a
+ *   ledge, a thread flank, a lip);
+ * - on a bridge: on a straight line square to some anchor the patch ends at an anchor on both sides,
+ *   with no free edge or hole between, no more than `BRIDGE_SPAN` apart from wall to wall, whatever
+ *   the shape of the roof between (flat, rounded or cut corners, a gable), or `LYING_HOLE` across
+ *   where the roof is round all the way;
+ * - where bridges meet: in a part that touches no free edge and lies nowhere further than half a
+ *   bridge span from an anchor or from a bridge that runs square from wall to wall (the corner of an
+ *   L, the crossing of two channels).
+ * What does not hold is reported with the arm it hangs on back to its anchor, and so is what lies
+ * round a hole through a ceiling beyond the reach of the walls, where the slicer lays loops in the
+ * air. The answer does not turn with the part on the bed, and does not depend on how a face is cut
+ * into triangles beyond the points it is sampled at.
+ */
+function heldShares(positions: ArrayLike<number>, index: ArrayLike<number>, normal: Float64Array, isSupport: (t: number) => boolean, reach: number, limitSine: number, bedZ: number): Map<number, number> {
+  const held = new Map<number, number>();
+  const count = index.length / 3;
+  let any = false;
+  for (let t = 0; t < count && !any; t += 1) any = isSupport(t);
+  if (!any || !(reach > 0)) return held;
+
+  // Render buffers repeat corners per face: weld them, so edges are shared between faces.
+  const welded = new Map<string, number>();
+  const wx: number[] = [];
+  const wy: number[] = [];
+  const wz: number[] = [];
+  const corner = new Int32Array(index.length);
+  for (let i = 0; i < index.length; i += 1) {
+    const v = index[i] ?? 0;
+    const [px, py, pz] = [positions[v * 3] ?? 0, positions[v * 3 + 1] ?? 0, positions[v * 3 + 2] ?? 0];
+    const key = `${String(Math.round(px / WELD))},${String(Math.round(py / WELD))},${String(Math.round(pz / WELD))}`;
+    let w = welded.get(key);
+    if (w === undefined) {
+      w = wx.length;
+      welded.set(key, w);
+      wx.push(px);
+      wy.push(py);
+      wz.push(pz);
+    }
+    corner[i] = w;
+  }
+  const vertices = wx.length;
+  const x = (w: number) => wx[w] ?? 0;
+  const y = (w: number) => wy[w] ?? 0;
+  const z = (w: number) => wz[w] ?? 0;
+  const at = (t: number, k: number) => corner[t * 3 + k] ?? 0;
+  const down = (t: number) => -(normal[t * 3 + 2] ?? 0);
+
+  // Every edge with the triangles on it and their third corner.
+  const edgeKey = (a: number, b: number) => (a < b ? a * vertices + b : b * vertices + a);
+  const edges = new Map<number, number[]>();
+  for (let t = 0; t < count; t += 1) {
+    for (let k = 0; k < 3; k += 1) {
+      const a = at(t, k);
+      const b = at(t, (k + 1) % 3);
+      if (a === b) continue;
+      const id = edgeKey(a, b);
+      const list = edges.get(id);
+      if (list) list.push(t, at(t, (k + 2) % 3));
+      else edges.set(id, [t, at(t, (k + 2) % 3)]);
+    }
+  }
+  const slope = limitSine / Math.sqrt(1 - limitSine * limitSine);
+  const { onEdge } = hangOf({ count, vertices, x, y, z, at, normal, edges, edgeKey, reach, slope, bedZ });
+
+  /** How far it is in plan from a rim to the wall the curved surface beyond it runs into. */
+  const toWall = (first: number, ax: number, ay: number, bx: number, by: number, tx: number, ty: number): number => {
+    const length = Math.hypot(bx - ax, by - ay);
+    if (length === 0) return 0;
+    // Away from the patch: the far corner of its own triangle lies on the other side.
+    const side = Math.sign((bx - ax) * (ty - ay) - (by - ay) * (tx - ax)) || 1;
+    const off = (w: number) => (-side * ((bx - ax) * (y(w) - ay) - (by - ay) * (x(w) - ax))) / length;
+    const seen = new Set<number>([first]);
+    const stack = [first];
+    let far = 0;
+    while (stack.length > 0) {
+      const t = stack.pop() ?? 0;
+      for (let k = 0; k < 3; k += 1) {
+        far = Math.max(far, off(at(t, k)));
+        const list = edges.get(edgeKey(at(t, k), at(t, (k + 1) % 3))) ?? [];
+        for (let i = 0; i < list.length; i += 2) {
+          const other = list[i] ?? 0;
+          if (seen.has(other) || isSupport(other) || down(other) < 0.02) continue;
+          const turn = (normal[t * 3] ?? 0) * (normal[other * 3] ?? 0) + (normal[t * 3 + 1] ?? 0) * (normal[other * 3 + 1] ?? 0) + (normal[t * 3 + 2] ?? 0) * (normal[other * 3 + 2] ?? 0);
+          if (turn < Math.cos(SMOOTH)) continue;
+          seen.add(other);
+          stack.push(other);
+        }
+      }
+    }
+    return far;
+  };
+
+  const seen = new Uint8Array(count);
+  for (let start = 0; start < count; start += 1) {
+    if (seen[start] || !isSupport(start)) continue;
+    // One patch: support triangles joined by edges, and the rims where it ends, in pieces half a reach long.
+    const patch: number[] = [];
+    const rims: Rim[] = [];
+    const queue = [start];
+    seen[start] = 1;
+    while (queue.length > 0) {
+      const t = queue.pop() ?? 0;
+      patch.push(t);
+      for (let k = 0; k < 3; k += 1) {
+        const a = at(t, k);
+        const b = at(t, (k + 1) % 3);
+        const far = at(t, (k + 2) % 3);
+        const list = edges.get(edgeKey(a, b)) ?? [];
+        for (let i = 0; i < list.length; i += 2) {
+          const other = list[i] ?? 0;
+          const third = list[i + 1] ?? 0;
+          if (other === t) continue;
+          if (isSupport(other)) {
+            if (!seen[other]) {
+              seen[other] = 1;
+              queue.push(other);
+            }
+            continue;
+          }
+          const onBed = Math.max(z(a), z(b)) <= bedZ + BED_TOLERANCE;
+          // The neighbour goes on downwards from this edge, or the edge lies on the bed: the patch
+          // hangs from material here, as far as that material stands.
+          const hangs = onBed || z(third) < Math.min(z(a), z(b)) - WELD;
+          const pieces = hangs ? Math.max(1, Math.ceil(Math.hypot(x(b) - x(a), y(b) - y(a)) / (reach / 2))) : 1;
+          const turn = Math.asin(Math.max(-1, Math.min(1, down(t)))) - Math.asin(Math.max(-1, Math.min(1, down(other))));
+          const smooth = hangs && !onBed && turn > 1e-6 && turn < SMOOTH;
+          const ease = smooth ? easeOf(x(far), y(far), x(a), y(a), x(b), y(b), down(t), down(other), limitSine) : 0;
+          const wall = smooth ? toWall(other, x(a), y(a), x(b), y(b), x(far), y(far)) : 0;
+          const marks = Array.from({ length: pieces + 1 }, (_, p) => (!hangs ? Infinity : onBed ? 0 : onEdge(a, b, p / pieces)));
+          for (let p = 0; p < pieces; p += 1) {
+            const hang = Math.max(marks[p] ?? Infinity, marks[p + 1] ?? Infinity);
+            const [from, to] = [p / pieces, (p + 1) / pieces];
+            rims.push({ ax: x(a) + from * (x(b) - x(a)), ay: y(a) + from * (y(b) - y(a)), bx: x(a) + to * (x(b) - x(a)), by: y(a) + to * (y(b) - y(a)), a, b, anchor: hang <= reach + WELD, hang, ease, wall, smooth });
+          }
+        }
+      }
+    }
+    if (!rims.some((rim) => rim.anchor)) continue;
+    for (const [t, share] of sharesOfPatch(patch, rims, { x, y, at, down, reach, arch: LYING_HOLE * limitSine })) held.set(t, share);
+  }
+  return held;
+}
+
+/**
+ * How far (mm) past a rim the overhang really runs on a curved surface. The mesh puts the rim on an
+ * edge between two facets, the limit angle lies somewhere on the curve between their middles: a
+ * hole of 20 segments would read up to a facet narrower than the same hole of 96.
+ */
+function easeOf(tx: number, ty: number, ax: number, ay: number, bx: number, by: number, downIn: number, downOut: number, limitSine: number): number {
+  const angleIn = Math.asin(Math.max(-1, Math.min(1, downIn)));
+  const angleOut = Math.asin(Math.max(-1, Math.min(1, downOut)));
+  const turn = angleIn - angleOut;
+  const length = Math.hypot(bx - ax, by - ay);
+  if (!(turn > 1e-6) || length === 0) return 0;
+  // The facet's width in plan: from its far corner to the rim.
+  const width = Math.abs((bx - ax) * (ty - ay) - (by - ay) * (tx - ax)) / length;
+  const ease = (width * ((angleIn + angleOut) / 2 - Math.asin(limitSine)) * limitSine) / (turn * Math.max(downIn, 1e-6));
+  return Math.max(-width, Math.min(width, ease));
+}
+
+interface PatchSurface {
+  x: (w: number) => number;
+  y: (w: number) => number;
+  at: (t: number, k: number) => number;
+  down: (t: number) => number;
+  reach: number;
+  arch: number;
+}
+
+/** Points in a grid in plan, to find those round a place. */
+function pointGrid<T extends { px: number; py: number }>(cell: number) {
+  const cells = new Map<number, T[]>();
+  const cellOf = (value: number) => Math.floor(value / cell) + 32768;
+  return {
+    add(point: T) {
+      const key = cellOf(point.px) * 65536 + cellOf(point.py);
+      const list = cells.get(key);
+      if (list) list.push(point);
+      else cells.set(key, [point]);
+    },
+    /** Whether `found` holds for a point within `radius` (at most a cell) of the place. */
+    some(px: number, py: number, radius: number, found: (point: T) => boolean): boolean {
+      for (const [di, dj] of AROUND) {
+        for (const point of cells.get((cellOf(px) + di) * 65536 + cellOf(py) + dj) ?? []) {
+          if (Math.hypot(point.px - px, point.py - py) <= radius && found(point)) return true;
+        }
+      }
+      return false;
+    },
+  };
+}
+
+/** The share of each triangle of one patch that holds. */
+function sharesOfPatch(patch: readonly number[], rims: readonly Rim[], { x, y, at, down, reach, arch }: PatchSurface): Map<number, number> {
+  // The rims in grids in plan: what a point can hang from lies in the cells around it. The anchors
+  // in cells as wide as a small overhang reaches, all rims in cells a bridge span wide.
+  const gridOf = (cell: number, wanted: (rim: Rim) => boolean) => {
+    const cells = new Map<number, Rim[]>();
+    const cellOf = (value: number) => Math.floor(value / cell) + 32768;
+    for (const rim of rims) {
+      if (!wanted(rim)) continue;
+      for (let i = cellOf(Math.min(rim.ax, rim.bx)); i <= cellOf(Math.max(rim.ax, rim.bx)); i += 1) {
+        for (let j = cellOf(Math.min(rim.ay, rim.by)); j <= cellOf(Math.max(rim.ay, rim.by)); j += 1) {
+          const list = cells.get(i * 65536 + j);
+          if (list) list.push(rim);
+          else cells.set(i * 65536 + j, [rim]);
+        }
+      }
+    }
+    /** The rims in the cells around a point, until `found` says it has what it looked for. */
+    return (px: number, py: number, found: (rim: Rim) => boolean): boolean => {
+      for (const [di, dj] of AROUND) {
+        for (const rim of cells.get((cellOf(px) + di) * 65536 + cellOf(py) + dj) ?? []) if (found(rim)) return true;
+      }
+      return false;
+    };
+  };
+  const distance = (px: number, py: number, rim: Rim) => {
+    const dx = rim.bx - rim.ax;
+    const dy = rim.by - rim.ay;
+    const length = dx * dx + dy * dy;
+    const s = length === 0 ? 0 : Math.max(0, Math.min(1, ((px - rim.ax) * dx + (py - rim.ay) * dy) / length));
+    return Math.hypot(px - rim.ax - s * dx, py - rim.ay - s * dy);
+  };
+  const anchorsNear = gridOf(reach, (rim) => rim.anchor);
+  const rimsAround = gridOf(BRIDGE_SPAN, () => true);
+  const freeNear = gridOf(reach, (rim) => !rim.anchor);
+  const near = (px: number, py: number) => anchorsNear(px, py, (rim) => rim.hang + distance(px, py, rim) <= reach + WELD);
+
+  // A roof that is round all the way (the top of a lying hole) is measured as a hole; one with a
+  // flat part, or with walls it meets at an edge, as a bridge from wall to wall.
+  const planOf = (t: number) => Math.abs((x(at(t, 1)) - x(at(t, 0))) * (y(at(t, 2)) - y(at(t, 0))) - (y(at(t, 1)) - y(at(t, 0))) * (x(at(t, 2)) - x(at(t, 0)))) / 2;
+  let [flat, all] = [0, 0];
+  for (const t of patch) {
+    all += planOf(t);
+    if (down(t) > FLAT) flat += planOf(t);
+  }
+  const round = flat < all * 0.1 && rims.every((rim) => !rim.anchor || rim.smooth);
+  const span = round ? arch : BRIDGE_SPAN;
+
+  /**
+   * Whether a straight line through the point leaves the patch over an anchor on both sides within
+   * the span: 0 no, 1 yes, 2 yes and square to both, as a strand between two parallel walls lies.
+   */
+  const bridgedAlong = (px: number, py: number, dx: number, dy: number): 0 | 1 | 2 => {
+    const ends: { at: number; rim: Rim | null; free: boolean }[] = [
+      { at: Infinity, rim: null, free: false },
+      { at: Infinity, rim: null, free: false },
+    ];
+    rimsAround(px, py, (rim) => {
+      const ex = rim.bx - rim.ax;
+      const ey = rim.by - rim.ay;
+      const cross = dx * ey - dy * ex;
+      if (Math.abs(cross) < 1e-9 * Math.hypot(ex, ey)) return false;
+      const s = ((rim.ax - px) * dy - (rim.ay - py) * dx) / cross;
+      if (s < -1e-6 || s > 1 + 1e-6) return false;
+      const along = ((rim.ax - px) * ey - (rim.ay - py) * ex) / cross;
+      const end = ends[along >= 0 ? 0 : 1];
+      if (!end) return false;
+      const met = Math.abs(along);
+      // Two rims met at one point: a free one among them decides.
+      if (Math.abs(met - end.at) <= WELD) end.free ||= !rim.anchor;
+      else if (met < end.at) {
+        end.at = met;
+        end.rim = rim;
+        end.free = !rim.anchor;
+      }
+      return false;
+    });
+    const [ahead, behind] = ends;
+    if (!ahead?.rim || !behind?.rim || ahead.free || behind.free) return 0;
+    const beyond = (rim: Rim) => (round ? rim.ease : rim.wall);
+    // A rounded corner is measured from facet to facet: a hundredth of slack for that.
+    const slack = ahead.rim.smooth || behind.rim.smooth ? 1e-2 : WELD;
+    if (ahead.at + beyond(ahead.rim) + behind.at + beyond(behind.rim) > span + slack) return 0;
+    const square = (rim: Rim) => Math.abs(dx * (rim.by - rim.ay) - dy * (rim.bx - rim.ax)) >= Math.cos(Math.PI / 12) * Math.hypot(rim.bx - rim.ax, rim.by - rim.ay);
+    return square(ahead.rim) && square(behind.rim) ? 2 : 1;
+  };
+  /** The best a point is bridged in any direction square to an anchor within a span of it. */
+  const bridged = (px: number, py: number): 0 | 1 | 2 => {
+    const tried = new Set<number>();
+    let best: 0 | 1 | 2 = 0;
+    rimsAround(px, py, (rim) => {
+      if (!rim.anchor) return false;
+      const length = Math.hypot(rim.bx - rim.ax, rim.by - rim.ay);
+      if (length === 0 || distance(px, py, rim) > BRIDGE_SPAN) return false;
+      // Directions four degrees apart are one.
+      const angle = Math.atan2(rim.by - rim.ay, rim.bx - rim.ax);
+      const bin = Math.round((((angle % Math.PI) + Math.PI) % Math.PI) / (Math.PI / 45)) % 45;
+      if (tried.has(bin)) return false;
+      tried.add(bin);
+      const found = bridgedAlong(px, py, -(rim.by - rim.ay) / length, (rim.bx - rim.ax) / length);
+      if (found > best) best = found;
+      return best === 2;
+    });
+    return best;
+  };
+
+  // The points of the patch: spread over each triangle half a reach apart, and just inside its corners.
+  interface Sample {
+    px: number;
+    py: number;
+    t: number;
+    near: boolean;
+    /** 0 not bridged, 1 bridged, 2 bridged square from wall to wall; −1 not asked yet. */
+    bridged: -1 | 0 | 1 | 2;
+    fails: boolean;
+  }
+  const samples: Sample[] = [];
+  for (const t of patch) {
+    // The corners in an order that does not turn or flip with the part: by the length of the side
+  // opposite, and the points in a pattern that is the same with the last two swapped.
+    const side = (k: number) => Math.hypot(x(at(t, (k + 1) % 3)) - x(at(t, (k + 2) % 3)), y(at(t, (k + 1) % 3)) - y(at(t, (k + 2) % 3)));
+    const [a, b, c] = [0, 1, 2].sort((p, q) => side(q) - side(p)).map((k) => at(t, k)) as [number, number, number];
+    const half = spread(Math.ceil(planOf(t) / (reach / 2) ** 2 / 2));
+    for (const [wa, wb, wc] of [...half, ...half.slice(1).map(([u, v, w]): [number, number, number] => [u, w, v]), ...CORNERS]) {
+      const [px, py] = [wa * x(a) + wb * x(b) + wc * x(c), wa * y(a) + wb * y(b) + wc * y(c)];
+      const isNear = near(px, py);
+      samples.push({ px, py, t, near: isNear, bridged: isNear ? -1 : bridged(px, py), fails: false });
+    }
+  }
+
+  // Round a hole through the ceiling the slicer lays loops in the air: a free rim that closes on
+  // itself and meets no anchor. What lies within reach of it and not near a wall does not hold.
+  const anchored = new Set<number>();
+  for (const rim of rims) {
+    if (rim.anchor) {
+      anchored.add(rim.a);
+      anchored.add(rim.b);
+    }
+  }
+  const group = new Map<number, number>();
+  const find = (w: number): number => {
+    let root = w;
+    while ((group.get(root) ?? root) !== root) root = group.get(root) ?? root;
+    group.set(w, root);
+    return root;
+  };
+  for (const rim of rims) if (!rim.anchor) group.set(find(rim.a), find(rim.b));
+  const touches = new Set<number>();
+  for (const rim of rims) if (!rim.anchor && (anchored.has(rim.a) || anchored.has(rim.b))) touches.add(find(rim.a));
+  const holeNear = gridOf(reach, (rim) => !rim.anchor && !touches.has(find(rim.a)));
+  for (const sample of samples) {
+    if (!sample.near && holeNear(sample.px, sample.py, (rim) => distance(sample.px, sample.py, rim) <= reach)) sample.fails = true;
+  }
+
+  // What is not bridged, in parts that hang together, each begun at a point that is not near an
+  // anchor either and followed through those that are (the arm it hangs on, back to its wall). A
+  // part holds where bridges meet: when it touches no free edge and lies nowhere further than half a
+  // span from an anchor or from a bridge square between two walls. Else all of it fails.
+  const everywhere = pointGrid<Sample>(reach);
+  for (const sample of samples) everywhere.add(sample);
+  const squareGrid = pointGrid<Sample>(BRIDGE_SPAN / 2);
+  for (const sample of samples) if (sample.bridged === 2) squareGrid.add(sample);
+  const anchorsWithin = gridOf(BRIDGE_SPAN / 2, (rim) => rim.anchor);
+  const visited = new Set<Sample>();
+  for (const first of samples) {
+    if (first.near || first.bridged !== 0 || visited.has(first)) continue;
+    const part: Sample[] = [];
+    const stack = [first];
+    visited.add(first);
+    let holds = true;
+    while (stack.length > 0) {
+      const sample = stack.pop();
+      if (!sample) break;
+      part.push(sample);
+      const { px, py } = sample;
+      if (holds && !sample.near) {
+        const atFree = freeNear(px, py, (rim) => distance(px, py, rim) <= reach / 2);
+        const supported = () => anchorsWithin(px, py, (rim) => distance(px, py, rim) <= BRIDGE_SPAN / 2 + WELD) || squareGrid.some(px, py, BRIDGE_SPAN / 2, () => true);
+        if (atFree || !supported()) holds = false;
+      }
+      everywhere.some(px, py, reach, (other) => {
+        if (visited.has(other)) return false;
+        if (other.bridged < 0) other.bridged = bridged(other.px, other.py);
+        if (other.bridged !== 0) return false;
+        visited.add(other);
+        stack.push(other);
+        return false;
+      });
+    }
+    if (!holds) for (const sample of part) sample.fails = true;
+  }
+
+  const total = new Map<number, [number, number]>();
+  for (const sample of samples) {
+    const sum = total.get(sample.t) ?? [0, 0];
+    total.set(sample.t, [sum[0] + (sample.fails ? 0 : 1), sum[1] + 1]);
+  }
+  const shares = new Map<number, number>();
+  for (const [t, [holding, all]] of total) if (holding > 0) shares.set(t, holding / all);
+  return shares;
+}
+
+/**
+ * Overhang classes of one body printed on a bed at height `bedZ`. With `reach`, overhangs that reach
+ * no further than that from the material below (`smallOverhangReach`) count as borderline, not as
+ * needing support.
+ */
+export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLimits = OVERHANG_LIMITS, reach = 0): OverhangMap {
+  const classOf = classifier(limits);
+  const { positions, normals, index, vertexFaces, faceCount } = mesh;
+  // A face lies on the bed when none of its vertices is above it.
+  const top = new Float64Array(faceCount).fill(Number.NEGATIVE_INFINITY);
+  for (let v = 0; v < vertexFaces.length; v += 1) {
+    const face = vertexFaces[v] ?? 0;
+    top[face] = Math.max(top[face] ?? Number.NEGATIVE_INFINITY, positions[v * 3 + 2] ?? 0);
+  }
+  const onBed = (face: number) => (top[face] ?? Number.POSITIVE_INFINITY) <= bedZ + BED_TOLERANCE;
+
+  const vertices = new Uint8Array(vertexFaces.length);
+  for (let v = 0; v < vertexFaces.length; v += 1) {
+    vertices[v] = onBed(vertexFaces[v] ?? 0) ? Overhang.Bed : classOf(-(normals[v * 3 + 2] ?? 0));
+  }
+
+  const area: [number, number, number, number] = [0, 0, 0, 0];
+  const supportByFace = new Float64Array(faceCount);
+  const triangles: { kind: Overhang; face: number; area: number }[] = [];
+  // Per triangle its unit normal.
+  const normal = new Float64Array(index.length);
+  for (let i = 0; i < index.length; i += 3) {
+    const a = (index[i] ?? 0) * 3;
+    const b = (index[i + 1] ?? 0) * 3;
+    const c = (index[i + 2] ?? 0) * 3;
+    const ux = (positions[b] ?? 0) - (positions[a] ?? 0);
+    const uy = (positions[b + 1] ?? 0) - (positions[a + 1] ?? 0);
+    const uz = (positions[b + 2] ?? 0) - (positions[a + 2] ?? 0);
+    const vx = (positions[c] ?? 0) - (positions[a] ?? 0);
+    const vy = (positions[c + 1] ?? 0) - (positions[a + 1] ?? 0);
+    const vz = (positions[c + 2] ?? 0) - (positions[a + 2] ?? 0);
+    const nx = uy * vz - uz * vy;
+    const ny = uz * vx - ux * vz;
+    const nz = ux * vy - uy * vx;
+    const length = Math.hypot(nx, ny, nz);
+    if (length > 0) normal.set([nx / length, ny / length, nz / length], i);
+    const face = vertexFaces[index[i] ?? 0] ?? 0;
+    triangles.push({ kind: !(length > 0) ? Overhang.Fine : onBed(face) ? Overhang.Bed : classOf(-nz / length), face, area: length > 0 ? length / 2 : 0 });
+  }
+  const limitSine = Math.sin(((limits.support + ANGLE_TOLERANCE) * Math.PI) / 180);
+  const held = heldShares(positions, index, normal, (t) => triangles[t]?.kind === Overhang.Support, reach, limitSine, bedZ);
+  triangles.forEach(({ kind, face, area: size }, t) => {
+    // The part of an overhang triangle that holds without support counts as borderline.
+    const share = kind === Overhang.Support ? (held.get(t) ?? 0) : 0;
+    area[kind] += size * (1 - share);
+    area[Overhang.Borderline] += size * share;
+    if (kind === Overhang.Support) supportByFace[face] = (supportByFace[face] ?? 0) + size * (1 - share);
+  });
+  return { vertices, area, supportByFace };
+}
