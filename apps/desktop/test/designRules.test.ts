@@ -244,7 +244,7 @@ describe('sizes fitted to nozzle and layer', () => {
 
   it('tells the assistant the fits as scaleClearance brings them to the nozzle (BC-14 review K2)', () => {
     const pla = { id: 'pla', name: 'PLA', overhang: 45, holeShrink: 0.15, clearance: { clamp: 0.05, push: 0.15, slide: 0.25, turn: 0.3 } };
-    const note = (nozzle: number, layer: number) => printNote({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material: pla, chosen: true, supportFree: true, design: DESIGN_DEFAULTS });
+    const note = (nozzle: number, layer: number) => printNote({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material: pla, chosen: true, design: DESIGN_DEFAULTS });
     const sentence = 'they grow with a nozzle wider than 0.4 mm and never go under their 0.4 mm values on a finer one';
     expect(note(0.2, 0.1)).toContain(`clamp 0.05 mm (tight, only with force), push 0.15 mm (in by hand), slide 0.25 mm (without force), turn 0.3 mm (turns freely); the material's values brought to this nozzle: ${sentence}`);
     expect(note(0.6, 0.3)).toContain(`clamp 0.075 mm (tight, only with force), push 0.225 mm (in by hand), slide 0.375 mm (without force), turn 0.45 mm (turns freely); the material's values brought to this nozzle: ${sentence}`);

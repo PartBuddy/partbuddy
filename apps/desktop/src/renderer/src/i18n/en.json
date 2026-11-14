@@ -950,7 +950,7 @@
       "what": {
         "general": "Language, appearance, interface size, start behaviour, the update check and the project folder go back to the defaults. Another project folder applies after a restart.",
         "solidcraft": "PartBuddy finds SolidCraft itself again. This applies after a restart.",
-        "assistant": "Web research, designing without support, the design rules and model and effort per assistant go back to the defaults. Sign-ins stay.",
+        "assistant": "Web research, the design rules and model and effort per assistant go back to the defaults. Sign-ins stay.",
         "print": "Printers and materials go back to the starting profiles; your own profiles are removed. The assistant's design rules stay.",
         "all": "All settings go back to the defaults. Printer and material profiles, projects and sign-ins stay."
       }
@@ -1040,8 +1040,6 @@
     "fitsOlderComb": "These clearances were read off the older fit comb, drilled without the hole allowance: PartBuddy's blocks and mechanisms now add the allowance on top, so they come out too loose. Read the fits again with the tolerance assistant.",
     "fitOrderUnsaved": "The clearances of {name} do not grow from clamp to turn. Until they do the last saved profiles stay.",
     "saveFailed": "The profiles could not be saved.",
-    "supportFree": "Design without support",
-    "supportFreeHint": "The assistant chamfers edges facing the bed instead of rounding them, gives wide lying holes a teardrop roof and bridges countersinks that open downwards, so the slicer needs no support.",
     "cancel": "Cancel",
     "design": {
       "title": "Design well on its own",

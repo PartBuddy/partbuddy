@@ -1111,7 +1111,6 @@ test('an old profile opens with its settings, and reset puts a section back to t
     await again.getByTestId('settings-reset-assistant').click();
     await page.getByTestId('settings-reset-go').click();
     await expect(again.getByTestId('research').getByRole('switch')).toBeChecked();
-    await expect(again.getByTestId('support-free').getByRole('switch')).toBeChecked();
     await expect(again.getByTestId('design-rounding').getByRole('switch')).toBeChecked();
   } finally {
     await launched?.close();
@@ -1429,14 +1428,10 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await expect(dialog).toHaveCount(0);
   await expect(chip).toContainText('Werkstatt');
 
-  // Designing without support is on from the start (M7f); it sits with the assistant (B6) and is turned off there.
+  // The design rule groups sit with the assistant (B6).
   await page.getByTestId('settings').click();
   await page.getByTestId('settings-assistant').click();
   const assistant = page.getByTestId('settings-assistant-panel');
-  const supportFree = assistant.getByTestId('support-free').getByRole('switch', { name: 'Design without support' });
-  await expect(supportFree).toBeChecked();
-  await supportFree.press('Space');
-  await expect(supportFree).not.toBeChecked();
   // The design rule groups (2026-11-07) are on from the start; each turns off on its own.
   for (const rule of ['rounding', 'printInPlace', 'details', 'snap', 'economy']) await expect(assistant.getByTestId(`design-${rule}`).getByRole('switch')).toBeChecked();
   const rounding = assistant.getByTestId('design-rounding').getByRole('switch', { name: 'Fillets and chamfers' });
@@ -1453,7 +1448,6 @@ test('the part material is chosen in the status bar and the profiles are edited 
   await expect(chip).toContainText('Werkstatt');
   await page.getByTestId('settings').click();
   await page.getByTestId('settings-assistant').click();
-  await expect(page.getByTestId('settings-assistant-panel').getByTestId('support-free').getByRole('switch')).not.toBeChecked();
   await expect(page.getByTestId('settings-assistant-panel').getByTestId('design-rounding').getByRole('switch')).not.toBeChecked();
   await expect(page.getByTestId('settings-assistant-panel').getByTestId('design-details').getByRole('switch')).toBeChecked();
   await page.keyboard.press('Escape');

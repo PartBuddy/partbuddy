@@ -211,13 +211,15 @@ while the slicer export lays it on that face.
   `print-faces.json`, like those of blocks, mechanisms and templates, so the plate view and the
   check agree. An undo of `body.print_face` is not seen (SolidCraft does not list print faces).
 
-## Amendment 2026-11-13: what the check's findings ask for (audit BC-19)
+## Amendment 2026-11-14: what the check's findings ask for (audit BC-19)
 
-* **"Design without support" makes an overhang red.** With the setting on (it is on from the start),
-  the user wants the part to print without support, so the overhang finding blocks; the assistant
-  is told to reshape the part or lay it on another face, or to say why it cannot be done. With the
-  setting off it stays the yellow hint of the R1 amendment. A shared description still reads such
-  an overhang as faces to check in the slicer, not as a part that does not print.
+* **The rules for designing without support always apply; the setting is gone** (Manuel's decision,
+  2026-11-14). The assistant designs every part to print without support where the shape allows,
+  and where it cannot, tells the user which faces need support and why. An overhang past the limit
+  stays a warning, never a block (a part with support prints): its note line asks the assistant to
+  reshape it (a slope within the angle, a teardrop roof, a chamfer, another print face), else to
+  name the support it needs. This replaces "A setting 'Design without support' turns them off" of
+  the M7f amendment; profiles saved with the setting still open, the key is dropped when read.
 * **The limit is the one the finding names:** a flat face needs support from a tenth of a degree
   past the material's angle, not from 1° past it (45.9° passed a limit said to be 45°). The
   triangles of a curved face, and the roof line of a lying hole read between them, keep the 1°:

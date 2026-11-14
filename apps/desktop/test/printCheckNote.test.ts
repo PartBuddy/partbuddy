@@ -190,7 +190,7 @@ describe('clearance between parts as the assistant reads it (F2)', () => {
 
 describe('the gaps the check holds the parts to (audit D9, D10)', () => {
   const pla = { id: 'pla', name: 'PLA', overhang: 45, holeShrink: 0.2, clearance: { clamp: 0.05, push: 0.15, slide: 0.25, turn: 0.3 } };
-  const printer = (nozzle: number, layer = 0.2): PartPrint => ({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material: pla, chosen: true, supportFree: true, design: DESIGN_DEFAULTS });
+  const printer = (nozzle: number, layer = 0.2): PartPrint => ({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material: pla, chosen: true, design: DESIGN_DEFAULTS });
 
   it('takes the push fit scaled to the nozzle, the number the print profile gives the assistant', () => {
     // A finer nozzle keeps the 0.4 mm value (BC-14, audit MG-12: before 0.075 and 0.094).

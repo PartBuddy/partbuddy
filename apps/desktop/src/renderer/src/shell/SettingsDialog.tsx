@@ -454,16 +454,6 @@ function PrintRuleSettings() {
   };
   return (
     <>
-      <Setting id="supportFree">
-        <Toggle
-          id="supportFree"
-          isSelected={settings.supportFree}
-          onChange={(supportFree) => {
-            save({ ...settings, supportFree });
-          }}
-          testId="support-free"
-        />
-      </Setting>
       {DESIGN_RULES.map((rule) => (
         <Setting key={rule} id={`design.${rule}`}>
           <Toggle
