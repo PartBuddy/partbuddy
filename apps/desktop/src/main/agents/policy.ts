@@ -121,6 +121,9 @@ const GROUP_REASONS: Record<string, string> = {
     "sets SolidCraft's physical material, which is not the material the part is printed in: PartBuddy takes that from the print profile the user chose. Continue without it.",
   // audit S-26: PartBuddy's parameter list, print check and export know one design, not configurations.
   config: 'works on configurations, which PartBuddy does not show: its parameters, print check and export see one design. Change sizes with set_parameter instead.',
+  // 0.41.0: plugins are third-party code that runs inside SolidCraft, past every check of PartBuddy's.
+  plugin:
+    "installs or runs SolidCraft plugins, third-party code that runs outside PartBuddy's checks; PartBuddy does not allow that for the assistant. Continue with the modelling commands.",
   // audit S-31.
   layout: WINDOW_REASON,
   panel: WINDOW_REASON,
@@ -331,16 +334,39 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
   return { allow: true };
 }
 
+/** How many known commands a refusal of an unknown one names (the sketch group alone has 131). */
+const CLOSEST_COMMANDS = 20;
+
 /**
  * Why a command of an allowed group that PartBuddy does not know is refused (audit S-03, BC-26): it was misspelt, or a
  * later SolidCraft added it, and nobody has looked at what it builds. Names the group's commands the assistant may use.
  */
 function uncheckedCommand(command: string, group: string): string {
   const known = [...KNOWN_COMMANDS].filter((id) => id.startsWith(`${group}.`) && !Object.hasOwn(REFUSED_COMMANDS, id) && !Object.hasOwn(CHECKED_WAYS, id));
+  // The closest by name first: the longest shared start, then the fewest edits.
+  const shared = (id: string): number => {
+    let length = 0;
+    while (length < id.length && id[length] === command[length]) length++;
+    return length;
+  };
+  const closest = known.map((id) => ({ id, start: shared(id), edits: editDistance(id, command) })).sort((a, b) => b.start - a.start || a.edits - b.edits);
+  const named = closest.slice(0, CLOSEST_COMMANDS).map(({ id }) => id);
+  const rest = known.length > named.length ? `; list_commands {"prefix": "${group}."} lists the rest` : '';
   return (
-    `${command} is not checked by PartBuddy yet: PartBuddy knows the commands of SolidCraft ${KNOWN_COMMANDS_VERSION}, and this one is misspelt or newer. ` +
-    `Use the ${group} commands it knows: ${known.join(', ')}. If none of them does what you need, tell the user what is missing.`
+    `${command} is not checked by PartBuddy yet: PartBuddy knows the commands up to SolidCraft ${KNOWN_COMMANDS_VERSION}, and this one is misspelt or newer. ` +
+    `Use a ${group} command it knows, such as ${named.join(', ')}${rest}. If none of them does what you need, tell the user what is missing.`
   );
+}
+
+/** Levenshtein distance of two short ids. */
+function editDistance(a: string, b: string): number {
+  let row = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++) next[j] = Math.min((row[j] ?? 0) + 1, (next[j - 1] ?? 0) + 1, (row[j - 1] ?? 0) + (a[i - 1] === b[j - 1] ? 0 : 1));
+    row = next;
+  }
+  return row[b.length] ?? 0;
 }
 
 const STEP_FORM = '{"command": "sketch.create", "params": {…}}';

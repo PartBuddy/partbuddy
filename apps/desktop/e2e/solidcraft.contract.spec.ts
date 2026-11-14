@@ -45,7 +45,8 @@ test('knows every command of the allowed groups of the installed SolidCraft (BC-
   const catalogue = JSON.parse(execFileSync(cli, ['commands'], { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 })) as { id: string }[];
   const allowed = catalogue.map(({ id }) => id.toLowerCase()).filter((id) => COMMAND_GROUPS.has(id.slice(0, id.indexOf('.'))) || GROUP_EXCEPTIONS.has(id));
   // A new id runs only once someone has looked at it: refuse it in policy.ts or add it to knownCommands.ts (and its version).
-  expect(allowed.sort(), `the commands of SolidCraft ${KNOWN_COMMANDS_VERSION} PartBuddy knows`).toEqual([...KNOWN_COMMANDS].sort());
+  // The list holds older versions' ids too (0.40.1 is the minimum), so only ids missing from it count.
+  expect(allowed.filter((id) => !KNOWN_COMMANDS.has(id)), `commands newer than SolidCraft ${KNOWN_COMMANDS_VERSION}`).toEqual([]);
 });
 
 test('connects to a SolidCraft window the user opened and shows its design', async () => {

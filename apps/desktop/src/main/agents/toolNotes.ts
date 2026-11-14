@@ -17,7 +17,7 @@ export const TOOL_NOTES = [
   `- Commands: PartBuddy allows the engine commands of the groups ${[...COMMAND_GROUPS].join(', ')}, and ` +
     `${[...GROUP_EXCEPTIONS].map((id) => `\`${id}\``).join(', ')}. Every other command is refused (files, the design ` +
     "document, SolidCraft's window, settings and materials, configurations), and so are " +
-    `${Object.keys(REFUSED_COMMANDS).map((id) => `\`${id}\``).join(', ')}. Within the groups only the commands of SolidCraft ` +
+    `${Object.keys(REFUSED_COMMANDS).map((id) => `\`${id}\``).join(', ')}. Within the groups only the commands up to SolidCraft ` +
     `${KNOWN_COMMANDS_VERSION} are allowed; one a newer SolidCraft added is refused until PartBuddy has checked it. A refusal says what to do instead.`,
   // Written from the policy's list, so the note says what the code refuses (audit R2, S-04).
   `- Built by PartBuddy: ${Object.keys(CHECKED_WAYS).filter((id) => id !== 'solid.scale').map((id) => `\`${id}\``).join(', ')} and \`solid.scale\` (it scales screw holes and gaps with the body) are refused, also as \`batch\` steps and inside ` +

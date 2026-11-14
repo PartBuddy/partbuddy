@@ -409,12 +409,12 @@ describe('tool policy: raw commands PartBuddy builds itself are refused with the
     expect(reasonOf('execute', { command: 'document.units', params: { units: 'in' } })).toContain('stays in millimetres');
   });
 
-  it('refuses a command of an allowed group that SolidCraft 0.40.1 does not have, in every way it can be sent (BC-26, audit S-03)', () => {
+  it('refuses a command of an allowed group that SolidCraft 0.41.0 does not have, in every way it can be sent (BC-26, audit S-03)', () => {
     // Names a later SolidCraft could add to an allowed group, and a misspelt one.
     for (const command of ['solid.hole_series', 'plastic.screw_boss', 'sketch.slot', 'solid.extrue']) {
       for (const sent of [command, ` ${command.toUpperCase()} `]) {
         const reason = reasonOf('execute', { command: sent, params: {} });
-        expect(reason, sent).toContain(`${command} is not checked by PartBuddy yet: PartBuddy knows the commands of SolidCraft ${KNOWN_COMMANDS_VERSION}`);
+        expect(reason, sent).toContain(`${command} is not checked by PartBuddy yet: PartBuddy knows the commands up to SolidCraft ${KNOWN_COMMANDS_VERSION}`);
         expect(reason, sent).toContain('tell the user what is missing');
         expect(step(sent).allow, sent).toBe(false);
         expect(decide('batch', { commands: [{ id: sent, params: {} }] }).allow, sent).toBe(false);
@@ -424,13 +424,21 @@ describe('tool policy: raw commands PartBuddy builds itself are refused with the
       }
     }
     // The refusal names the group's commands the assistant may use, not the ones refused.
-    const named = (command: string): string[] => /commands it knows: (.*)\. If none/.exec(reasonOf('execute', { command, params: {} }))?.[1]?.split(', ') ?? [];
-    expect(named('solid.hole_series')).toContain('solid.extrude');
-    expect(named('solid.hole_series')).toContain('solid.fillet');
+    // The closest by name first, at most 20, and where to find the rest.
+    const named = (command: string): string[] => /command it knows, such as (.*?)(;|\. If none)/.exec(reasonOf('execute', { command, params: {} }))?.[1]?.split(', ') ?? [];
+    expect(named('solid.extrue')[0]).toBe('solid.extrude');
+    expect(named('sketch.spline.handle')[0]).toBe('sketch.spline.handles');
+    expect(named('sketch.slot').slice(0, 5).every((id) => id.startsWith('sketch.slot.'))).toBe(true);
+    expect(named('sketch.slot')).toHaveLength(20);
+    expect(reasonOf('execute', { command: 'sketch.slot', params: {} })).toContain('list_commands {"prefix": "sketch."} lists the rest');
     for (const refused of ['solid.hole', 'solid.thread', 'solid.scale']) expect(named('solid.hole_series'), refused).not.toContain(refused);
     expect(named('plastic.screw_boss').sort()).toEqual(['plastic.rest', 'plastic.rules']);
-    // An unknown group keeps its own reason.
+    expect(reasonOf('execute', { command: 'plastic.screw_boss', params: {} })).not.toContain('lists the rest');
+    // An unknown group keeps its own reason, the ones SolidCraft 0.41.0 added among them.
     expect(reasonOf('execute', { command: 'file.export_all', params: {} })).toContain('reads or writes files');
+    expect(reasonOf('execute', { command: 'file.import_cache_clear', params: {} })).toContain('reads or writes files or settings');
+    for (const command of ['plugin.install', 'plugin.run', 'plugin.inspect', 'plugin.list']) expect(step(command, { path: 'p.zip' }).allow, command).toBe(false);
+    expect(reasonOf('execute', { command: 'plugin.run', params: { path: 'p', approval: 'x' } })).toContain('third-party code');
   });
 
   it('holds only commands of the allowed groups, and every command the refusals name (BC-26)', () => {
@@ -439,7 +447,8 @@ describe('tool policy: raw commands PartBuddy builds itself are refused with the
     const named = [...Object.keys(REFUSED_COMMANDS), ...Object.keys(CHECKED_WAYS)].filter((command) => COMMAND_GROUPS.has(command.slice(0, command.indexOf('.'))));
     expect(named.length).toBeGreaterThan(10);
     for (const command of [...GROUP_EXCEPTIONS, ...named, 'timeline.edit', 'parameters.change']) expect(KNOWN_COMMANDS.has(command), command).toBe(true);
-    expect(TOOL_NOTES).toContain(`only the commands of SolidCraft ${KNOWN_COMMANDS_VERSION} are allowed`);
+    expect(TOOL_NOTES).toContain(`only the commands up to SolidCraft ${KNOWN_COMMANDS_VERSION} are allowed`);
+    for (const command of ['model.mesh', 'sketch.spline.handles', 'sketch.spline.reset_handles']) expect(execute(command, { body: 'Box' }), command).toEqual({ allow: true });
   });
 
   it('names the commands in the notes, and blocks and kinds the tools have, as the code holds them', async () => {

@@ -17,13 +17,15 @@ export const COMMAND_GROUPS = new Set([
 export const GROUP_EXCEPTIONS = new Set(['edit.undo', 'edit.redo', 'view.save', 'view.apply', 'view.list']);
 
 /**
- * The engine commands PartBuddy has looked at (audit S-03, BC-26): every command of SolidCraft 0.40.1's catalogue
- * (`solidcraft-cli commands`, 634 commands, read on 2026-11-14) in the groups the policy allows, and the single
- * commands it allows from other groups ({@link COMMAND_GROUPS}, {@link GROUP_EXCEPTIONS}). A command a later
- * SolidCraft adds to one of those groups is refused until someone has looked at it and added it here; the contract
- * test "knows every command of the allowed groups" names it. Which of these are refused is policy.ts's business.
+ * The engine commands PartBuddy has looked at (audit S-03, BC-26): every command of SolidCraft's catalogue
+ * (`solidcraft-cli commands`, read on 2026-11-14) in the groups the policy allows, and the single commands it allows
+ * from other groups ({@link COMMAND_GROUPS}, {@link GROUP_EXCEPTIONS}). The union of 0.40.1 (634 commands, the
+ * minimum version) and 0.41.0 (642; it adds model.mesh, sketch.spline.handles and sketch.spline.reset_handles here).
+ * A command a later SolidCraft adds to one of those groups is refused until someone has looked at it and added it
+ * here; the contract test "knows every command of the allowed groups" names it. Which of these are refused is
+ * policy.ts's business.
  */
-export const KNOWN_COMMANDS_VERSION = '0.40.1';
+export const KNOWN_COMMANDS_VERSION = '0.41.0';
 
 export const KNOWN_COMMANDS: ReadonlySet<string> = new Set(
   `
@@ -58,7 +60,7 @@ inspect.section inspect.silhouette inspect.zebra
 joint.as_built joint.cam joint.create joint.delete joint.drive joint.edit joint.find_limits joint.gear joint.inspect joint.limits
 joint.list joint.motion_link joint.origin joint.rack_pinion joint.reach joint.rigid_group joint.screw joint.solve joint.sweep
 mesh.convert
-model.body_features model.edges model.faces model.threads
+model.body_features model.edges model.faces model.mesh model.threads
 motion.delete motion.export motion.export_animation motion.interference motion.list motion.play motion.plot motion.study
 motion.trace motion.trace.edit motion.trace.keep
 note.add note.delete note.list note.update
@@ -90,8 +92,8 @@ sketch.pattern.rectangular sketch.point sketch.point.divide sketch.point3d sketc
 sketch.polygon.inscribed sketch.project sketch.project_to_surface sketch.rectangle.center sketch.rectangle.rounded
 sketch.rectangle.three_point sketch.rectangle.two_point sketch.redefine sketch.replace sketch.scale sketch.slot.arc_center
 sketch.slot.arc_three_point sketch.slot.center_point sketch.slot.center_to_center sketch.slot.overall sketch.snap sketch.solve
-sketch.spline.control_point sketch.spline.control_point_5 sketch.spline.fit_point sketch.spline.insert_point
-sketch.spline.remove_point sketch.spline.reverse sketch.spline3d sketch.spun_profile sketch.text sketch.toggle_diameter
+sketch.spline.control_point sketch.spline.control_point_5 sketch.spline.fit_point sketch.spline.handles
+sketch.spline.insert_point sketch.spline.remove_point sketch.spline.reset_handles sketch.spline.reverse sketch.spline3d sketch.spun_profile sketch.text sketch.toggle_diameter
 sketch.toggle_driven sketch.transform sketch.trim sketch.trim.path
 solid.align solid.boundary_fill solid.bounding_solid solid.box solid.chamfer solid.coil solid.combine solid.cone solid.cylinder
 solid.draft solid.emboss solid.extrude solid.fillet solid.hole solid.loft solid.mirror solid.move solid.offset_face
