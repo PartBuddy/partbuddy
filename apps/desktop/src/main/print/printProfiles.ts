@@ -260,7 +260,7 @@ function withoutSupportLines(overhang: number, nozzle: number): string[] {
     `- Edges that face down towards the bed: where you would round them, chamfer them instead, ${lean} (the bottom of a fillet ends flat; Prusa); fillets that face up or sideways are fine.`,
     `- Holes lying across the layers: up to ${String(LYING_HOLE)} mm across they print round without support (MakerVerse); wider ones get a teardrop roof (its sides ${lean} up to a point above the circle) or a flat roof (the teardrop cut off), so nothing leans more than ${String(overhang)}°.`,
     `- Ceilings and ledges: walls at most ${String(BRIDGE_SPAN)} mm apart are bridged (UltiMaker; Hubs names 5 mm for a bridge that does not sag at all), and ledges reaching out at most ${mm(smallLedge(nozzle))} (four lines) from the material below are left without support (OrcaSlicer); the print check counts both the same way. Anything wider gets a slope underneath, ${lean}, or say which side the part should rather stand on.`,
-    'Model these as their own features with parameters (layer height, roof angle) and name them when you report.',
+    'Model these as their own features, sized from this profile (layer height, roof angle) and not as parameters, and name them when you report.',
   ];
 }
 
@@ -354,7 +354,7 @@ export function printNote({ printer, material: used, design }: PartPrint): strin
     'It is printed as designed, standing on its lowest point along +Z. A body that prints turned over (a lid on its top) gets its print face instead: body.print_face {body, point} with a point on the flat face that goes on the bed; the check and the slicer then lay it on that face.',
     ...withoutSupportLines(used.overhang, printer.nozzle),
     ...designLines(design, printer, used),
-    `Keep nominal sizes as parameters, add the clearance and the hole allowance as their own parameters where you model a fit yourself (${BLOCK_TOOL} and ${MECHANISM_TOOL} add them), and say which fit you chose.]`,
+    `Where you model a fit yourself, put the clearance and the hole allowance from this profile into the feature or a formula over the nominal size, never into parameters of their own (${BLOCK_TOOL} and ${MECHANISM_TOOL} add them themselves), and say which fit you chose.]`,
   ].join('\n');
 }
 
