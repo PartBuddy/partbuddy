@@ -10,7 +10,7 @@ import { DESIGN_DEFAULTS, printCheckReportSchema, type PartPrint } from '../src/
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
   it('says what it looked at when nothing was found, and what it did not (audit R3)', () => {
     const clean = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 1 });
-    expect(clean).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, area on the bed for the height,');
+    expect(clean).toContain('nothing found in what it checks (build volume, wall and floor thickness, walls off the line grid, overhang angle, area on the bed for the height,');
     expect(clean).toContain('Not checked: strength and layer direction under load, the fits and hole allowances you chose,');
     // No verdict the model could hand on as "ready to print".
     expect(clean).not.toMatch(/ready to print[,.]/);
@@ -42,6 +42,24 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     expect(note).toContain('walls down to 0.3 mm, thinner than the narrowest line a slicer lays (0.42 mm with the 0.4 mm nozzle), so they do not print (faces "F1:+z", "F1:-z" of body "Plate")');
     expect(note).toContain('120 mm² lean more than 45° from the vertical (faces "F3:-z" of body "Top"), so they need support');
     expect(note).toContain('feature "Shell1" reports "thin result"');
+  });
+
+  it('words a wall off the line grid as a hint with the sizes to build instead (BC-27)', () => {
+    const report = reportOf(
+      {
+        status: 'warn',
+        findings: [
+          { kind: 'wallLines', severity: 'warn', thickness: 1, line: 0.45, better: [0.9, 1.35], area: 2735, places: [{ body: 'Box', faces: ['F19:+y'] }], box: null },
+        ],
+      },
+      0.4,
+      3,
+    );
+    expect(printCheckReportSchema.safeParse(report).success).toBe(true);
+    expect(JSON.stringify(report)).not.toContain('box');
+    const note = printCheckNote(report);
+    expect(note).toContain('prints, with warnings');
+    expect(note).toContain('warning: walls of 1 mm are no whole number of 0.45 mm lines (faces "F19:+y" of body "Box"), so the slicer leaves a gap or a thin line in them; 0.9 mm or 1.35 mm print solid. Use one of those where the size is yours; a size the user named stays');
   });
 
   it('tells a thin floor from a thin wall: layers, not lines', () => {

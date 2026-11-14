@@ -50,6 +50,9 @@ function line(finding: Finding, nozzle: number): string {
     case 'overhang':
       // Designed away where it can be, said where not (audit R55; a warning, never a block: Manuel 2026-11-14).
       return `- ${tag}: ${String(finding.area)} mm² lean more than ${String(finding.limit)}° from the vertical${where(finding.places)}, so they need support: reshape them where you can (a slope within that angle, a teardrop roof, a chamfer, or another print face); where you cannot, tell the user which support they need there and why.`;
+    case 'wallLines':
+      // BC-27: a wall the user named stays as named (printProfiles.ts: "Sizes the user names are fixed").
+      return `- ${tag}: walls of ${mm(finding.thickness)} are no whole number of ${mm(finding.line)} lines${where(finding.places)}, so the slicer leaves a gap or a thin line in them; ${mm(finding.better[0])} or ${mm(finding.better[1])} print solid. Use one of those where the size is yours; a size the user named stays, with one sentence on the better value.`;
     case 'contact':
       return finding.bodies > 1
         ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed for their height, the least ${String(finding.area)} mm²; they may come loose or tip over, a brim holds them${where(finding.places, finding.bodies)}.`
@@ -92,7 +95,7 @@ function line(finding: Finding, nozzle: number): string {
 }
 
 /** What the mesh check looks at at once (the finding kinds of printCheck.ts), so "nothing found" claims no more. */
-const CHECKED_MESH = 'build volume, wall and floor thickness, overhang angle, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch';
+const CHECKED_MESH = 'build volume, wall and floor thickness, walls off the line grid, overhang angle, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch';
 /** What SolidCraft measures after it (withClearance, withMotion): it takes longer and comes with the full check. */
 const MEASURED = {
   clearance: 'bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move',
