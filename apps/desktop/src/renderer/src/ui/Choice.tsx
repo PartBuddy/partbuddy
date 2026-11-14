@@ -22,13 +22,13 @@ import { popoverClass } from './Overlay';
  * choice): the whole row is the target, at least 24 px high.
  */
 export const choiceRowClass =
-  'group flex min-h-control-sm cursor-default items-start gap-2 rounded-md px-2 py-1 outline-none transition-colors ' +
+  'group relative flex min-h-control-sm cursor-default items-start gap-2 rounded-md px-2 py-1 outline-none transition-colors ' +
   'hover:bg-surface-hover pressed:bg-surface-pressed selected:bg-surface-selected focus-visible:focus-ring ' +
   'disabled:cursor-not-allowed disabled:opacity-disabled';
 
 /** A mark and its label without a row fill (settings, profile options); the mark carries the focus ring. */
 export const choiceInlineClass =
-  'group inline-flex min-h-control-sm cursor-default items-center gap-2 text-sm text-text outline-none disabled:cursor-not-allowed disabled:opacity-disabled';
+  'group relative inline-flex min-h-control-sm cursor-default items-center gap-2 text-sm text-text outline-none disabled:cursor-not-allowed disabled:opacity-disabled';
 
 const markBase =
   'inline-flex size-icon shrink-0 items-center justify-center border border-border-strong bg-surface transition-colors ' +

@@ -35,7 +35,7 @@ export function App() {
   useStartPage();
   return (
     <I18nProvider locale={i18n.language}>
-      <div className="flex h-full flex-col overflow-hidden bg-canvas text-text">
+      <div className="flex h-full flex-col overflow-clip bg-canvas text-text">
         <TitleBar />
         <div className="relative flex min-h-0 flex-1">
           {/* The work area stays mounted under the start page (B3), so the view and the chat keep their state. */}
