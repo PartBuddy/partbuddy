@@ -919,7 +919,8 @@
         "design": "Design",
         "view": "3D view",
         "sketch": "Sketch"
-      }
+      },
+      "checks": "Print check hints"
     },
     "intro": {
       "general": "How PartBuddy looks and where it keeps your projects.",
@@ -1136,6 +1137,12 @@
       },
       "backToMaterials": "Back to materials",
       "layerOverNozzle": "The layer height of this printer, {layer} mm, is thicker than its nozzle, {nozzle} mm: slicers do not print that, so there are no test pieces for it. Set the layer height to at most the nozzle in the printer profile first."
+    },
+    "hints": {
+      "smallHole": {
+        "label": "Holes under 2 mm",
+        "hint": "Says where a hole is narrower than 2 mm: it closes up or comes out well under size, so drill it out after printing. A hint, never a block."
+      }
     }
   },
   "check": {
@@ -1186,7 +1193,8 @@
       "tightInPlace": "{a} and {b} print as one piece and move against each other, but come within {gap} mm – under the print-in-place gap of {minimum} mm they fuse there in the print",
       "blocked": "{joint}: {a} and {b} touch at {at} – the joint does not reach its limit of {limit}",
       "blockedFree": "{joint}: {a} and {b} touch at {at} – the joint has no limit that way and stops there",
-      "posed": "{joint} stands at {value}, not as designed – the part is exported and checked the way it stands"
+      "posed": "{joint} stands at {value}, not as designed – the part is exported and checked the way it stands",
+      "smallHole": "{count, plural, one {A hole under {minimum} mm across ({diameter} mm)} other {# holes under {minimum} mm across, the smallest {diameter} mm}}: holes that small close up or come out under size – drill them out after printing"
     },
     "confirm": {
       "title": "Export anyway?",

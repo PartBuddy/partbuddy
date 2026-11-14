@@ -2,7 +2,7 @@ import { Box3, DoubleSide, Quaternion, Ray, Vector3 } from 'three';
 import { ExtendedTriangle, type MeshBVH } from 'three-mesh-bvh';
 
 import { CURVED_TOLERANCE, Overhang, overhangLimits, overhangOf, smallOverhangReach, spread } from './overhang';
-import type { FaceInfo } from './faceTable';
+import { sameCylinder, type FaceInfo } from './faceTable';
 import type { ViewerModel } from './viewerModel';
 
 /**
@@ -28,7 +28,12 @@ export interface PrintCheckProfile {
   layer: number;
   /** Degrees from the vertical beyond which a face is an overhang. */
   overhang: number;
+  /** Hints the user turned off in the print settings (BC-24): they are not looked for. */
+  off?: readonly PrintHint[] | undefined;
 }
+
+/** The hints of BC-24: yellow only, each one switched off in the print settings on its own (Manuel, 2026-11-13). */
+export type PrintHint = 'smallHole';
 
 export interface PrintCheckBody {
   name: string;
@@ -79,6 +84,8 @@ export type PrintFinding =
   | ({ kind: 'overhang'; severity: FindingSeverity; area: number; limit: number } & Located)
   /** Rounded edges on the bed (a fillet on a bottom edge): `area` leans past `limit`° from the bed up (BC-27). */
   | ({ kind: 'roundBedEdge'; severity: FindingSeverity; area: number; limit: number } & Located)
+  /** Holes under `minimum` across (BC-24, S12): how many, and the diameter of the smallest. */
+  | ({ kind: 'smallHole'; severity: FindingSeverity; holes: number; diameter: number; minimum: number } & Located)
   /** The bodies with too little on the bed: how many, and the area of the one with the least. */
   | ({ kind: 'contact'; severity: FindingSeverity; area: number; bodies: number } & Located)
   | { kind: 'separate'; severity: FindingSeverity; bodies: string[] }
@@ -274,11 +281,88 @@ function coaxial(a: FaceInfo | undefined, b: FaceInfo | undefined): number | nul
   return gap < 1e-6 ? null : gap;
 }
 
+/**
+ * The smallest hole that prints open (yardstick S12: "should not be smaller than 2 mm", Q4; Q16 2.0 mm): under it a hole
+ * closes up or comes out well under size, whatever the nozzle, and is drilled out after printing.
+ */
+export const SMALLEST_HOLE = 2;
+
+/** A hole goes round: the widest angle round its axis with no corner of its faces is under this (a quarter turn). */
+const HOLE_GAP = Math.PI / 2;
+
+/**
+ * The holes of one body under SMALLEST_HOLE across (BC-24, S12), by SolidCraft's exact cylinders (`model.faces`), so the
+ * coarse mesh of a small hole does not decide its size: a cylinder the material lies round (`hollowAt`), the faces of one
+ * cylinder together, going all the way round. A groove, a fillet in an inner corner or a hole breaking out of a side
+ * leaves more than a quarter turn without a corner and is no hole here. Per face: its area, and the hole's diameter.
+ * Returns the tally and the number of holes. Linear in the triangles; the angles are sorted per hole.
+ * shortcut: only exact cylinders: a hole drawn as a polygon, or in a mesh imported as such, is not found.
+ */
+function smallHoles({ model }: PrintCheckBody): { tally: FaceTally; holes: number } {
+  const faces = model.table.faces;
+  const tally = new FaceTally(faces.length);
+  const index = model.geometry.index?.array;
+  const positions = model.geometry.getAttribute('position').array;
+  const small = (face: FaceInfo | undefined) => !!face?.cylinder && face.cylinder.radius * 2 < SMALLEST_HOLE - EPSILON;
+  if (!index || !faces.some(small)) return { tally, holes: 0 };
+  const triangles = new Map<number, number[]>();
+  const hollow = new Set<number>();
+  for (let t = 0; t < index.length / 3; t += 1) {
+    const face = model.triangleFaces[t] ?? 0;
+    if (!small(faces[face])) continue;
+    const own = triangles.get(face) ?? [];
+    if (!hollow.has(face)) {
+      const { normal, centroid } = triangle(positions, index, t);
+      if (normal && hollowAt(model, t, normal, centroid)) hollow.add(face);
+    }
+    own.push(t);
+    triangles.set(face, own);
+  }
+  const groups: number[][] = [];
+  for (const face of hollow) {
+    const group = groups.find((members) => sameCylinder(faces[members[0] ?? 0] as FaceInfo, faces[face] as FaceInfo));
+    if (group) group.push(face);
+    else groups.push([face]);
+  }
+  let holes = 0;
+  for (const group of groups) {
+    const cylinder = faces[group[0] ?? 0]?.cylinder;
+    if (!cylinder) continue;
+    const axis = new Vector3(...cylinder.axis).normalize();
+    const u = new Vector3().crossVectors(axis, Math.abs(axis.x) < 0.9 ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0)).normalize();
+    const v = new Vector3().crossVectors(axis, u);
+    const off = new Vector3();
+    const angles: number[] = [];
+    for (const face of group) {
+      for (const t of triangles.get(face) ?? []) {
+        for (let k = 0; k < 3; k += 1) {
+          const p = (index[t * 3 + k] ?? 0) * 3;
+          off.set((positions[p] ?? 0) - cylinder.origin[0], (positions[p + 1] ?? 0) - cylinder.origin[1], (positions[p + 2] ?? 0) - cylinder.origin[2]);
+          angles.push(Math.atan2(off.dot(v), off.dot(u)));
+        }
+      }
+    }
+    angles.sort((a, b) => a - b);
+    let gap = (angles[0] ?? 0) + 2 * Math.PI - (angles[angles.length - 1] ?? 0);
+    for (let i = 1; i < angles.length; i += 1) gap = Math.max(gap, (angles[i] ?? 0) - (angles[i - 1] ?? 0));
+    if (gap >= HOLE_GAP) continue;
+    holes += 1;
+    for (const face of group) {
+      for (const t of triangles.get(face) ?? []) {
+        const { corners, area } = triangle(positions, index, t);
+        tally.add(face, area, cylinder.radius * 2, corners);
+      }
+    }
+  }
+  return { tally, holes };
+}
+
 /** What is too thin in one body: the faces under the minimum, and the area (mm²) that does not print at all. */
 interface Thin {
   faces: FaceTally;
   unprintable: number;
 }
+
 
 /**
  * Wall thickness under each triangle: rays straight into the material, spread a nozzle width apart
@@ -746,6 +830,14 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       const minimum = floor ? minimumFloor(profile.layer) : minimumWall(profile.nozzle);
       const layers = floor ? { layers: round(minimum / layerOf(profile.layer), 1) } : {};
       findings.push({ kind: 'thinWall', severity: unprintable >= BLOCK_THIN_AREA ? 'block' : 'warn', floor, ...layers, thickness: round(found.extreme), minimum, area: round(found.area, 0), places: found.places, box: found.box });
+    }
+
+    // Holes under 2 mm (BC-24): a hint, as they print, only not open or to size.
+    if (!profile.off?.includes('smallHole')) {
+      const holes = parts.map(smallHoles);
+      const found = locate(parts, holes.map((body) => body.tally), 0);
+      const count = holes.reduce((sum, body) => sum + body.holes, 0);
+      if (count > 0) findings.push({ kind: 'smallHole', severity: 'warn', holes: count, diameter: round(found.extreme), minimum: SMALLEST_HOLE, places: found.places, box: found.box });
     }
 
     // Bodies that touch fall apart in the slicer, each laid onto the bed by itself. Bodies printed as one piece stay

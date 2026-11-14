@@ -5,7 +5,7 @@ import type { FaceTable } from './faceTable';
 import { checkPrint, type PrintCheckBody, type PrintCheckProfile, type PrintFinding } from './printCheck';
 import { buildRenderMesh } from './renderMesh';
 import { parseTagged3mf } from './tagged3mf';
-import { lathe, posed, rawBody } from './testShapes';
+import { lathe, lyingTube, posed, rawBody } from './testShapes';
 import { growth } from './testTiming';
 import { buildViewerModel } from './viewerModel';
 
@@ -122,6 +122,51 @@ describe('rounded bed edges (BC-27)', () => {
   }, 120_000);
 });
 
+describe('small holes (BC-24, S12)', () => {
+  // tools/fixtures/detail.script.json: 20 mm blocks, SolidCraft 0.40.1. [body, holes, smallest diameter] or 'none'.
+  const cases: [string, [number, number] | 'none'][] = [
+    ['Hole15', [1, 1.5]],
+    ['Hole19', [1, 1.9]],
+    ['HoleLying10', [1, 1]],
+    ['HoleBlind15', [1, 1.5]],
+    // Just the smallest that prints open.
+    ['Hole20', 'none'],
+    // Goes less than three quarters round: a hole breaking out of a side, a fillet in an inner corner, a pin.
+    ['Breakout15', 'none'],
+    ['InnerFillet05', 'none'],
+    ['Pin15', 'none'],
+  ];
+
+  it.each(cases)('%s', (name, want) => {
+    const body = solidcraft('detail', name);
+    for (const place of PLACES) {
+      const what = JSON.stringify(place);
+      const { status, findings } = checkPrint([posed(body, place.turn, place.mirrored, place.lift)], PLA);
+      const hole = one(findings, 'smallHole');
+      expect(status, what).not.toBe('block');
+      if (want === 'none') expect(hole, what).toBeUndefined();
+      else expect(hole, what).toMatchObject({ severity: 'warn', holes: want[0], diameter: want[1], minimum: 2, places: [{ body: name }] });
+      // Whatever the nozzle: a hole under 2 mm closes up at any of them.
+      expect(one(checkPrint([body], { ...PLA, nozzle: 0.6 }).findings, 'smallHole')?.holes, what).toBe(want === 'none' ? undefined : want[0]);
+    }
+  });
+
+  it('takes no groove along the bed for a hole', () => {
+    for (const name of ['GrooveBed08', 'GrooveBed10']) expect(one(checkPrint([solidcraft('edges', name)], PLA).findings, 'smallHole'), name).toBeUndefined();
+  });
+
+  it('is not looked for when the user turned it off', () => {
+    expect(one(checkPrint([solidcraft('detail', 'Hole15')], { ...PLA, off: ['smallHole'] }).findings, 'smallHole')).toBeUndefined();
+  });
+
+  it('grows linearly with the triangles of the holes', () => {
+    // A tube with a hole of 1.5 mm meshed 512 and 2048 round: the whole check takes at most 4 times as long, never 16.
+    const tube = (n: number) => lyingTube('Tube', 3, 0.75, 10, 48, n);
+    expect(one(checkPrint([tube(512)], PLA).findings, 'smallHole')).toMatchObject({ holes: 1, diameter: 1.5 });
+    expect(growth((body) => checkPrint([body], PLA), tube(512), tube(2048))).toBeLessThan(8);
+  });
+});
+
 describe("PartBuddy's templates (BC-27 review B1)", () => {
   // templates.faces.json: templateSteps of each template built with SolidCraft 0.40.1 (apps/desktop/test/templateFixtures.test.ts),
   // the bodies it names on their print faces and in their print-in-place groups; standard parts are left out as in the app.
@@ -137,6 +182,10 @@ describe("PartBuddy's templates (BC-27 review B1)", () => {
       });
     expect(bodies.length, id).toBeGreaterThan(0);
     for (const overhang of [45, 40, 35]) expect(one(checkPrint(bodies, { ...PLA, overhang }).findings, 'roundBedEdge'), `${id} at ${String(overhang)}°`).toBeUndefined();
+    // BC-24: no hint of its own on PartBuddy's templates, at 0.4 and 0.6 and at 40°.
+    for (const profile of [PLA, { ...PLA, nozzle: 0.6, layer: 0.3 }, { ...PLA, overhang: 40 }]) {
+      expect(kinds(checkPrint(bodies, profile).findings).filter((kind) => kind === 'smallHole'), `${id} ${JSON.stringify(profile)}`).toEqual([]);
+    }
     // The housing's one warning stays the lid lying on it (solidcraft.contract.spec.ts, sharing package).
     if (id === 'housing') expect(kinds(checkPrint(bodies, PLA).findings)).toEqual(['separate']);
   }, 60_000);

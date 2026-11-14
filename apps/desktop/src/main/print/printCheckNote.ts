@@ -53,6 +53,9 @@ function line(finding: Finding, nozzle: number): string {
     case 'roundBedEdge':
       // BC-27: a raw fillet on a bed edge; the rules' chamfer leans at most 45°, or the material's angle where it is less (BC-19).
       return `- ${tag}: ${String(finding.area)} mm² of rounded edges on the bed lean more than ${String(finding.limit)}° from the vertical just above it${where(finding.places)}: the foot of a fillet there ends flat on the bed and curls up. Chamfer those edges instead, leaning at most ${String(Math.min(45, finding.limit))}° from the vertical; fillets that face up or sideways are fine.`;
+    case 'smallHole':
+      // BC-24, yardstick S12: under 2 mm a hole closes up or comes out well under size at any nozzle; a hint, never a block.
+      return `- ${tag}: ${finding.holes === 1 ? 'a hole' : `${String(finding.holes)} holes`} under ${mm(finding.minimum)} across, the smallest ${mm(finding.diameter)}${where(finding.places)}: holes that small close up or come out well under size. Make them at least ${mm(finding.minimum)} where the size is free; where it is meant (a tap drill, a seat for a pin), tell the user to drill them out to size after printing.`;
     case 'contact':
       return finding.bodies > 1
         ? `- ${tag}: ${String(finding.bodies)} bodies have little on the bed for their height, the least ${String(finding.area)} mm²; they may come loose or tip over, a brim holds them${where(finding.places, finding.bodies)}.`
@@ -94,8 +97,12 @@ function line(finding: Finding, nozzle: number): string {
   }
 }
 
-/** What the mesh check looks at at once (the finding kinds of printCheck.ts), so "nothing found" claims no more. */
-const CHECKED_MESH = 'build volume, wall and floor thickness, overhang angle, rounded edges on the bed, area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch';
+/** The hints of BC-24 as the note names them; the user may turn each off in the print settings. */
+const HINTS: Record<NonNullable<PrintCheckReport['off']>[number], string> = { smallHole: 'holes under 2 mm' };
+/** What the mesh check looks at at once (the finding kinds of printCheck.ts), so "nothing found" claims no more: hints turned off are left out. */
+const checkedMesh = (report: PrintCheckReport) => `build volume, wall and floor thickness, overhang angle, rounded edges on the bed, ${(Object.keys(HINTS) as (keyof typeof HINTS)[]).filter((hint) => !report.off?.includes(hint)).map((hint) => `${HINTS[hint]}, `).join('')}area on the bed for the height, open bodies, failed, suppressed and rolled back features, bodies that touch`;
+/** What the user turned off is said as not checked, so the model does not take it for checked. */
+const offLine = (report: PrintCheckReport) => (report.off && report.off.length > 0 ? ` Turned off in PartBuddy's print settings, so not looked for: ${report.off.map((hint) => HINTS[hint]).join(', ')}.` : '');
 /** What SolidCraft measures after it (withClearance, withMotion): it takes longer and comes with the full check. */
 const MEASURED = {
   clearance: 'bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move',
@@ -170,11 +177,11 @@ export function printCheckNote(report: PrintCheckReport, view = false): string {
   const preliminary = [...(report.measuring ? [preliminaryLine(view)] : []), ...(failed.length > 0 ? [unmeasuredLine(failed)] : []), ...((report.unchecked ?? []).length > 0 ? [uncheckedLine(report.unchecked ?? [])] : [])];
   const measured = (['clearance', 'joints'] as const).filter((what) => !failed.includes(what)).map((what) => `, ${MEASURED[what]}`).join('');
   if (report.findings.length === 0)
-    return [`${head} nothing found ${report.measuring ? `so far (${CHECKED_MESH})` : `in what it checks (${CHECKED_MESH}${measured})`}.`, ...preliminary, ...measureLines(report), `${NOT_CHECKED}]`].join('\n');
+    return [`${head} nothing found ${report.measuring ? `so far (${checkedMesh(report)})` : `in what it checks (${checkedMesh(report)}${measured})`}.`, ...preliminary, ...measureLines(report), `${NOT_CHECKED}${offLine(report)}]`].join('\n');
   // An assembly whose parts do not go together or move is no finished part, though each piece prints (audit H-12).
   const fitting = report.findings.some((finding) => FIT_KINDS.has(finding.kind));
   const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? (fitting ? 'prints, but its parts may not go together or move as designed' : 'prints, with warnings') : 'ready to print';
-  return [`${head} ${verdict}.`, ...findingLines(report), ...preliminary, ...measureLines(report), `${FIX_BEFORE_DONE} ${NOT_CHECKED}]`].join('\n');
+  return [`${head} ${verdict}.`, ...findingLines(report), ...preliminary, ...measureLines(report), `${FIX_BEFORE_DONE} ${NOT_CHECKED}${offLine(report)}]`].join('\n');
 }
 
 /**

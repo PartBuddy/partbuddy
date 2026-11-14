@@ -334,8 +334,10 @@ export function PrintProfilesEditor() {
       printers: next.printers.map((item) => ({ ...item, name: item.name.trim() })),
       materials: next.materials.map((item) => ({ ...item, name: item.name.trim() })),
     };
+    // The design rules and the check's hints are switched beside the editor (BC-24): kept as saved, not as loaded here.
     platform()
-      .print.saveSettings(trimmed)
+      .print.settings()
+      .then((stored) => platform().print.saveSettings({ ...trimmed, design: stored.design, hints: stored.hints }))
       .then(() => {
         setError(null);
       })

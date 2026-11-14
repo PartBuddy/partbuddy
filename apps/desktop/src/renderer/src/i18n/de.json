@@ -919,7 +919,8 @@
         "design": "Konstruktion",
         "view": "3D-Ansicht",
         "sketch": "Skizze"
-      }
+      },
+      "checks": "Hinweise der Druckprüfung"
     },
     "intro": {
       "general": "Wie PartBuddy aussieht und wo es deine Projekte ablegt.",
@@ -1136,6 +1137,12 @@
       },
       "backToMaterials": "Zurück zu Material",
       "layerOverNozzle": "Die Schichthöhe dieses Druckers, {layer} mm, ist dicker als seine Düse, {nozzle} mm: das drucken Slicer nicht, deshalb gibt es dafür keine Prüfkörper. Zuerst im Druckerprofil die Schichthöhe auf höchstens die Düse setzen."
+    },
+    "hints": {
+      "smallHole": {
+        "label": "Bohrungen unter 2 mm",
+        "hint": "Zeigt Bohrungen, die schmaler als 2 mm sind: Sie wachsen zu oder werden deutlich zu klein, also nach dem Druck aufbohren. Nur ein Hinweis, nie eine Sperre."
+      }
     }
   },
   "check": {
@@ -1186,7 +1193,8 @@
       "tightInPlace": "{a} und {b} werden in einem Stück gedruckt und bewegen sich gegeneinander, kommen sich aber bis auf {gap} mm nahe – unter dem Print-in-Place-Spalt von {minimum} mm verschmelzen sie dort im Druck",
       "blocked": "{joint}: {a} und {b} stoßen bei {at} aneinander – das Gelenk erreicht seine Grenze von {limit} nicht",
       "blockedFree": "{joint}: {a} und {b} stoßen bei {at} aneinander – das Gelenk hat in diese Richtung keine Grenze und bleibt dort stehen",
-      "posed": "{joint} steht auf {value}, nicht wie konstruiert – exportiert und geprüft wird diese Stellung"
+      "posed": "{joint} steht auf {value}, nicht wie konstruiert – exportiert und geprüft wird diese Stellung",
+      "smallHole": "{count, plural, one {Eine Bohrung unter {minimum} mm ({diameter} mm)} other {# Bohrungen unter {minimum} mm, die kleinste {diameter} mm}}: So kleine Bohrungen wachsen zu oder werden zu klein – nach dem Druck aufbohren"
     },
     "confirm": {
       "title": "Trotzdem exportieren?",

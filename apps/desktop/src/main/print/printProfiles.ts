@@ -6,6 +6,7 @@ import { z } from 'zod';
 import {
   DESIGN_DEFAULTS,
   DESIGN_RULES,
+  HINT_DEFAULTS,
   partMaterialRequestSchema,
   printSettingsSchema,
   type DesignRule,
@@ -66,6 +67,7 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   ],
   material: 'pla',
   design: DESIGN_DEFAULTS,
+  hints: HINT_DEFAULTS,
 };
 
 /** The print file of a design: `Grundplatte.sc` → `Grundplatte.print.json`, next to it. */
@@ -172,6 +174,7 @@ export class PrintProfiles {
       chosen: chosen !== undefined,
       // The project's choice in the chat goes before the setting, the setting before the default.
       design: { ...settings.design, ...own.design },
+      hints: settings.hints,
     };
   }
 
