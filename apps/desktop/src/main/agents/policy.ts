@@ -10,6 +10,7 @@ import { AjvJsonSchemaValidator } from '@modelcontextprotocol/server/validators/
 import { TAPPED_FROM } from '../../shared/mechanisms';
 import { METADATA_PREFIX } from '../notes/noteRecord';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
+import { COMMAND_GROUPS, GROUP_EXCEPTIONS, KNOWN_COMMANDS, KNOWN_COMMANDS_VERSION } from './knownCommands';
 import { isKeptPhoto } from './photoNote';
 
 export type ToolDecision = { allow: true } | { allow: false; reason: string };
@@ -102,22 +103,6 @@ const MOVE_REASON =
 const PLASTIC_RULES_REASON =
   "sets SolidCraft's injection-moulding rules (draft, clearance), which plastic features then take as defaults; PartBuddy " +
   'sizes for printing from the print profile instead. Continue without it.';
-
-/**
- * The command groups (the id up to its first dot) the assistant may use, from the catalogue of
- * SolidCraft 0.40.1 (`solidcraft-cli commands`, 634 commands): modelling, inspecting and the
- * history. A group that is not listed, one a later SolidCraft adds among them, is refused until
- * someone has looked at it (audit H-30, S-31). Of the raw modelling commands, those PartBuddy builds
- * itself are refused ({@link CHECKED_WAYS}); the others are checked after each change (audit S-03, S-17).
- */
-export const COMMAND_GROUPS = new Set([
-  'appearance', 'assembly', 'body', 'browser', 'canvas', 'component', 'construct', 'contact', 'explode', 'expr', 'face',
-  'frame', 'inspect', 'joint', 'mesh', 'model', 'motion', 'note', 'occurrence', 'parameters', 'parts', 'plastic', 'sheet',
-  'sketch', 'solid', 'surface', 'timeline',
-]);
-
-/** Single commands of a group that is not listed: undo and redo, and the saved views `screenshot {view}` shows. */
-export const GROUP_EXCEPTIONS = new Set(['edit.undo', 'edit.redo', 'view.save', 'view.apply', 'view.list']);
 
 /** Why a group is refused, where the general sentence would not tell the assistant what to do instead. */
 const GROUP_REASONS: Record<string, string> = {
@@ -295,6 +280,7 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
   if (!COMMAND_GROUPS.has(group) && !GROUP_EXCEPTIONS.has(command)) {
     return refuse(`${command} ${entryOf(GROUP_REASONS, group) ?? 'is not available in PartBuddy. Continue with the modelling and inspection commands.'}`);
   }
+  if (!KNOWN_COMMANDS.has(command)) return refuse(uncheckedCommand(command, group));
   if (METADATA_WRITES.has(command) && metadataKeys(params).some((key) => key.toLowerCase().startsWith(METADATA_PREFIX))) {
     return refuse(
       `${command} would change PartBuddy's own data in the design: the user's notes, or which parts print as one piece, which partbuddy_mechanism marks. Only the user writes notes; read them with partbuddy_view and continue without it.`,
@@ -343,6 +329,18 @@ function decideCommand(id: unknown, params: Record<string, unknown>): ToolDecisi
     );
   }
   return { allow: true };
+}
+
+/**
+ * Why a command of an allowed group that PartBuddy does not know is refused (audit S-03, BC-26): it was misspelt, or a
+ * later SolidCraft added it, and nobody has looked at what it builds. Names the group's commands the assistant may use.
+ */
+function uncheckedCommand(command: string, group: string): string {
+  const known = [...KNOWN_COMMANDS].filter((id) => id.startsWith(`${group}.`) && !Object.hasOwn(REFUSED_COMMANDS, id) && !Object.hasOwn(CHECKED_WAYS, id));
+  return (
+    `${command} is not checked by PartBuddy yet: PartBuddy knows the commands of SolidCraft ${KNOWN_COMMANDS_VERSION}, and this one is misspelt or newer. ` +
+    `Use the ${group} commands it knows: ${known.join(', ')}. If none of them does what you need, tell the user what is missing.`
+  );
 }
 
 const STEP_FORM = '{"command": "sketch.create", "params": {…}}';
