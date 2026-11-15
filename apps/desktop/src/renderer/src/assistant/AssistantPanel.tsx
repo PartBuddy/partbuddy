@@ -443,9 +443,14 @@ function dragsPicture(data: DataTransfer | null): boolean {
   return [...(data?.items ?? [])].some((item) => item.kind === 'file' && item.type.startsWith('image/'));
 }
 
+/** From this share of a plan window on, the composer warns (as the chip's menu colours it). */
+const USAGE_HIGH = 0.8;
+
 export function AssistantPanel() {
   const { t, i18n } = useTranslation();
   const status = selectedStatus(useAssistant((s) => s.state));
+  // The plan window closest to its limit, as the route last reported it (issue #446).
+  const fullest = (status.usage ?? []).reduce<NonNullable<typeof status.usage>[number] | null>((top, entry) => (entry.used > (top?.used ?? -1) ? entry : top), null);
   const items = useAssistant((s) => s.items);
   const connected = useStudio((s) => s.connection.state === 'connected');
   const model = useStudio((s) => s.model);
@@ -780,6 +785,13 @@ export function AssistantPanel() {
           <p className="flex items-center gap-1 px-1 text-xs text-text-muted" data-testid="composer-locked">
             <IconPlugConnectedX className="size-icon-sm shrink-0" aria-hidden />
             {t('assistant.needsSolidCraft')}
+          </p>
+        ) : null}
+        {fullest && fullest.used >= USAGE_HIGH ? (
+          // The plan's limit is near (issue #446): say so where the next message is written, not only in the chip's menu.
+          <p className="flex items-center gap-1 px-1 text-xs text-warning" role="status" data-testid="composer-usage">
+            <IconAlertTriangle className="size-icon-sm shrink-0" aria-hidden />
+            {t('assistant.usage.high', { window: t(`assistant.usage.windows.${fullest.window}`, { defaultValue: fullest.window }), used: fullest.used })}
           </p>
         ) : null}
         {/* One floating card (chat polish): what goes along, the text, then tools, route and Send. */}

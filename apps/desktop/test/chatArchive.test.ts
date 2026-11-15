@@ -52,6 +52,17 @@ describe('the conversation kept with the design (2026-11-05)', () => {
     expect(next.takeDigest()).toBeNull();
   });
 
+  it('hands the conversation over to a fresh one, after another route or a compacted one too (issue 446)', () => {
+    const archive = new ChatArchive({ designFile: () => null, log: () => undefined });
+    expect(archive.handover()).toBeNull();
+    archive.save(conversation);
+    const summary = archive.handover();
+    expect(summary).toContain('The user asked: Bitte an den markierten Flächen');
+    // Every fresh conversation gets it, not only the first after a restart.
+    expect(archive.handover()).toBe(summary);
+    expect(archive.takeDigest()).toBeNull();
+  });
+
   it('leaves out a file that does not match its format', () => {
     folder = mkdtempSync(join(tmpdir(), 'partbuddy-chat-'));
     const design = join(folder, 'Grundplatte.sc');

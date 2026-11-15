@@ -481,6 +481,7 @@
     "contextFull": "Kontext: {used, number, percent} von {size, number} Token · neuer Chat empfohlen",
     "usage": {
       "title": "Verbrauch",
+      "high": "{window}: {used, number, percent} des Kontingents verbraucht. Ein leichteres Modell fürs Bauen (am Modell-Chip) schont den Rest.",
       "window": "{window} {used, number, percent}",
       "windowReset": "{window} {used, number, percent} (bis {reset})",
       "windows": {
