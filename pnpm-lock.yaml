@@ -230,8 +230,8 @@ importers:
         specifier: 0.8.3
         version: 0.8.3
       i18next:
-        specifier: 26.7.1
-        version: 26.7.1(@typescript/typescript6@6.0.2)
+        specifier: 26.7.2
+        version: 26.7.2(@typescript/typescript6@6.0.2)
       i18next-icu:
         specifier: 2.7.0
         version: 2.7.0(intl-messageformat@12.1.4)
@@ -255,7 +255,7 @@ importers:
         version: 19.3.1(react@19.3.1)
       react-i18next:
         specifier: 17.1.13
-        version: 17.1.13(@typescript/typescript6@6.0.2)(i18next@26.7.1(@typescript/typescript6@6.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 17.1.13(@typescript/typescript6@6.0.2)(i18next@26.7.2(@typescript/typescript6@6.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       rehype-harden:
         specifier: 1.1.8
         version: 1.1.8
@@ -411,8 +411,8 @@ importers:
         specifier: 0.8.3
         version: 0.8.3
       i18next:
-        specifier: 26.7.1
-        version: 26.7.1(@typescript/typescript6@6.0.2)
+        specifier: 26.7.2
+        version: 26.7.2(@typescript/typescript6@6.0.2)
       i18next-icu:
         specifier: 2.7.0
         version: 2.7.0(intl-messageformat@12.1.4)
@@ -433,7 +433,7 @@ importers:
         version: 5.3.3(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react-i18next:
         specifier: 17.1.13
-        version: 17.1.13(@typescript/typescript6@6.0.2)(i18next@26.7.1(@typescript/typescript6@6.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 17.1.13(@typescript/typescript6@6.0.2)(i18next@26.7.2(@typescript/typescript6@6.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       three:
         specifier: 0.187.0
         version: 0.187.0
@@ -2309,8 +2309,8 @@ packages:
     peerDependencies:
       intl-messageformat: '>=10.3.3 <13.0.0'
 
-  i18next@26.7.1:
-    resolution: {integrity: sha512-cX+3RRVczel/V2kCMTACckSGSpqgtWYEA6beXNYVms7dOQiHojdPYHD26lT4IKimNeoGWrLvtPgjftbRvmZJVw==}
+  i18next@26.7.2:
+    resolution: {integrity: sha512-RsOY3BeaCDdkk52NeJSFAXELQ2rQXBO/tOub6L8ue2ICPfR/FRDWDOfEDg4xMPd1SqO5goVYQ6i72qWEUB/PPw==}
     peerDependencies:
       typescript: ^5 || ^6 || ^7
     peerDependenciesMeta:
@@ -5800,7 +5800,7 @@ snapshots:
     dependencies:
       intl-messageformat: 12.1.4
 
-  i18next@26.7.1(@typescript/typescript6@6.0.2):
+  i18next@26.7.2(@typescript/typescript6@6.0.2):
     optionalDependencies:
       typescript: '@typescript/typescript6@6.0.2'
 
@@ -6705,11 +6705,11 @@ snapshots:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
-  react-i18next@17.1.13(@typescript/typescript6@6.0.2)(i18next@26.7.1(@typescript/typescript6@6.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+  react-i18next@17.1.13(@typescript/typescript6@6.0.2)(i18next@26.7.2(@typescript/typescript6@6.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       '@babel/runtime': 7.29.10
       html-parse-stringify: 4.0.1
-      i18next: 26.7.1(@typescript/typescript6@6.0.2)
+      i18next: 26.7.2(@typescript/typescript6@6.0.2)
       react: 19.3.1
       use-sync-external-store: 1.7.0(react@19.3.1)
     optionalDependencies:
