@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.3.2](https://github.com/PartBuddy/partbuddy/compare/v0.3.1...v0.3.2) (2026-11-15)
+
+
+### Features
+
+* a model per step of the assistant's work ([#446](https://github.com/PartBuddy/partbuddy/issues/446)) ([#451](https://github.com/PartBuddy/partbuddy/issues/451)) ([7b3b9e8](https://github.com/PartBuddy/partbuddy/commit/7b3b9e893431688f680722c625bb72c838a50303))
+* blocks placed by expressions follow the design's parameters ([#446](https://github.com/PartBuddy/partbuddy/issues/446)) ([#454](https://github.com/PartBuddy/partbuddy/issues/454)) ([3ca7c89](https://github.com/PartBuddy/partbuddy/commit/3ca7c8918240c9f9c62ecf349983b319ec018c9f))
+* branded sign-in callback page for ChatGPT ([#448](https://github.com/PartBuddy/partbuddy/issues/448)) ([44d7fca](https://github.com/PartBuddy/partbuddy/commit/44d7fca0f111eb776fcc13a3d24873cf34754501))
+* hand the chat over to a fresh conversation, warn near the plan's limit ([#446](https://github.com/PartBuddy/partbuddy/issues/446)) ([#455](https://github.com/PartBuddy/partbuddy/issues/455)) ([cda0e68](https://github.com/PartBuddy/partbuddy/commit/cda0e685b1cd11bd31894633d00f25ef273d655b))
+* log the own loop's rounds, ask for batched calls ([#446](https://github.com/PartBuddy/partbuddy/issues/446)) ([#453](https://github.com/PartBuddy/partbuddy/issues/453)) ([9d4dff9](https://github.com/PartBuddy/partbuddy/commit/9d4dff908709a3d02ef2f44bb8a87090d0b1657b))
+* **mechanism:** hinge and closure follow the design's parameters ([#446](https://github.com/PartBuddy/partbuddy/issues/446)) ([#460](https://github.com/PartBuddy/partbuddy/issues/460)) ([a0ff3fd](https://github.com/PartBuddy/partbuddy/commit/a0ff3fd1b49ad7eb00ff9ce95016524610ce8532))
+
+
+### Bug Fixes
+
+* a chatgpt turn that stops after its web search goes on ([#446](https://github.com/PartBuddy/partbuddy/issues/446)) ([#456](https://github.com/PartBuddy/partbuddy/issues/456)) ([b30ce73](https://github.com/PartBuddy/partbuddy/commit/b30ce73f8d4f8ae99ba1508e2a6f8e55a8ba5913))
+* a test window shown on purpose paints instead of staying black ([#457](https://github.com/PartBuddy/partbuddy/issues/457)) ([257c1ed](https://github.com/PartBuddy/partbuddy/commit/257c1eded73a9783bbcb785ed065e6547462a1d7))
+* claude code gets solidcraft's instructions and partbuddy's notes in its system prompt ([#446](https://github.com/PartBuddy/partbuddy/issues/446)) ([#459](https://github.com/PartBuddy/partbuddy/issues/459)) ([7c62a8a](https://github.com/PartBuddy/partbuddy/commit/7c62a8ac6be094a31f55feb6b64f761dbded4d70))
+* **deps:** update ai to v7.0.165 and @ai-sdk/openai to v4.0.111 together ([#442](https://github.com/PartBuddy/partbuddy/issues/442)) ([8c5ed17](https://github.com/PartBuddy/partbuddy/commit/8c5ed17d5dcf61ce05a4d427da65a1e9d528766e))
+* **deps:** update dependency clipper2-ts to v2.0.1-19 ([#426](https://github.com/PartBuddy/partbuddy/issues/426)) ([57e833b](https://github.com/PartBuddy/partbuddy/commit/57e833b8a06ecfd9fcb6e27d033f05d9ec274830))
+* **deps:** update dependency i18next-icu to v2.7.0 ([#434](https://github.com/PartBuddy/partbuddy/issues/434)) ([3afff05](https://github.com/PartBuddy/partbuddy/commit/3afff055ae5b7a6bec76c94cc20b1bea0a60401c))
+* **deps:** update dependency react-i18next to v17.1.13 ([#428](https://github.com/PartBuddy/partbuddy/issues/428)) ([c5012cb](https://github.com/PartBuddy/partbuddy/commit/c5012cb42f183c5a310fd248d748677b1ed1cb3a))
+* **deps:** update dependency rehype-harden to v1.1.9 ([#429](https://github.com/PartBuddy/partbuddy/issues/429)) ([11e6162](https://github.com/PartBuddy/partbuddy/commit/11e6162b225561dfc70be30a424fe6ca1c3049e3))
+* **deps:** update dependency three-mesh-bvh to v0.9.18 ([#430](https://github.com/PartBuddy/partbuddy/issues/430)) ([d0d5c5f](https://github.com/PartBuddy/partbuddy/commit/d0d5c5fc11f56fd26b5857d5bfee6aeea57d0e91))
+* **deps:** update dependency xstate to v5.33.4 ([#431](https://github.com/PartBuddy/partbuddy/issues/431)) ([c602cfe](https://github.com/PartBuddy/partbuddy/commit/c602cfe445b3e927f7f277d4764af10eb5bba303))
+* **deps:** update dependency zustand to v5.1.0 ([#435](https://github.com/PartBuddy/partbuddy/issues/435)) ([24518c2](https://github.com/PartBuddy/partbuddy/commit/24518c20ce1fcffd4ec11746d5dc34ff3c028df0))
+* **deps:** update i18next to v27 and react-i18next to v18 together ([#441](https://github.com/PartBuddy/partbuddy/issues/441)) ([8bd11c4](https://github.com/PartBuddy/partbuddy/commit/8bd11c4fd3c0208969b6aa8a78db61220697f95e))
+* **deps:** update shiki monorepo to v4.6.0 ([#436](https://github.com/PartBuddy/partbuddy/issues/436)) ([9ca310f](https://github.com/PartBuddy/partbuddy/commit/9ca310f09f288fe3e76c53cfdce7a965d2388bf6))
+* **mechanism:** find the hinge line, keep its rooms under a closure, say what works ([#446](https://github.com/PartBuddy/partbuddy/issues/446)) ([#458](https://github.com/PartBuddy/partbuddy/issues/458)) ([9cce35f](https://github.com/PartBuddy/partbuddy/commit/9cce35f7b935234a4ccf8c8891050b91ddc1a9be))
+* signing in again after signing out starts a fresh sign-in ([#445](https://github.com/PartBuddy/partbuddy/issues/445)) ([#447](https://github.com/PartBuddy/partbuddy/issues/447)) ([2a1ca6d](https://github.com/PartBuddy/partbuddy/commit/2a1ca6ddc1e26eb3a62b098cbe9de2b6e8664f9c))
+* the policy knows run-together clearance names and "Spalt" ([#444](https://github.com/PartBuddy/partbuddy/issues/444)) ([9ae231d](https://github.com/PartBuddy/partbuddy/commit/9ae231dc4767f636383e69e47c30a33c163382e1))
+
+
+### Performance
+
+* claude code loads tools on demand, with partbuddy's own system prompt ([#446](https://github.com/PartBuddy/partbuddy/issues/446)) ([#452](https://github.com/PartBuddy/partbuddy/issues/452)) ([5926d2d](https://github.com/PartBuddy/partbuddy/commit/5926d2d06eacedbab5f0add30d2ef65cff8650ad))
+* fewer lookup rounds and no model turn for simple commands ([#446](https://github.com/PartBuddy/partbuddy/issues/446)) ([#450](https://github.com/PartBuddy/partbuddy/issues/450)) ([caa76f8](https://github.com/PartBuddy/partbuddy/commit/caa76f8b52d03dd7b7941e0cce4c466a36c0b5cf))
+* measure and cut the assistant's token use, first package ([#446](https://github.com/PartBuddy/partbuddy/issues/446)) ([#449](https://github.com/PartBuddy/partbuddy/issues/449)) ([511c23a](https://github.com/PartBuddy/partbuddy/commit/511c23a238c3ff89f89afce011b3ca004a539bb5))
+
 ## [0.3.1](https://github.com/PartBuddy/partbuddy/compare/v0.3.0...v0.3.1) (2026-11-14)
 
 
