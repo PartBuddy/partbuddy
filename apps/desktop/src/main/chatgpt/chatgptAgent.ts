@@ -7,7 +7,7 @@ import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Phase, Selectio
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import { allowedChoice, choiceStatus, listedPhases, phaseChoices, phaseStatus, type ChoiceStore, type PhaseStore } from '../agents/modelChoice';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { contextAfter, instructionsFor, tokensLine, turnTokens, withEarlierResultsCleared, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
+import { contextAfter, instructionsFor, roundsLine, tokensLine, turnTokens, withEarlierResultsCleared, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
 import { sourceOfUrl } from '../agents/research';
 import type { TurnReview } from '../agents/review';
 import { composeMessage } from '../agents/viewContext';
@@ -294,6 +294,7 @@ export class ChatGptAgent implements AgentBackend {
       }
       this.context = contextAfter(steps, this.models?.find((model) => model.id === step?.model)?.context) ?? this.context;
       this.options.log(tokensLine('ChatGPT', turnTokens(steps)));
+      this.options.log(roundsLine('ChatGPT', steps));
       if (repeatsItself({ steps })) {
         this.options.event({ type: 'error', message: LOOP_NOTICE });
         this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: 'failed' });

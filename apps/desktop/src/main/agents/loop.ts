@@ -37,6 +37,15 @@ export const ROLE_INTRO =
   'Use the tools you are given to inspect and change the design. Work in small visible steps: ' +
   'one sketch or one feature group per call. Units are millimetres.';
 
+/**
+ * Fewer rounds (issue #446): each round sends the whole conversation again, and a model on the own loop called one tool
+ * per round (23 rounds for one build, 7 of them single `execute` calls one after another, seen 2026-11-15).
+ */
+export const ROUNDS_GUIDANCE =
+  "Call tools that do not depend on each other's answers together in the same round, put the commands of one feature " +
+  'group into one `batch`, and use the command signatures you were given instead of looking them up. Finish the part ' +
+  'as planned all the same: when a step is refused, correct it and go on.';
+
 /** What the assistant owes the user about its limits, on every route (audit R27). */
 export const LIMITS_GUIDANCE =
   'Say plainly what you did not check, what you estimated and what has not been test-printed; never call a part safe ' +
@@ -58,6 +67,7 @@ export const FLEX_GUIDANCE =
 export function rolePrompt(ownLoop: boolean, research: boolean): string {
   return [
     ROLE_INTRO,
+    ROUNDS_GUIDANCE,
     REFUSAL_GUIDANCE,
     // The own loop stops after MAX_STEPS rounds (audit R57); Claude Code has no such limit.
     ...(ownLoop ? [`You have ${String(MAX_STEPS)} tool rounds per turn: plan them, and say when you stop unfinished.`] : []),
@@ -192,6 +202,11 @@ export function turnTokens(steps: readonly { usage: LanguageModelUsage }[]): Tur
     sum.reasoning += usage.outputTokenDetails.reasoningTokens ?? 0;
   }
   return sum;
+}
+
+/** What each round of a turn called, for the log (issue #446): `measure | batch+execute | text`. */
+export function roundsLine(route: string, steps: readonly { toolCalls: readonly { toolName: string }[] }[]): string {
+  return `${route} turn rounds: ${steps.map((step) => step.toolCalls.map((call) => call.toolName).join('+') || 'text').join(' | ')}`;
 }
 
 /** The log line of a turn's tokens, the same on every route so runs can be compared. */
