@@ -18,16 +18,17 @@ export const GROUP_EXCEPTIONS = new Set(['edit.undo', 'edit.redo', 'view.save', 
 
 /**
  * The engine commands PartBuddy has looked at (audit S-03, BC-26): every command of SolidCraft's catalogue
- * (`solidcraft-cli commands`, read on 2026-11-14) in the groups the policy allows, and the single commands it allows
+ * (`solidcraft-cli commands`, read on 2026-11-14 and 2026-11-15) in the groups the policy allows, and the single commands it allows
  * from other groups ({@link COMMAND_GROUPS}, {@link GROUP_EXCEPTIONS}). The union of 0.40.1 (634 commands, the
- * minimum version) and 0.41.0 (642). Comparing the two catalogues, 0.41.0 adds three ids in these groups (model.mesh,
+ * minimum version), 0.41.0 (642) and 0.42.0 (647). Comparing the two catalogues, 0.41.0 adds three ids in these groups (model.mesh,
  * sketch.spline.handles, sketch.spline.reset_handles) and removes none; ids such as assembly.constraint.edit, missing
  * in 0.40.0-rc.4, are already in 0.40.1.
+ * 0.42.0 adds two (sketch.insert_airfoil, whose `path` the policy refuses, and solid.cell_grid) and removes none.
  * A command a later SolidCraft adds to one of those groups is refused until someone has looked at it and added it
  * here; the contract test "knows every command of the allowed groups" names it. Which of these are refused is
  * policy.ts's business.
  */
-export const KNOWN_COMMANDS_VERSION = '0.41.0';
+export const KNOWN_COMMANDS_VERSION = '0.42.0';
 
 export const KNOWN_COMMANDS: ReadonlySet<string> = new Set(
   `
@@ -87,7 +88,7 @@ sketch.construction_line.tangent_two sketch.construction_line.vertical sketch.co
 sketch.dimension sketch.dimension_text sketch.drag sketch.drag_end sketch.draw.dimensioned sketch.drawing_bounds sketch.edit
 sketch.edit_text sketch.ellipse sketch.equation_curve sketch.equation_curve.edit sketch.export_dxf sketch.extend sketch.fillet
 sketch.finish sketch.finish_auto_constrain sketch.fit_curves_to_section sketch.glyphs sketch.include_3d sketch.infinite
-sketch.insert_dxf sketch.insert_svg sketch.inspect sketch.intersect sketch.intersection_curve sketch.isoparametric_curve
+sketch.insert_airfoil sketch.insert_dxf sketch.insert_svg sketch.inspect sketch.intersect sketch.intersection_curve sketch.isoparametric_curve
 sketch.line sketch.line.midpoint sketch.line3d sketch.loose_ends sketch.loose_ends.tie sketch.mirror sketch.move sketch.move3d
 sketch.move_point sketch.move_points sketch.offset sketch.offset.break sketch.options sketch.paste sketch.pattern.circular
 sketch.pattern.rectangular sketch.point sketch.point.divide sketch.point3d sketch.polygon.circumscribed sketch.polygon.edge
@@ -97,7 +98,7 @@ sketch.slot.arc_three_point sketch.slot.center_point sketch.slot.center_to_cente
 sketch.spline.control_point sketch.spline.control_point_5 sketch.spline.fit_point sketch.spline.handles
 sketch.spline.insert_point sketch.spline.remove_point sketch.spline.reset_handles sketch.spline.reverse sketch.spline3d sketch.spun_profile sketch.text sketch.toggle_diameter
 sketch.toggle_driven sketch.transform sketch.trim sketch.trim.path
-solid.align solid.boundary_fill solid.bounding_solid solid.box solid.chamfer solid.coil solid.combine solid.cone solid.cylinder
+solid.align solid.boundary_fill solid.bounding_solid solid.box solid.cell_grid solid.chamfer solid.coil solid.combine solid.cone solid.cylinder
 solid.draft solid.emboss solid.extrude solid.fillet solid.hole solid.loft solid.mirror solid.move solid.offset_face
 solid.pattern.circular solid.pattern.path solid.pattern.rectangular solid.pipe solid.press_pull solid.remove solid.replace_face
 solid.revolve solid.rib solid.scale solid.shell solid.sphere solid.split_body solid.split_face solid.sweep solid.thread
