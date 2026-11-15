@@ -1,4 +1,4 @@
-import { jsonSchema, tool, type StopCondition, type ToolSet } from 'ai';
+import { jsonSchema, tool, type LanguageModelUsage, type StopCondition, type ToolSet } from 'ai';
 
 import type { AgentEvent } from '../../shared/contract';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
@@ -134,6 +134,32 @@ export function contextAfter(steps: { usage: { inputTokens?: number | undefined;
   const usage = steps.at(-1)?.usage;
   if (!size || typeof usage?.inputTokens !== 'number') return null;
   return { used: Math.max(0, Math.round(usage.inputTokens + (usage.outputTokens ?? 0))), size };
+}
+
+/** What a turn cost in tokens (issue #446), summed over its requests; missing counts are 0. */
+export interface TurnTokens {
+  requests: number;
+  input: number;
+  cached: number;
+  output: number;
+  reasoning: number;
+}
+
+/** The tokens of a turn of this loop, from the AI SDK's usage of each step (each step is one request). */
+export function turnTokens(steps: readonly { usage: LanguageModelUsage }[]): TurnTokens {
+  const sum = { requests: steps.length, input: 0, cached: 0, output: 0, reasoning: 0 };
+  for (const { usage } of steps) {
+    sum.input += usage.inputTokens ?? 0;
+    sum.cached += usage.inputTokenDetails.cacheReadTokens ?? 0;
+    sum.output += usage.outputTokens ?? 0;
+    sum.reasoning += usage.outputTokenDetails.reasoningTokens ?? 0;
+  }
+  return sum;
+}
+
+/** The log line of a turn's tokens, the same on every route so runs can be compared. */
+export function tokensLine(route: string, tokens: TurnTokens): string {
+  return `${route} turn tokens: ${String(tokens.requests)} requests, input ${String(tokens.input)} (cached ${String(tokens.cached)}), output ${String(tokens.output)} (reasoning ${String(tokens.reasoning)})`;
 }
 
 /**

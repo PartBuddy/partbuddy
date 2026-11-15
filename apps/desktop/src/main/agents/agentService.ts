@@ -7,6 +7,7 @@ import { ClaudeSession, findClaudeCode, listModels, readAuth, readVersion, start
 import { userEvent, type AgentBackend, type PictureKind } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
 import { allowedChoice, choiceStatus, CLAUDE_STANDARD, withoutChoice, type ChoiceStore } from './modelChoice';
+import { tokensLine } from './loop';
 import type { TurnReview } from './review';
 import { composeMessage } from './viewContext';
 
@@ -236,6 +237,8 @@ export class AgentService implements AgentBackend {
           this.listeners.event(event);
           break;
         case 'done': {
+          // Each pass of the turn (the review's send-back too) is logged with what it cost (issue #446).
+          if (event.tokens) this.options.log(tokensLine('Claude Code', event.tokens));
           // A changing turn that ended without the review goes back to the model once (review.ts); the user sees no end yet.
           // The gate proxy's repeat count is not reset: the send-back is the same user turn, and the review call differs
           // from any call before it, so it never counts as a repeat.
@@ -246,6 +249,7 @@ export class AgentService implements AgentBackend {
             break;
           }
           const { reason, ...done } = event;
+          delete done.tokens;
           // The whole turn, the review pass included.
           if (done.durationMs !== null) done.durationMs += this.reviewMs;
           this.reviewMs = 0;

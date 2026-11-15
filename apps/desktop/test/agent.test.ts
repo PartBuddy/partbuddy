@@ -363,6 +363,11 @@ describe('Claude Code adapter', () => {
     expect(parseStreamLine('{"type":"assistant","message":{"content":[],"usage":{"input_tokens":2,"cache_read_input_tokens":70,"cache_creation_input_tokens":18,"output_tokens":4}}}')).toEqual([{ type: 'context', used: 94 }]);
     expect(parseStreamLine('{"type":"assistant","message":{"content":[],"usage":{"input_tokens":2,"output_tokens":-1}}}')).toEqual([]);
     expect(parseStreamLine('{"type":"result","subtype":"success","modelUsage":{"a":{"contextWindow":200000},"b":{"contextWindow":1000000},"c":{"contextWindow":"x"}}}')[0]).toEqual({ type: 'context', size: 1000000 });
+    // A turn's tokens from its result (issue #446): the three input counts add up, cache reads are the cached part.
+    expect(parseStreamLine('{"type":"result","subtype":"success","num_turns":4,"usage":{"input_tokens":12,"cache_creation_input_tokens":3000,"cache_read_input_tokens":90000,"output_tokens":800}}')[0]).toMatchObject({
+      type: 'done',
+      tokens: { requests: 4, input: 93012, cached: 90000, output: 800, reasoning: 0 },
+    });
     // Compacting (audit H-11): the boundary, with or without a usable size.
     expect(parseStreamLine('{"type":"system","subtype":"compact_boundary","compact_metadata":{"trigger":"auto","pre_tokens":180000}}')).toEqual([{ type: 'compacted', tokens: 180000 }]);
     expect(parseStreamLine('{"type":"system","subtype":"compact_boundary","compact_metadata":{"pre_tokens":-1}}')).toEqual([{ type: 'compacted', tokens: null }]);

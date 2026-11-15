@@ -5,7 +5,7 @@ import { createInterface } from 'node:readline';
 
 import type { ModelChoice, ModelOption, ResearchSource, AgentStatus } from '../../shared/contract';
 import { CLAUDE_RESEARCH_TOOLS, sourceOfSearchResult, sourceOfToolUse } from './research';
-import { rolePrompt } from './loop';
+import { rolePrompt, type TurnTokens } from './loop';
 
 /**
  * Adapter for the user's own, unmodified Claude Code (ADR 0015). PartBuddy starts the official
@@ -188,7 +188,7 @@ export type ClaudeEvent =
   | { type: 'textDelta'; text: string }
   | { type: 'source'; source: ResearchSource }
   | { type: 'text'; text: string }
-  | { type: 'done'; ok: boolean; durationMs: number | null; detail: string | null; reason?: string }
+  | { type: 'done'; ok: boolean; durationMs: number | null; detail: string | null; reason?: string; tokens?: TurnTokens }
   | { type: 'exited'; code: number | null }
   | { type: 'usage'; windows: NonNullable<AgentStatus['usage']> }
   | { type: 'context'; used?: number; size?: number }
@@ -281,6 +281,7 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
       // "Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh" (2026-11-08).
       const busyRefreshing = reason !== null && /another Claude Code process is refreshing|mid-refresh/i.test(reason);
       const signedOut = reason !== null && !busyRefreshing && /authenticat|oauth|\/login|not logged in/i.test(reason);
+      const tokens = resultTokens(message);
       return [
         ...(sizes.length > 0 ? [{ type: 'context' as const, size: Math.max(...sizes) }] : []),
         {
@@ -289,12 +290,31 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
           durationMs: typeof message.duration_ms === 'number' ? message.duration_ms : null,
           detail: signedOut ? 'signedOut' : message.subtype === 'success' ? (message.is_error === true ? 'failed' : null) : typeof message.subtype === 'string' ? message.subtype : 'failed',
           ...(reason ? { reason } : {}),
+          ...(tokens ? { tokens } : {}),
         },
       ];
     }
     default:
       return [];
   }
+}
+
+/**
+ * The tokens of a turn from its result (issue #446), e.g. "num_turns":4,"usage":{"input_tokens":12,
+ * "cache_creation_input_tokens":3000,"cache_read_input_tokens":90000,"output_tokens":800}: the three input counts add
+ * up to what was sent. Claude Code does not report reasoning tokens apart. Null without counts.
+ */
+function resultTokens(message: Record<string, unknown>): TurnTokens | null {
+  const usage = message.usage as Record<string, unknown> | undefined;
+  const count = (key: string) => (typeof usage?.[key] === 'number' && Number.isInteger(usage[key]) && (usage[key]) >= 0 ? (usage[key]) : 0);
+  if (typeof usage?.input_tokens !== 'number') return null;
+  return {
+    requests: typeof message.num_turns === 'number' && Number.isInteger(message.num_turns) ? message.num_turns : 0,
+    input: count('input_tokens') + count('cache_creation_input_tokens') + count('cache_read_input_tokens'),
+    cached: count('cache_read_input_tokens'),
+    output: count('output_tokens'),
+    reasoning: 0,
+  };
 }
 
 /** The role Claude Code gets as `--append-system-prompt`. */
