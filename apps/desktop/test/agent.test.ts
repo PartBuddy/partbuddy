@@ -9,11 +9,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AgentService } from '../src/main/agents/agentService';
 import { findClaudeCode, parseStreamLine, roleOf } from '../src/main/agents/claudeCode';
 import { instructionsFor, MAX_STEPS, REFUSAL_GUIDANCE } from '../src/main/agents/loop';
-import { GateProxy, REPEAT_REASON, type ToolCallRecord, type UpstreamTools } from '../src/main/agents/gateProxy';
+import { GateProxy, REPEAT_REASON, SERVER_POINTER, type ToolCallRecord, type UpstreamTools } from '../src/main/agents/gateProxy';
 import { photoFile, photoNote } from '../src/main/agents/photoNote';
 import { decide, TOOL_ARGUMENTS } from '../src/main/agents/policy';
 import { Review } from '../src/main/agents/review';
-import { TOOL_NOTES } from '../src/main/agents/toolNotes';
+import { TOOL_NOTES, withToolNotes } from '../src/main/agents/toolNotes';
 import { reduce, type ConversationItem } from '../src/renderer/src/assistant/store';
 import type { AgentEvent, AgentStatus, ModelChoice, Phase, PhaseChoices } from '../src/shared/contract';
 
@@ -262,7 +262,11 @@ describe('gate proxy', () => {
     const { tools } = await client.listTools();
     // export is refused whatever its arguments, so it is not offered.
     expect(tools.map((tool) => tool.name)).toEqual(['inspect_design']);
-    expect(client.getInstructions()).toBe(`SolidCraft drives the app.\n\n${TOOL_NOTES}`);
+    // Claude Code cuts long server instructions short: the whole text goes into its system prompt (issue 446).
+    expect(client.getInstructions()).toBe(SERVER_POINTER);
+    expect(roleOf(false, withToolNotes('SolidCraft drives the app.'))).toContain(`SolidCraft drives the app.
+
+${TOOL_NOTES}`);
     const result = await client.callTool({ name: 'inspect_design', arguments: {} });
     expect(result.isError).not.toBe(true);
     expect(calls).toEqual(['inspect_design']);

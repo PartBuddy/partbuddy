@@ -1,6 +1,6 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { appendFileSync, existsSync } from 'node:fs';
-import { delimiter, join } from 'node:path';
+import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
+import { delimiter, dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
 import type { ModelChoice, ModelOption, ResearchSource, AgentStatus } from '../../shared/contract';
@@ -322,8 +322,8 @@ function resultTokens(message: Record<string, unknown>): TurnTokens | null {
  * cost about 2,900 tokens with every request (measured with Claude Code 2.1.302: 3,687 tokens with
  * `--append-system-prompt` against 781 with `--system-prompt`, `--tools ""`), and none of it is about modelling parts.
  */
-export function roleOf(research: boolean): string {
-  return rolePrompt(false, research);
+export function roleOf(research: boolean, instructions = ''): string {
+  return instructions ? `${rolePrompt(false, research)}\n\n${instructions}` : rolePrompt(false, research);
 }
 
 export interface SessionOptions {
@@ -337,6 +337,8 @@ export interface SessionOptions {
   choice?: ModelChoice | null;
   /** Claude Code's WebSearch and WebFetch for research (B7). */
   research?: boolean;
+  /** SolidCraft's instructions with PartBuddy's notes and the signatures, for the system prompt (gateProxy.ts `SERVER_POINTER`). */
+  instructions?: string;
 }
 
 /**
@@ -367,6 +369,10 @@ export class ClaudeSession {
     // Measured 2026-11-15 on a real build: 10,400 tokens per request at the start instead of 32,800, the whole run
     // 1.05 M input instead of 1.48 M with the same result; mechanisms, drawings and assemblies stay out until needed.
     const search = ['ToolSearch'];
+    // The role with SolidCraft's instructions and PartBuddy's notes runs to some 26,000 characters, close to Windows'
+    // limit of a command line: it goes in a file beside the MCP configuration.
+    const promptPath = join(dirname(mcpConfigPath), 'system-prompt.md');
+    writeFileSync(promptPath, roleOf(research, this.options.instructions ?? ''), 'utf8');
     const args = [
       ...claude.prefix,
       '-p',
@@ -380,7 +386,7 @@ export class ClaudeSession {
       '--allowedTools', ['mcp__partbuddy', ...(research ? CLAUDE_RESEARCH_TOOLS : []), ...search].join(','),
       '--setting-sources', '',
       '--no-session-persistence',
-      '--system-prompt', roleOf(research),
+      '--system-prompt-file', promptPath,
       ...choiceArgs(this.options.choice ?? null),
     ];
     // Argument array without a shell; the MCP token is in the config file, not on the command line.
