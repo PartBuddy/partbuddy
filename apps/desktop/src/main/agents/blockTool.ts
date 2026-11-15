@@ -32,6 +32,8 @@ export const WALL_BLOCKS = ['keyhole', 'woodScrew', 'magnet'] as const;
 export const PART_BLOCKS = ['knob'] as const;
 
 const vector = { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 };
+/** A place: each coordinate a number in mm or a length expression over the design's parameters. */
+const place = { type: 'array', items: { type: ['number', 'string'] }, minItems: 3, maxItems: 3 };
 
 const blockTool: UpstreamTool = {
   name: BLOCK_TOOL,
@@ -46,13 +48,14 @@ const blockTool: UpstreamTool = {
     "A knob for a shaft is a part of its own: knob (body is the new body's name, point the centre of its underside where the shaft goes in, normal the way the shaft points, up the way its pointer points; shaft, needed: d for a potentiometer's or encoder's D shaft, knurl for a split knurled one, round for a plain shaft with a set screw; shaftDiameter, needed). " +
     'Sizes of holes, slots and pockets are the sizes they come out at: PartBuddy draws them wider by the hole allowance of the material in use, and takes the room of a fit from its profile; do not add either yourself (an insert\'s seat is drawn at its maker\'s size). ' +
     'Give only what differs from the standard; everything else is filled in. A field a block does not take is refused, not passed over, and so is a size that does not print on the nozzle of the printer in use. ' +
-    'For two parts screwed together use partbuddy_mechanism with kind screw instead, which makes both holes on one line.',
+    'For two parts screwed together use partbuddy_mechanism with kind screw instead, which makes both holes on one line. ' +
+    'A coordinate of point and more may be a length expression over the design\'s parameters ("w/2", "plate_height - 15"): place a hole by the size it depends on, so it moves when that size changes.',
   inputSchema: {
     type: 'object',
     properties: {
       block: { type: 'string', enum: [...ASSISTANT_BLOCKS, ...WALL_BLOCKS, ...PART_BLOCKS] },
       body: { type: 'string', description: 'The body (exact name); for knob the name of the new body.' },
-      point: { ...vector, description: 'A point on the flat face the block goes at, in mm: the centre of the hole, the foot of the boss, the middle of the text.' },
+      point: { ...place, description: 'A point on the flat face the block goes at, in mm or as expressions:the centre of the hole, the foot of the boss, the middle of the text.' },
       normal: {
         ...vector,
         description:
@@ -63,7 +66,7 @@ const blockTool: UpstreamTool = {
       size: { type: 'string', enum: [...BLOCK_SIZES], description: 'The screw; default M3. Not used by text, lip and snapFit; keyhole, woodScrew, magnet and knob take none.' },
       more: {
         type: 'array',
-        items: vector,
+        items: place,
         maxItems: 99,
         description: `screwHole, tappedHole, insertSeat, keyhole, woodScrew, magnet: further points on the same face, one each; up to 99, for magnet ${String(MAGNET_MORE)}, for keyhole and woodScrew ${String(WALL_MORE)}.`,
       },
@@ -111,6 +114,43 @@ const blockTool: UpstreamTool = {
 type Vec3 = [number, number, number];
 const vec3 = (value: unknown): Vec3 | null =>
   Array.isArray(value) && value.length === 3 && value.every((entry) => typeof entry === 'number' && Number.isFinite(entry)) ? (value as Vec3) : null;
+
+/** The point and the further points of a call as given, each coordinate a number or a length expression. */
+const placesOf = (args: Record<string, unknown>): unknown[][] => [args.point, ...(Array.isArray(args.more) ? (args.more as unknown[]) : [])].filter((entry): entry is unknown[] => Array.isArray(entry));
+
+/** The length expressions among the coordinates of point and more, each once. */
+export function expressionsOf(args: Record<string, unknown>): string[] {
+  return [...new Set(placesOf(args).flatMap((entry) => entry.filter((value): value is string => typeof value === 'string').map((value) => value.trim())))];
+}
+
+/** The call with each expression of point and more replaced by its value in mm; an expression without one stays and is refused as no number. */
+export function numericArgs(args: Record<string, unknown>, values: Map<string, number>): Record<string, unknown> {
+  const numeric = (entry: unknown) => (Array.isArray(entry) ? entry.map((value: unknown) => (typeof value === 'string' ? (values.get(value.trim()) ?? value) : value)) : entry);
+  return { ...args, point: numeric(args.point), ...(Array.isArray(args.more) ? { more: args.more.map(numeric) } : {}) };
+}
+
+/** The place each SolidCraft command takes as length expressions and follows when the parameters change (measured with 0.42.0). */
+const FOLLOWING: Record<string, string> = { 'solid.hole': 'position', 'solid.cylinder': 'base', 'solid.cone': 'base' };
+
+/**
+ * The commands with each place that is a given point (to 0.005 mm, as a wood screw's hole rounds it) put back as it was
+ * given, expressions and all, where the command follows them; `fixed` counts the points given by expressions that no
+ * command takes so (a nut trap's or a slot's sketch, a boss: sketch.create and plastic.* take numbers only).
+ */
+export function followParameters(steps: Step[], args: Record<string, unknown>, values: Map<string, number>): { steps: Step[]; fixed: number } {
+  const given = placesOf(args).filter((entry) => entry.some((value) => typeof value === 'string'));
+  if (given.length === 0) return { steps, fixed: 0 };
+  const points = given.map((entry) => ({ entry, at: vec3(numericArgs({ point: entry }, values).point), used: false }));
+  const out = steps.map((step) => {
+    const key = FOLLOWING[step.command];
+    const at = key ? vec3(step.params[key]) : null;
+    const match = at ? points.find((point) => point.at?.every((value, k) => Math.abs(value - (at[k] ?? NaN)) < 0.005)) : undefined;
+    if (!key || !match) return step;
+    match.used = true;
+    return { ...step, params: { ...step.params, [key]: match.entry.map((value) => (typeof value === 'string' ? value.trim() : value)) } };
+  });
+  return { steps: out, fixed: points.filter((point) => !point.used).length };
+}
 
 /** Why the sizes of a seat or a boss no longer fit the insert of the table; null when they do. */
 function outOfTable(block: FeatureBlock): string | null {
@@ -1000,8 +1040,30 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
   return {
     instructions: () => upstream.instructions(),
     listTools: async () => [...(await upstream.listTools()), blockTool],
-    callTool: async (name, args, callId): Promise<ToolResult> => {
-      if (name !== BLOCK_TOOL) return upstream.callTool(name, args, callId);
+    callTool: async (name, given, callId): Promise<ToolResult> => {
+      if (name !== BLOCK_TOOL) return upstream.callTool(name, given, callId);
+      // Places given as expressions are measured at their value now and built with the expressions, to follow the parameters.
+      const values = new Map<string, number>();
+      const expressions = expressionsOf(given);
+      if (expressions.length > 0) {
+        // SolidCraft evaluates each as a parameter of its own, deleted right away (no command evaluates one alone).
+        const commands = expressions.flatMap((expression, i) => [
+          { command: 'parameters.add', params: { name: `partbuddy_place_${String(i)}`, expression } },
+          { command: 'parameters.delete', params: { name: `partbuddy_place_${String(i)}` } },
+        ]);
+        try {
+          const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: { value?: unknown }[]; failed?: { index?: unknown; error?: unknown } };
+          if (reply.failed) throw new Error(String(reply.failed.error).slice(0, 200));
+          expressions.forEach((expression, i) => {
+            const value = reply.results?.[i * 2]?.value;
+            if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`"${expression}" comes to no number`);
+            values.set(expression, value);
+          });
+        } catch (cause) {
+          return { content: [{ type: 'text', text: `Not built: the place ${expressions.map((expression) => `"${expression}"`).join(', ')} is no length over the design's parameters (${(cause as Error).message})` }], isError: true };
+        }
+      }
+      const args = numericArgs(given, values);
       let fit: ToolPrinter = DEFAULT_PRINTER;
       try {
         fit = printer();
@@ -1100,7 +1162,8 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         let lenient = 0;
         let fell = 0;
         // One hole a step, measured after each: every hole has its own way in, also on a stepped part or on two faces.
-        const sent = holes ? sequence.flatMap((step) => [step, measure]) : [...sequence, measure];
+        const follow = followParameters(sequence, given, values);
+        const sent = holes ? follow.steps.flatMap((step) => [step, measure]) : [...follow.steps, measure];
         try {
           results = await run(sent);
           // The point decides what SolidCraft cuts, so the named body is checked before the block stays.
@@ -1164,7 +1227,8 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
         const held = wall ? ('held' in wall ? wall.held : '') : block ? heldOf(block, args, fit) : '';
         if (held) log(`partbuddy_block ${String(args.block)}:${held}`);
         const said = (wall ? wall.text : block ? built(block, args, fit) + reachSaid(block, reach) + rootSaid + measuredSaid(block, thick, rim, fit) : '') +(block?.block === 'insertSeat' ? ` Each seat needs ${String(seatWall(block.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it.` : '');
-        return { content: [{ type: 'text', text: `${said}${stockSaid}${warnings.length > 0 ? ` SolidCraft warns: ${warnings.join(' ')}` : ''}` }] };
+        const places = expressions.length === 0 ? '' : follow.fixed === 0 ? ' Its place follows the parameters it was given by.' : ` ${String(follow.fixed)} of the points given by expressions stay where they come to now: this block's command takes numbers only for its place, so build it again after those parameters change.`;
+        return { content: [{ type: 'text', text: `${said}${places}${stockSaid}${warnings.length > 0 ? ` SolidCraft warns: ${warnings.join(' ')}` : ''}` }] };
       } catch (cause) {
         return { content: [{ type: 'text', text: `Not built: ${(cause as Error).message}` }], isError: true };
       }

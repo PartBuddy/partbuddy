@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_GUIDANCE, FACE_DROP, rounded, heldOf, jointsMoving, printLimit, STOCK_FULL, blockOf, cutAxis, knobOf, magnetOf, misplaced, named, rimNarrowest, seatStock, shortOf, wallOf, withBlockTool, type Stock } from '../src/main/agents/blockTool';
+import { BLOCK_GUIDANCE, FACE_DROP, rounded, heldOf, jointsMoving, printLimit, STOCK_FULL, blockOf, cutAxis, expressionsOf, followParameters, knobOf, magnetOf, misplaced, named, numericArgs, rimNarrowest, seatStock, shortOf, wallOf, withBlockTool, type Stock } from '../src/main/agents/blockTool';
 import { INSERT, blockLimit, defaultBlock, raisedBlock, rootGrowth, snapRoot, stepsOf, type FeatureBlock } from '../src/shared/blocks';
 import type { ToolResult, UpstreamTools } from '../src/main/agents/gateProxy';
 import { decide } from '../src/main/agents/policy';
@@ -64,6 +64,63 @@ describe('the function blocks for the assistant (standards)', () => {
     expect(describeToolCall('partbuddy_block', { block: 'woodScrew' })).toEqual([{ key: 'blockByAssistant', values: { block: 'woodScrew', body: '' } }]);
     expect(describeToolCall('partbuddy_block', { block: 'woodScrew', screw: 4 })).toEqual([{ key: 'woodScrewHole', values: { screw: 4 } }]);
     expect(describeToolCall('partbuddy_block', { block: 'insertSeat', body: 'Base' })).toEqual([{ key: 'blockByAssistant', values: { block: 'insertSeat', body: 'Base' } }]);
+  });
+});
+
+describe('places given by expressions', () => {
+  const values = new Map([['w/2', 20], ['w - 10', 30]]);
+
+  it('evaluates them for the checks and gives the hole its expressions, numbers left as they are', () => {
+    const args = { block: 'screwHole', point: ['w/2', 10, 6], more: [[' w - 10', 10, 6], [5, 5, 6]] };
+    expect(expressionsOf(args)).toEqual(['w/2', 'w - 10']);
+    expect(numericArgs(args, values)).toMatchObject({ point: [20, 10, 6], more: [[30, 10, 6], [5, 5, 6]] });
+    expect(expressionsOf({ point: [1, 2, 3] })).toEqual([]);
+    const steps = [
+      { command: 'solid.hole', params: { position: [20, 10, 6], diameter: '3 mm' } },
+      { command: 'solid.hole', params: { position: [30, 10, 6] } },
+      { command: 'solid.hole', params: { position: [5, 5, 6] } },
+    ];
+    expect(followParameters(steps, args, values)).toEqual({
+      steps: [
+        { command: 'solid.hole', params: { position: ['w/2', 10, 6], diameter: '3 mm' } },
+        { command: 'solid.hole', params: { position: ['w - 10', 10, 6] } },
+        { command: 'solid.hole', params: { position: [5, 5, 6] } },
+      ],
+      fixed: 0,
+    });
+    // Plain numbers change nothing.
+    expect(followParameters(steps, { point: [20, 10, 6] }, values)).toEqual({ steps, fixed: 0 });
+  });
+
+  it('counts a point whose command takes numbers only', () => {
+    const steps = [{ command: 'sketch.create', params: { plane: { origin: [20, 10, 6] } } }];
+    expect(followParameters(steps, { point: ['w/2', 10, 6] }, values)).toEqual({ steps, fixed: 1 });
+  });
+
+  it('builds a hole at an expression through SolidCraft and refuses one that is no length', async () => {
+    const sent: { command: string; params: Record<string, unknown> }[][] = [];
+    const upstream: UpstreamTools = {
+      instructions: () => undefined,
+      listTools: () => Promise.resolve([]),
+      callTool: (_name, args) => {
+        const commands = args.commands as { command: string; params: Record<string, unknown> }[];
+        sent.push(commands);
+        const bad = commands.findIndex((step) => step.command === 'parameters.add' && step.params.expression === 'nope');
+        if (bad >= 0) return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: [], failed: { index: bad, command: 'parameters.add', error: 'unknown name nope' } }) }] });
+        const measured = { bodies: [{ name: 'Plate', volume_mm3: commands.some((step) => step.command === 'solid.hole') ? 900 : 1000 }] };
+        return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => (step.command === 'parameters.add' ? { value: step.params.expression === 'w/2' ? 20 : 0 } : step.command === 'inspect.measure' ? measured : {})) }) }] });
+      },
+    };
+    const tools = withBlockTool(upstream);
+    const built = await tools.callTool('partbuddy_block', { block: 'screwHole', body: 'Plate', point: ['w/2', 10, 6], head: 'none' });
+    expect(built.isError).toBeFalsy();
+    expect(String(built.content[0]?.text)).toContain('Built screwHole on Plate at [20, 10, 6]');
+    expect(String(built.content[0]?.text)).toContain('Its place follows the parameters it was given by.');
+    expect(sent[0]?.map((step) => step.command)).toEqual(['parameters.add', 'parameters.delete']);
+    const holes = sent.flat().filter((step) => step.command === 'solid.hole').map((step) => step.params.position);
+    // The trial measures at the value; the hole that stays is built with the expression.
+    expect(holes.at(-1)).toEqual(['w/2', 10, 6]);
+    expect(await tools.callTool('partbuddy_block', { block: 'screwHole', body: 'Plate', point: ['nope', 10, 6] })).toMatchObject({ isError: true, content: [{ text: 'Not built: the place "nope" is no length over the design\'s parameters (unknown name nope)' }] });
   });
 });
 

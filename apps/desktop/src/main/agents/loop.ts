@@ -80,6 +80,7 @@ export function rolePrompt(ownLoop: boolean, research: boolean): string {
     JOINT_GUIDANCE,
     MECHANISM_GUIDANCE,
     BLOCK_GUIDANCE,
+    'Place holes and other features by expressions of the size they depend on ("w/2", "plate_height - 15"), so they follow when it changes.',
     STANDARD_GUIDANCE,
     questionGuidance(research),
     FLEX_GUIDANCE,
