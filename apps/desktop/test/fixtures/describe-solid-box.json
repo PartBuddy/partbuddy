@@ -1,0 +1,338 @@
+{
+  "id": "solid.box",
+  "input": {
+    "$defs": {
+      "LengthExpr": {
+        "anyOf": [
+          {
+            "exclusiveMaximum": 1000000000.0,
+            "exclusiveMinimum": -1000000000.0,
+            "type": "number"
+          },
+          {
+            "maxLength": 4096,
+            "minLength": 1,
+            "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028-\\u2029\\u202f\\u205f\\u3000]",
+            "type": "string"
+          }
+        ],
+        "description": "A length: a number in the design's length unit, or an expression such as \"w / 2\" or \"30 mm\"."
+      },
+      "Operation": {
+        "description": "How the feature combines with existing bodies: new, join, cut or intersect. The others are aliases. Matching ignores case, spaces, '_' and '-'.",
+        "enum": [
+          "new",
+          "join",
+          "cut",
+          "intersect",
+          "new_body",
+          "newbody",
+          "new_component",
+          "newcomponent",
+          "union",
+          "add",
+          "subtract",
+          "difference",
+          "intersection"
+        ],
+        "type": "string"
+      },
+      "PointExpr3": {
+        "anyOf": [
+          {
+            "items": {
+              "$ref": "#/$defs/LengthExpr"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          {
+            "properties": {
+              "x": {
+                "$ref": "#/$defs/LengthExpr"
+              },
+              "y": {
+                "$ref": "#/$defs/LengthExpr"
+              },
+              "z": {
+                "$ref": "#/$defs/LengthExpr"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "A point: [x, y, z] or {\"x\", \"y\", \"z\"}, each a number in mm or a length expression."
+      },
+      "StringList": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10000,
+            "type": "array"
+          }
+        ],
+        "description": "A name, or a list of names."
+      },
+      "Touching": {
+        "description": "What a join makes of pieces that share no face: separate (the default) makes each piece that touches another only along an edge or at a point a body of its own and keeps pieces that touch nothing in one body; one_body keeps every piece in one body.",
+        "enum": [
+          "separate",
+          "one_body"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Add a box primitive.",
+    "properties": {
+      "body_name": {
+        "default": null,
+        "description": "The new body's name.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "body_names": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/StringList"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Names for the new bodies, in order."
+      },
+      "center": {
+        "$ref": "#/$defs/PointExpr3",
+        "description": "The box's centre, instead of `corner`. The box stays centred there when its length, width\nor height changes later."
+      },
+      "corner": {
+        "$ref": "#/$defs/PointExpr3",
+        "description": "The box's minimum corner. Default: the origin. When both `corner` and `center` are given,\n`corner` is used."
+      },
+      "height": {
+        "$ref": "#/$defs/LengthExpr",
+        "description": "Size along Z."
+      },
+      "length": {
+        "$ref": "#/$defs/LengthExpr",
+        "description": "Size along X."
+      },
+      "name": {
+        "default": null,
+        "description": "The feature's name in the timeline.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "operation": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Operation"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "How the box combines with existing bodies. Default: new."
+      },
+      "participants": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/StringList"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The bodies a join, cut or intersect works on, in place of `targets`."
+      },
+      "targets": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/StringList"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The bodies a join, cut or intersect works on. Default: every body in the active\ncomponent (an intersect removes those the box doesn't meet). Ignored when\n`participants` lists bodies."
+      },
+      "touching": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Touching"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What a join makes of pieces that share no face. Default: separate."
+      },
+      "width": {
+        "$ref": "#/$defs/LengthExpr",
+        "description": "Size along Y."
+      }
+    },
+    "required": [
+      "length",
+      "width",
+      "height"
+    ],
+    "title": "BoxParams",
+    "type": "object"
+  },
+  "label": "Box",
+  "output": {
+    "$defs": {
+      "FeatureNotice": {
+        "description": "Something a feature's result tells the user without stopping them, with an action to take.",
+        "properties": {
+          "action": {
+            "$ref": "#/$defs/NoticeAction",
+            "description": "The command that changes the feature as the notice offers."
+          },
+          "contact": {
+            "description": "How the bodies split off touched the others: `along_edge`, `at_point` or `touching` (along\na line or at a point their boundaries don't hold).",
+            "type": "string"
+          },
+          "message": {
+            "description": "The text to show.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "contact",
+          "action"
+        ],
+        "type": "object"
+      },
+      "NoticeAction": {
+        "description": "A command a notice offers to run.",
+        "properties": {
+          "command": {
+            "description": "The command's id.",
+            "type": "string"
+          },
+          "label": {
+            "description": "The action's label.",
+            "type": "string"
+          },
+          "params": {
+            "description": "Its parameters."
+          }
+        },
+        "required": [
+          "label",
+          "command",
+          "params"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "What a feature command returns.",
+    "properties": {
+      "bodies": {
+        "description": "Every body after the feature.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "changed_bodies": {
+        "description": "Bodies that were there before and now have other geometry.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "created_bodies": {
+        "description": "The bodies the feature made.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "feature": {
+        "description": "The new feature's id.",
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "ms": {
+        "description": "How long the feature took to evaluate, in milliseconds.",
+        "format": "double",
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "name": {
+        "description": "The new feature's name.",
+        "type": "string"
+      },
+      "notice": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/FeatureNotice"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "A join that split pieces into bodies of their own because they touch the others only along\nan edge or at a point (its `touching: separate`): what to tell the user, and the edit that\nmakes them one body instead. Left out otherwise, also when the join kept pieces that touch\nnothing in one body."
+      },
+      "param_warnings": {
+        "description": "In the warn parameter-check mode: what the call's parameters got wrong.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "removed_bodies": {
+        "description": "Bodies that are gone.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "warning": {
+        "description": "A warning from the evaluation (a Boolean that needed a retry, a reference found again\nelsewhere), or `null`.",
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "feature",
+      "name",
+      "bodies",
+      "created_bodies",
+      "changed_bodies",
+      "removed_bodies",
+      "warning",
+      "ms"
+    ],
+    "title": "FeatureResult",
+    "type": "object"
+  },
+  "params": "length, width, height: expr; corner?: [x,y,z] | center?: [x,y,z] (numbers in mm or length expressions; default: the origin; a box placed by its center stays centred there when its size changes); operation?, touching?, targets?: [body], name?, body_name?"
+}

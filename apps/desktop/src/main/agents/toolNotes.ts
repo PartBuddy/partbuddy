@@ -81,6 +81,47 @@ export function withSkillNote(name: string, result: ToolResult): ToolResult {
   return { ...result, content: [...result.content, { type: 'text', text: SKILL_NOTE }] };
 }
 
+/**
+ * `describe_command` without its JSON schemas (issue #446): SolidCraft answers the whole input schema with its `$defs`
+ * and the output schema, about 10,000 characters for solid.box, which then stays in the conversation. The model needs
+ * the one-line `params` signature, the command's description and one line per parameter, with the values an enum takes.
+ * Anything that is not such an answer goes through unchanged.
+ */
+export function compactDescription(name: string, result: ToolResult): ToolResult {
+  if (name !== 'describe_command' || result.isError === true || result.content.length !== 1) return result;
+  const part = result.content[0];
+  if (part?.type !== 'text' || typeof part.text !== 'string') return result;
+  let described: { id?: unknown; label?: unknown; params?: unknown; input?: { description?: unknown; properties?: Record<string, { description?: unknown; enum?: unknown; $ref?: unknown; anyOf?: unknown }>; required?: unknown; $defs?: Record<string, { enum?: unknown }> } };
+  try {
+    described = JSON.parse(part.text) as typeof described;
+  } catch {
+    return result;
+  }
+  const { id, label, params, input } = described;
+  if (typeof id !== 'string' || typeof params !== 'string' || !input?.properties) return result;
+  const required = new Set(Array.isArray(input.required) ? (input.required as unknown[]) : []);
+  // An enum given directly, through a $ref, or through an anyOf with null.
+  const enumOf = (property: { enum?: unknown; $ref?: unknown; anyOf?: unknown }): unknown[] | null => {
+    if (Array.isArray(property.enum)) return property.enum as unknown[];
+    const refs = [property.$ref, ...(Array.isArray(property.anyOf) ? (property.anyOf as { $ref?: unknown }[]).map((entry) => entry.$ref) : [])];
+    for (const ref of refs) {
+      const values = typeof ref === 'string' ? input.$defs?.[ref.replace('#/$defs/', '')]?.enum : undefined;
+      if (Array.isArray(values)) return values as unknown[];
+    }
+    return null;
+  };
+  const lines = [
+    `${id}${typeof label === 'string' ? ` (${label})` : ''}: ${typeof input.description === 'string' ? input.description : ''}`,
+    `params: ${params}`,
+    ...Object.entries(input.properties).map(([key, property]) => {
+      const values = enumOf(property);
+      const text = typeof property.description === 'string' ? property.description.replace(/\s+/g, ' ') : '';
+      return `- ${key}${required.has(key) ? '' : '?'}: ${text}${values ? ` One of: ${values.join(', ')}.` : ''}`;
+    }),
+  ];
+  return { ...result, content: [{ type: 'text', text: lines.join('\n') }] };
+}
+
 /** SolidCraft's server instructions, followed by PartBuddy's notes. */
 export function withToolNotes(instructions: string | undefined): string {
   return instructions ? `${instructions}\n\n${TOOL_NOTES}` : TOOL_NOTES;
