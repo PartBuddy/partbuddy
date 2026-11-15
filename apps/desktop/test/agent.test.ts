@@ -493,6 +493,21 @@ describe('agent service with a fake Claude Code', { timeout: 20_000 }, () => {
     await expect(service.chooseModel({ model: 'gpt-9', effort: null }, false)).rejects.toThrow(/not offered/);
   });
 
+  it('plans with Opus and builds with Sonnet in one session, unless the chat is pinned (issue 446)', async () => {
+    const { service, events } = setup();
+    await service.refresh();
+    expect(service.status()).toMatchObject({ phase: 'plan', model: 'opus', phases: { build: { model: 'sonnet' }, review: { model: 'haiku' } } });
+    await service.send('Which model?', [], null, [], 'sketch', 'plan');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(1), { timeout: 15_000 });
+    await service.send('Which model now?', [], null, [], 'sketch', 'build');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 15_000 });
+    expect(events.filter((e) => e.type === 'text').map((e) => (e as { text: string }).text)).toEqual(['model opus effort medium', 'model sonnet effort medium']);
+    await service.chooseModel({ model: 'opus', effort: 'high' }, false);
+    expect(service.status()).toMatchObject({ pinned: true, phases: { build: { model: 'opus', effort: 'high' } } });
+    await service.automatic();
+    expect(service.status().pinned).toBeUndefined();
+  });
+
   it('asks the user to sign in when Claude Code is signed out', async () => {
     const { service } = setup({ FAKE_CLAUDE_SIGNED_OUT: '1' });
     expect((await service.refresh()).state).toBe('signedOut');

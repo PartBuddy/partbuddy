@@ -281,6 +281,15 @@ export class LocalAgent implements AgentBackend {
     return Promise.resolve();
   }
 
+  /** A local model runs every step itself: one server, no plan limits to spare (issue #446). */
+  phaseModel(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  automatic(): Promise<void> {
+    return Promise.resolve();
+  }
+
   async send(text: string, selections: Selection[] = [], note: string | null = null, images: readonly Uint8Array[] = [], kind: PictureKind = 'sketch'): Promise<void> {
     if (this.status().state !== 'ready') throw new Error(`assistant is ${this.status().state}`);
     const model = this.runnable().find((entry) => entry.option.id === this.choice?.model);

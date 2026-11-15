@@ -55,6 +55,7 @@ import type {
   StoredChatItem,
   MirrorRevision,
   ModelChoice,
+  Phase,
   NotesState,
   PartPrint,
   PrintCheckReport,
@@ -333,6 +334,10 @@ export interface PartBuddyApi {
     allowApiBilling(allow: boolean): Promise<AssistantState>;
     /** The model and effort of the selected route, from now on; with `asDefault` also for new chats (B1). */
     chooseModel(choice: ModelChoice, asDefault: boolean): Promise<AssistantState>;
+    /** The model of one step for new chats (issue #446); null: PartBuddy's standard. */
+    phaseModel(phase: Phase, choice: ModelChoice | null): Promise<AssistantState>;
+    /** Ends the pin of this chat: each step takes its own model again. */
+    automatic(): Promise<AssistantState>;
     /** Whether the assistant may search the web and read pages (B7); applies from the next conversation. */
     research(): Promise<boolean>;
     setResearch(allow: boolean): Promise<boolean>;

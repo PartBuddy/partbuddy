@@ -687,7 +687,7 @@ if (!app.requestSingleInstanceLock()) {
       },
     };
     const claude = new AgentService(
-      { env: process.env, home: homedir(), workDir: join(app.getPath('userData'), 'agent'), apiBilling, log, tools, choices: assistantSettings, research: () => assistantSettings.webResearch(), review },
+      { env: process.env, home: homedir(), workDir: join(app.getPath('userData'), 'agent'), apiBilling, log, tools, choices: assistantSettings, phases: assistantSettings, research: () => assistantSettings.webResearch(), review },
       { status: changed, event: emitEvent },
     );
     // ChatGPT tokens live only in the Windows credential store (ADR 0011, ADR 0015).
@@ -702,7 +702,7 @@ if (!app.requestSingleInstanceLock()) {
       log,
     });
     account.load();
-    const chatgpt = new ChatGptAgent({ account, tools, event: emitEvent, changed, log, choices: assistantSettings, research: () => assistantSettings.webResearch(), review });
+    const chatgpt = new ChatGptAgent({ account, tools, event: emitEvent, changed, log, choices: assistantSettings, phases: assistantSettings, research: () => assistantSettings.webResearch(), review });
     // Local models (F8): Ollama and Strata on this machine; PARTBUDDY_OLLAMA_URL and PARTBUDDY_STRATA_URL point tests elsewhere.
     const local = new LocalAgent({
       tools,
@@ -726,6 +726,8 @@ if (!app.requestSingleInstanceLock()) {
       return agent.select(kind);
     });
     bridge.handle(invokeChannels.agentChooseModel, ({ choice, asDefault }) => agent.chooseModel(choice, asDefault));
+    bridge.handle(invokeChannels.agentPhaseModel, ({ phase, choice }) => agent.phaseModel(phase, choice));
+    bridge.handle(invokeChannels.agentAutomatic, () => agent.automatic());
     bridge.handle(invokeChannels.agentAllowApiBilling, async ({ allow }) => {
       await claude.allowApiBilling(allow);
       return agent.state();
@@ -813,7 +815,9 @@ if (!app.requestSingleInstanceLock()) {
         drawingLine,
       ].filter((line): line is string => line !== null);
       try {
-        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, photos ?? (drawing ? [drawing.png] : sketch ? [sketch] : []), photos ? 'photo' : drawing ? 'drawing' : 'sketch');
+        // Asking and planning a new part, before its plan got Go, runs as the plan step; everything else builds (issue #446).
+        const phase = questions.planning && (supervisor.currentRevision()?.structure.bodies.length ?? 0) === 0 ? 'plan' : 'build';
+        await agent.send(text, selections, lines.length > 0 ? lines.join('\n') : null, photos ?? (drawing ? [drawing.png] : sketch ? [sketch] : []), photos ? 'photo' : drawing ? 'drawing' : 'sketch', phase);
       } catch (error) {
         profileNote.forget();
         checkNote.forget();

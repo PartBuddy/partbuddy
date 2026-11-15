@@ -271,6 +271,8 @@ describe('assistant routes', () => {
         return Promise.resolve();
       },
       chooseModel: () => Promise.resolve(),
+      phaseModel: () => Promise.resolve(),
+      automatic: () => Promise.resolve(),
       newConversation: () => Promise.resolve(),
       freshConversation: () => false,
       signIn: () => calls.push('signIn'),

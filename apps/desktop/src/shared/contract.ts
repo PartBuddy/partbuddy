@@ -509,6 +509,13 @@ export const modelOptionSchema = z
   .strict();
 /** The model and effort a route works with; `effort` null is the model's own default. */
 export const modelChoiceSchema = z.object({ model: z.string().min(1).max(80), effort: effortName.nullable() }).strict();
+/**
+ * The steps of the assistant's work that each get their own model (issue #446, Manuel 2026-11-15): questions and the plan
+ * before a new part, building and changing, and the review round.
+ */
+export const phaseSchema = z.enum(['plan', 'build', 'review']);
+/** A model per step; a missing step takes PartBuddy's standard for the route. */
+export const phaseChoicesSchema = z.object({ plan: modelChoiceSchema.optional(), build: modelChoiceSchema.optional(), review: modelChoiceSchema.optional() }).strict();
 
 export const agentStatusSchema = z
   .object({
@@ -529,6 +536,13 @@ export const agentStatusSchema = z
     models: z.array(modelOptionSchema).max(30).optional(),
     /** The choice kept for new chats, when the user set one. */
     defaultChoice: modelChoiceSchema.optional(),
+    /** The step the last or running turn worked in, and the model each step runs with in this chat (issue #446). */
+    phase: phaseSchema.optional(),
+    phases: phaseChoicesSchema.optional(),
+    /** The user picked one model for this chat at the chip: every step runs with it until "Automatic". */
+    pinned: z.boolean().optional(),
+    /** The models per step the user set for new chats. */
+    phaseDefaults: phaseChoicesSchema.optional(),
     detail: z.string().max(500).optional(),
     /** Plan limits as the assistant last reported them: the share used (0 to 1) of each window and when it resets (Unix seconds). */
     usage: z
@@ -541,6 +555,8 @@ export const agentStatusSchema = z
   .strict();
 /** `asDefault`: keep the choice for new chats too. */
 export const modelChoiceRequestSchema = z.object({ choice: modelChoiceSchema, asDefault: z.boolean() }).strict();
+/** The model of one step for new chats of the selected route; null: PartBuddy's standard again. */
+export const phaseModelRequestSchema = z.object({ phase: phaseSchema, choice: modelChoiceSchema.nullable() }).strict();
 
 /** One line of a work-log step (M2a): a message key and its values, shown in the user's language. */
 export const stepPhraseSchema = z
@@ -1323,6 +1339,8 @@ export const invokeContract = {
   [invokeChannels.agentSelect]: { request: agentSelectionSchema, response: assistantStateSchema },
   [invokeChannels.agentAllowApiBilling]: { request: apiBillingSchema, response: assistantStateSchema },
   [invokeChannels.agentChooseModel]: { request: modelChoiceRequestSchema, response: assistantStateSchema },
+  [invokeChannels.agentPhaseModel]: { request: phaseModelRequestSchema, response: assistantStateSchema },
+  [invokeChannels.agentAutomatic]: { request: none, response: assistantStateSchema },
   [invokeChannels.agentResearch]: { request: none, response: z.boolean() },
   [invokeChannels.agentSetResearch]: { request: researchRequestSchema, response: z.boolean() },
   [invokeChannels.agentSignOut]: { request: none, response: none },
@@ -1453,6 +1471,8 @@ export type AgentKind = z.infer<typeof agentKindSchema>;
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
 export type ModelOption = z.infer<typeof modelOptionSchema>;
 export type ModelChoice = z.infer<typeof modelChoiceSchema>;
+export type Phase = z.infer<typeof phaseSchema>;
+export type PhaseChoices = z.infer<typeof phaseChoicesSchema>;
 export type AssistantState = z.infer<typeof assistantStateSchema>;
 export type AgentEvent = z.infer<typeof agentEventSchema>;
 export type ResearchSource = z.infer<typeof researchSourceSchema>;

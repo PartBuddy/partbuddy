@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { agentKindSchema, languageSchema, modelChoiceSchema, startPageSchema, themeSchema, zoomSchema, type SettingsReset } from './contract';
+import { agentKindSchema, languageSchema, modelChoiceSchema, phaseChoicesSchema, startPageSchema, themeSchema, zoomSchema, type SettingsReset } from './contract';
 
 /**
  * Every stored setting of the installation with its type, default and validation, in one place.
@@ -37,6 +37,19 @@ export const settingsSchema = z.object({
       return models;
     })
     .catch({}),
+  /** The model per step of the assistant's work, per route, for new chats (issue #446); entries that do not fit are skipped. */
+  phaseModels: z
+    .record(z.string(), z.unknown())
+    .transform((stored) => {
+      const phases: Partial<Record<z.infer<typeof agentKindSchema>, z.infer<typeof phaseChoicesSchema>>> = {};
+      for (const [route, choices] of Object.entries(stored)) {
+        const kind = agentKindSchema.safeParse(route);
+        const parsed = phaseChoicesSchema.safeParse(choices);
+        if (kind.success && parsed.success) phases[kind.data] = parsed.data;
+      }
+      return phases;
+    })
+    .catch({}),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
@@ -45,7 +58,7 @@ export type SettingKey = keyof Settings;
 /** What "reset" puts back per section of the settings dialog; the first-start flag is never reset. */
 export const RESET_KEYS: Record<Exclude<SettingsReset, 'solidcraft' | 'print' | 'all'>, readonly SettingKey[]> = {
   general: ['language', 'theme', 'projectsFolder', 'zoom', 'startPage', 'checkUpdates'],
-  assistant: ['webResearch', 'claudeApiBilling', 'models'],
+  assistant: ['webResearch', 'claudeApiBilling', 'models', 'phaseModels'],
 };
 
 /**

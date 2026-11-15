@@ -63,6 +63,8 @@ const PARITY: Record<InvokeChannel, Parity> = {
   [invokeChannels.agentSelect]: { reason: ASSISTANT },
   [invokeChannels.agentAllowApiBilling]: { reason: ASSISTANT },
   [invokeChannels.agentChooseModel]: { reason: ASSISTANT },
+  [invokeChannels.agentPhaseModel]: { reason: ASSISTANT },
+  [invokeChannels.agentAutomatic]: { reason: ASSISTANT },
   [invokeChannels.agentResearch]: { reason: ASSISTANT },
   [invokeChannels.agentSetResearch]: { reason: ASSISTANT },
   // What the user looks at, reported for the assistant.
