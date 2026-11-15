@@ -16,10 +16,13 @@ test('box 446: hinge and closure follow the heights', async () => {
     const hinge = await audit.tool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Box', moving: 'Lid', name: 'Lid hinge' });
     const closure = await audit.tool('partbuddy_mechanism', { kind: 'closure', fixed: 'Box', moving: 'Lid', from: [1.8, 62.6, 20], to: [78.2, 119, 20], wall: 1.8, radius: 0.4, side: 'y+', name: 'Front snap closure' });
     const before = await summarize(audit, ['Box', 'Lid'], { profiles: ['pla04'] });
-    const changed = await audit.batch([
-      { command: 'parameters.change', params: { name: 'box_height', expression: '25 mm' } },
-      { command: 'parameters.change', params: { name: 'lid_height', expression: '25 mm' } },
-    ]);
+    // As the model changes them: through the tools, so PartBuddy runs the hinge through again.
+    const changed = await audit.tool('batch', {
+      commands: [
+        { command: 'parameters.change', params: { name: 'box_height', expression: '25 mm' } },
+        { command: 'parameters.change', params: { name: 'lid_height', expression: '25 mm' } },
+      ],
+    });
     const [clash, joints, measured] = await audit.batch([
       { command: 'inspect.interference', params: { bodies: ['Box', 'Lid'] } },
       { command: 'joint.list', params: {} },
@@ -33,6 +36,7 @@ test('box 446: hinge and closure follow the heights', async () => {
     expect(closure.isError).toBe(false);
     expect(hinge.text).toContain('It follows the parameters');
     expect(closure.text).toContain('It follows the parameters');
+    expect(changed.text).toContain('PartBuddy ran the hinges that follow the parameters through again');
     expect((clash as { count?: unknown }).count).toBe(0);
     // The joint's axis went up with the rims, from 20 to 25 mm.
     expect(frame?.[2]).toBeCloseTo(25, 3);

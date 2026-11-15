@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { builtHinges, expressionOf, givenFollow, hingeFollow, numericPlaces, pinFaces, placeExpressions, withMechanismTool, type Bounds, type Moves } from '../src/main/agents/mechanismTool';
+import { builtHinges, changesParameters, hingesAgain, expressionOf, givenFollow, hingeFollow, numericPlaces, pinFaces, placeExpressions, withMechanismTool, type Bounds, type Moves } from '../src/main/agents/mechanismTool';
 import { followed, followSteps, hingeSteps, type HingeSpec } from '../src/shared/mechanisms';
 
 type Step = { command: string; params: Record<string, unknown> };
@@ -144,5 +144,27 @@ describe('mechanisms that follow the parameters', () => {
     const refused = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Box', moving: 'Lid', from: [0, 'nope', 20], to: [40, 'nope', 20] });
     expect(refused.isError).toBe(true);
     expect(String(refused.content[0]?.text)).toContain('the place "nope" is no length over the design\'s parameters');
+  });
+
+  it('runs the hinges that follow the parameters through again after a change, and sets their limits', async () => {
+    expect(changesParameters('set_parameter', {})).toBe(true);
+    expect(changesParameters('batch', { commands: [{ command: 'parameters.change' }] })).toBe(true);
+    expect(changesParameters('execute', { command: 'solid.box' })).toBe(false);
+    const sent: Step[] = [];
+    const run = (commands: Step[]) => {
+      sent.push(...commands);
+      return Promise.resolve(
+        commands.map((step) => {
+          if (step.command === 'document.inspect') return { timeline: [{ id: 5, name: 'Hinge ●' }, { id: 9, name: 'Fixed ●' }] };
+          if (step.command === 'timeline.inspect') return { definition: { base: step.params.feature === 5 ? [0, '(w)', '(h)'] : [0, 1, 2] } };
+          if (step.command === 'joint.list') return { joints: [{ name: 'Hinge', type: 'revolute', values: [{ value: 0 }] }, { name: 'Fixed', type: 'revolute', values: [{ value: 0 }] }] };
+          if (step.command === 'joint.sweep') return { stopped_at: step.params.to === -180 ? -9.4 : 177.3 };
+          return {};
+        }),
+      );
+    };
+    expect(await hingesAgain(run)).toContain('"Hinge" now turns from -9° to 177°');
+    // The hinge built at numbers stays as it was.
+    expect(sent.filter((step) => step.command === 'joint.limits')).toEqual([{ command: 'joint.limits', params: { joint: 'Hinge', min: -9, max: 177 } }]);
   });
 });

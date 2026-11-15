@@ -691,6 +691,42 @@ async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3;
   return limits;
 }
 
+/** Whether a call changes the design's parameters. */
+export function changesParameters(name: string, args: Record<string, unknown>): boolean {
+  if (name === 'set_parameter') return true;
+  if (name === 'execute') return args.command === 'parameters.change';
+  return name === 'batch' && Array.isArray(args.commands) && (args.commands as { command?: unknown }[]).some((step) => step.command === 'parameters.change');
+}
+
+/**
+ * After the parameters changed, each hinge PartBuddy built that follows them (its pin's base by expressions) is run
+ * through its range again and its limits set where the bodies now meet (#446, real run of 2026-11-15: the taller halves
+ * met at -9.4° before the old limit of -11°, and the model swept, set and checked again: 9 more requests). What it did, said
+ * after the call's answer; empty when no hinge follows or one stands away from 0.
+ */
+export async function hingesAgain(run: Run): Promise<string> {
+  try {
+    const [design, joints] = await run([{ command: 'document.inspect', params: { timeline: 'summary' } }, { command: 'joint.list', params: {} }]);
+    const timeline = ((design as { timeline?: unknown } | undefined)?.timeline ?? []) as { id?: unknown; name?: unknown }[];
+    const pins = Array.isArray(timeline) ? timeline.filter((entry) => typeof entry.name === 'string' && entry.name.endsWith(' ●')) : [];
+    const read = pins.length > 0 ? ((await run(pins.map((pin) => ({ command: 'timeline.inspect', params: { feature: pin.id } })))) as ({ definition?: { base?: unknown } } | undefined)[]) : [];
+    const following = new Set(pins.filter((_, i) => { const base: unknown = read[i]?.definition?.base; return Array.isArray(base) && base.some((value) => typeof value === 'string'); }).map((pin) => String(pin.name).slice(0, -2)));
+    const list = ((joints as { joints?: unknown } | undefined)?.joints ?? []) as { name?: unknown; type?: unknown; values?: { value?: unknown }[] }[];
+    const hinges = list.filter((joint) => joint.type === 'revolute' && following.has(String(joint.name)) && (joint.values ?? []).every((value) => value.value === 0));
+    const said: string[] = [];
+    for (const hinge of hinges) {
+      const name = String(hinge.name);
+      const swept = await run([-180, 180].map((to) => ({ command: 'joint.sweep', params: { joint: name, from: 0, to } })));
+      const limits = [reach(swept[0], -180, 1), reach(swept[1], 180, 1)];
+      await run([{ command: 'joint.limits', params: { joint: name, min: limits[0], max: limits[1] } }]);
+      said.push(`"${name}" now turns from ${String(limits[0])}° to ${String(limits[1])}°`);
+    }
+    return said.length > 0 ? ` [PartBuddy ran the hinges that follow the parameters through again and set their limits where the bodies meet now: ${said.join(', ')}.]` : '';
+  } catch (cause) {
+    return ` [PartBuddy could not run the hinges through again after the change (${(cause as Error).message.slice(0, 160)}): check their limits.]`;
+  }
+}
+
 /** The name of the body that measures where the hinge line lies; it is never kept. */
 const PROBE = 'PartBuddy probe';
 
@@ -2156,7 +2192,21 @@ export function withMechanismTool(
     instructions: () => upstream.instructions(),
     listTools: async () => [...(await upstream.listTools()), mechanismTool],
     callTool: async (name, args, callId): Promise<ToolResult> => {
-      if (name !== MECHANISM_TOOL) return upstream.callTool(name, args, callId);
+      if (name !== MECHANISM_TOOL) {
+        const result = await upstream.callTool(name, args, callId);
+        if (result.isError || !changesParameters(name, args)) return result;
+        const again = await hingesAgain(async (commands) => {
+          const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[]; failed?: { command?: unknown; error?: unknown } };
+          if (reply.failed) throw new Error(refusal(JSON.stringify(reply)));
+          return reply.results ?? [];
+        });
+        if (!again) return result;
+        const parts = [...result.content];
+        const last = parts.findLastIndex((part) => part.type === 'text');
+        if (last >= 0) parts[last] = { ...parts[last], text: `${String((parts[last] as { text?: unknown }).text)}${again}` } as (typeof parts)[number];
+        else parts.push({ type: 'text', text: again.trim() });
+        return { ...result, content: parts };
+      }
       try {
         return { content: [{ type: 'text', text: await buildMechanism(upstream, args, { nozzle: nozzle(), layer: layer(), material: material() }, callId, keepFace, overhang(), log) }] };
       } catch (cause) {
