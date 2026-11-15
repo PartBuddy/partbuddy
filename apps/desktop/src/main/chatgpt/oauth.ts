@@ -6,6 +6,8 @@ import { dirname } from 'node:path';
 
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 
+import logo from '../../../../../assets/brand/svg/logo.svg?raw';
+
 /**
  * Sign in with ChatGPT for open-source apps (ADR 0015; OpenAI "Registration and sign-in"):
  * OIDC with PKCE on a 127.0.0.1 loopback callback, dynamic client registration on first sign-in,
@@ -82,8 +84,38 @@ interface TokenResponse {
   error?: unknown;
 }
 
-const PAGE = (title: string) =>
-  `<!doctype html><meta charset="utf-8"><title>PartBuddy</title><body style="font-family:system-ui,sans-serif;padding:3rem"><p>${title}</p></body>`;
+const PAGE_TEXT = {
+  en: {
+    signedIn: ['Signed in to PartBuddy', 'Your ChatGPT account is connected. You can close this window and return to PartBuddy.'],
+    declined: ['Sign-in cancelled', 'PartBuddy was not connected to ChatGPT. You can close this window and start the sign-in again in PartBuddy.'],
+  },
+  de: {
+    signedIn: ['Bei PartBuddy angemeldet', 'Dein ChatGPT-Konto ist verbunden. Du kannst dieses Fenster schließen und zu PartBuddy zurückkehren.'],
+    declined: ['Anmeldung abgebrochen', 'PartBuddy wurde nicht mit ChatGPT verbunden. Du kannst dieses Fenster schließen und die Anmeldung in PartBuddy neu starten.'],
+  },
+} as const;
+
+/** The page the browser shows after the callback; self-contained, it never echoes the query. */
+export function callbackPage(outcome: 'signedIn' | 'declined', acceptLanguage = ''): string {
+  const lang = /^\s*de\b/i.test(acceptLanguage) ? 'de' : 'en';
+  const [title, text] = PAGE_TEXT[lang][outcome];
+  const stripe = outcome === 'signedIn' ? 'var(--ok)' : 'var(--warn)';
+  // Colours from packages/design-tokens; dark mode turns logo.svg into logo-inverse.svg, which
+  // differs from it only in these two fills.
+  return `<!doctype html><html lang="${lang}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title} · PartBuddy</title>
+<style>
+:root{--canvas:#f3f4f6;--surface:#fff;--border:#d5d9df;--text:#1b1f24;--muted:#545c66;--ok:#1d7a46;--warn:#8a5a00;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--canvas:#15181c;--surface:#1c2025;--border:#2f353d;--text:#e7eaee;--muted:#a9b0b9;--ok:#4cc283;--warn:#e3a33a}
+.logo path[fill="#1b1f24"]{fill:#fff}.logo path[fill="#1f5fd1"]{fill:#2f6ad6}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:var(--canvas);color:var(--text);font-family:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;line-height:1.5}
+main{width:100%;max-width:440px;background:var(--surface);border:1px solid var(--border);border-top:4px solid ${stripe};border-radius:12px;padding:32px;box-shadow:0 8px 24px rgb(0 0 0/.06)}
+.logo svg{display:block;height:32px;width:auto}
+h1{margin:28px 0 8px;font-family:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,sans-serif;font-size:22px;font-weight:600}
+p{margin:0;color:var(--muted);font-size:15px}
+</style>
+<main><div class="logo" aria-hidden="true">${logo}</div><h1>${title}</h1><p>${text}</p></main></html>`;
+}
 
 export async function signIn(options: SignInOptions): Promise<Credentials> {
   const doFetch = options.fetch ?? fetch;
@@ -105,7 +137,7 @@ export async function signIn(options: SignInOptions): Promise<Credentials> {
     }
     const declined = url.searchParams.has('error');
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    response.end(PAGE(declined ? 'Sign-in was cancelled. You can close this window.' : 'Signed in to PartBuddy. You can close this window.'));
+    response.end(callbackPage(declined ? 'declined' : 'signedIn', request.headers['accept-language']));
     finish(url.searchParams);
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

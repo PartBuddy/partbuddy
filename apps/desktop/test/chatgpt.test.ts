@@ -6,7 +6,7 @@ import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ChatGptAccount, type ChatGptStatus } from '../src/main/chatgpt/account';
-import { hostId, ISSUER, signIn, SignInError, type Credentials } from '../src/main/chatgpt/oauth';
+import { callbackPage, hostId, ISSUER, signIn, SignInError, type Credentials } from '../src/main/chatgpt/oauth';
 import { memoryBackend, SecretStore } from '../src/main/credentials/secretStore';
 
 const cleanups: (() => void)[] = [];
@@ -68,12 +68,13 @@ async function fakeOpenAI(options: { subject?: string; scope?: string; decline?:
       callback.searchParams.set('code', 'code-1');
       if (authorize.searchParams.get('client_id') === 'dynamic_agent_client') callback.searchParams.set('client_id', 'oaiapp_test');
     }
-    setTimeout(() => void fetch(callback), 10);
+    setTimeout(() => void fetch(callback, { headers: { 'Accept-Language': 'de-AT,de;q=0.9,en;q=0.8' } }).then(async (r) => pages.push(await r.text())), 10);
     lastAuthorize = authorize;
     return Promise.resolve();
   };
   let lastAuthorize: URL | null = null;
-  return { fakeFetch, jwks, openBrowser, requests, options, authorize: () => lastAuthorize };
+  const pages: string[] = [];
+  return { fakeFetch, jwks, openBrowser, requests, options, pages, authorize: () => lastAuthorize };
 }
 
 describe('secret store', () => {
@@ -118,6 +119,19 @@ describe('Sign in with ChatGPT', () => {
     expect(exchange).toMatchObject({ grant_type: 'authorization_code', client_id: 'oaiapp_test', code: 'code-1', resource: 'https://api.openai.com/v1' });
     expect(exchange?.code_verifier).toMatch(/^[\w-]{43}$/);
     expect(credentials).toMatchObject({ clientId: 'oaiapp_test', subject: 'user-1', accessToken: 'access-1', refreshToken: 'refresh-1' });
+    // The browser gets a branded page in its language that never repeats the code or state.
+    const page = openai.pages[0] ?? '';
+    expect(page).toContain('aria-label="PartBuddy"');
+    expect(page).toContain('Bei PartBuddy angemeldet');
+    expect(page).not.toContain('code-1');
+    expect(page).not.toContain(authorize?.searchParams.get('state') ?? 'state');
+  });
+
+  it('words the callback page by outcome and browser language', () => {
+    expect(callbackPage('signedIn')).toContain('Signed in to PartBuddy');
+    expect(callbackPage('declined', 'en-US,en;q=0.9')).toContain('Sign-in cancelled');
+    expect(callbackPage('declined', 'de')).toContain('Anmeldung abgebrochen');
+    expect(callbackPage('signedIn', 'fr-FR,de;q=0.8')).toContain('lang="en"');
   });
 
   it('reports a declined consent without exchanging a code', async () => {
