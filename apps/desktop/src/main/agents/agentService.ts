@@ -8,6 +8,7 @@ import { userEvent, type AgentBackend, type PictureKind } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
 import { allowedChoice, choiceStatus, CLAUDE_PHASES, CLAUDE_STANDARD, phaseChoices, phaseStatus, withoutChoice, type ChoiceStore, type PhaseStore } from './modelChoice';
 import { tokensLine } from './loop';
+import { withToolNotes } from './toolNotes';
 import type { TurnReview } from './review';
 import { composeMessage } from './viewContext';
 
@@ -285,7 +286,7 @@ export class AgentService implements AgentBackend {
     this.compacted = false;
     // The session starts with the model of the step at hand; `use` switches it for later steps.
     this.sessionChoice = this.steps()?.[this.phase] ?? this.choice;
-    const session = new ClaudeSession({ claude: this.claude, env: this.options.env, cwd: this.options.workDir, mcpConfigPath: configPath, choice: this.sessionChoice, research: this.options.research?.() ?? false });
+    const session = new ClaudeSession({ claude: this.claude, env: this.options.env, cwd: this.options.workDir, mcpConfigPath: configPath, choice: this.sessionChoice, research: this.options.research?.() ?? false, instructions: withToolNotes(tools.instructions()) });
     session.onEvent((event) => {
       switch (event.type) {
         case 'textDelta':

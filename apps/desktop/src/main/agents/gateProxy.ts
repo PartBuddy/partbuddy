@@ -7,7 +7,7 @@ import { Server, WebStandardStreamableHTTPServerTransport } from '@modelcontextp
 
 import { REPEAT_LIMIT } from './loop';
 import { decide, decideParameterNames, inputProblem, offeredTool, type ToolDecision } from './policy';
-import { compactDescription, compactJson, withSkillNote, withToolNotes } from './toolNotes';
+import { compactDescription, compactJson, withSkillNote } from './toolNotes';
 
 /** A tool as the upstream MCP server lists it, passed through unchanged. */
 export interface UpstreamTool {
@@ -53,6 +53,9 @@ export const REPEAT_REASON = `PartBuddy refused this call: it is the same call w
  * hold whatever the model decides. Each start gets a random bearer token; requests without it, or
  * for another host, are refused.
  */
+/** The MCP instructions of the gate proxy: the whole text is in Claude Code's system prompt. */
+export const SERVER_POINTER = "PartBuddy's tools for SolidCraft. How to use them, PartBuddy's rules and the command signatures are in your system prompt.";
+
 export class GateProxy {
   private http: HttpServer | null = null;
   readonly token = randomBytes(32).toString('hex');
@@ -154,7 +157,10 @@ export class GateProxy {
     // eslint-disable-next-line @typescript-eslint/no-deprecated
     const server = new Server(
       { name: 'partbuddy', version: '0.1.0' },
-      { capabilities: { tools: {} }, instructions: withToolNotes(this.upstream.instructions()) },
+      // Claude Code cuts a server's instructions short (seen 2026-11-15 with 2.1.299: a word after about 8,000 characters
+      // never reached the model), which left out PartBuddy's notes and the signatures behind SolidCraft's 9,000 characters.
+      // They go into the system prompt instead (claudeCode.ts `roleOf`); the server only points there.
+      { capabilities: { tools: {} }, instructions: SERVER_POINTER },
     );
     server.setRequestHandler('tools/list', async () => ({ tools: [...(await this.listTools()).values()] }));
     server.setRequestHandler('tools/call', async (request) => {
