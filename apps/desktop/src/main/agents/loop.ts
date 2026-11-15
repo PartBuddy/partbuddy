@@ -194,6 +194,11 @@ export function turnTokens(steps: readonly { usage: LanguageModelUsage }[]): Tur
   return sum;
 }
 
+/** What each round of a turn called, for the log (issue #446): `measure | batch+execute | text`. */
+export function roundsLine(route: string, steps: readonly { toolCalls: readonly { toolName: string }[] }[]): string {
+  return `${route} turn rounds: ${steps.map((step) => step.toolCalls.map((call) => call.toolName).join('+') || 'text').join(' | ')}`;
+}
+
 /** The log line of a turn's tokens, the same on every route so runs can be compared. */
 export function tokensLine(route: string, tokens: TurnTokens): string {
   return `${route} turn tokens: ${String(tokens.requests)} requests, input ${String(tokens.input)} (cached ${String(tokens.cached)}), output ${String(tokens.output)} (reasoning ${String(tokens.reasoning)})`;
