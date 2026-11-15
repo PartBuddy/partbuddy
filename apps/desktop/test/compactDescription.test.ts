@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { compactDescription } from '../src/main/agents/toolNotes';
+import { compactDescription, compactJson } from '../src/main/agents/toolNotes';
 
 // SolidCraft 0.42.0's real answer to describe_command {id: "solid.box"}.
 const box = readFileSync(join(__dirname, 'fixtures', 'describe-solid-box.json'), 'utf8');
@@ -28,3 +28,14 @@ describe('describe_command without its schemas (issue 446)', () => {
     expect(compactDescription('list_commands', result)).toBe(result);
   });
 });
+
+describe('JSON answers without indentation (issue 446)', () => {
+  it('compacts a JSON answer and leaves text and broken JSON as they are', () => {
+    const text = (result: ReturnType<typeof compactJson>) => result.content.map((part) => (typeof part.text === 'string' ? part.text : '')).join('|');
+    const answer = { content: [{ type: 'text', text: '{\n  "a": [\n    1,\n    2\n  ]\n}' }, { type: 'text', text: 'note:\n  stays' }] };
+    expect(text(compactJson(answer))).toBe('{"a":[1,2]}|note:\n  stays');
+    const broken = { content: [{ type: 'text', text: '{\n  "a": ' }] };
+    expect(compactJson(broken)).toBe(broken);
+  });
+});
+
