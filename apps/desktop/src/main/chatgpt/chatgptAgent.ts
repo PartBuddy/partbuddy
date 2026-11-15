@@ -7,7 +7,7 @@ import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } fro
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { contextAfter, instructionsFor, tokensLine, turnTokens, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
+import { contextAfter, instructionsFor, tokensLine, turnTokens, withEarlierResultsCleared, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
 import { sourceOfUrl } from '../agents/research';
 import type { TurnReview } from '../agents/review';
 import { composeMessage } from '../agents/viewContext';
@@ -189,6 +189,7 @@ export class ChatGptAgent implements AgentBackend {
     const message = composeMessage(text, selections, withRoundsNote(this.cutShort, note));
     this.cutShort = false;
     this.options.event(userEvent(text, message.label, message.summary, images.length > 0 ? kind : undefined));
+    this.history = withEarlierResultsCleared(this.history);
     this.history.push(
       images.length > 0
         ? { role: 'user', content: [{ type: 'text', text: message.prompt }, ...images.map((image) => ({ type: 'image' as const, image, mediaType: 'image/png' }))] }

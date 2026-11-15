@@ -5,7 +5,7 @@ import { createOllama } from 'ollama-ai-provider-v2';
 import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { contextAfter, instructionsFor, tokensLine, turnTokens, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
+import { contextAfter, instructionsFor, tokensLine, turnTokens, withEarlierResultsCleared, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import type { TurnReview } from '../agents/review';
 import { SKETCH_LIST } from '../agents/sketchNote';
@@ -382,6 +382,7 @@ export class LocalAgent implements AgentBackend {
         }
         this.tested.add(model.option.id);
       }
+      this.history = withEarlierResultsCleared(this.history);
       this.history.push(turn);
       const tools = await policyToolSet(upstream, {
         nextId: () => `local-${String((this.sequence += 1))}`,
