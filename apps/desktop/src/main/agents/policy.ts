@@ -569,13 +569,18 @@ export async function decideParameterNames(callTool: UpstreamTools['callTool'], 
  * come from the print profile, into the feature or a formula. Only the name counts, split at _, - and camel case, and
  * only a whole segment: "lid_gap", "fitClearance", "Spiel" match, "kartenspiel", "abluft", "einpassung", "gapless" and
  * "fitting" do not. Group and label stay free ("[Brettspiel] Tiefe", "Gap width" of a vent slot).
- * shortcut: a run-together lower-case name ("lidgap") is not split and passes; list it with the compounds if the assistant writes such names.
+ * A run-together name counts by its ending ({@link CLEARANCE_ENDINGS}): "lidgap", "deckelspalt", "holeclearance".
+ * "offset" is no such word: text, plane and pattern offsets are sizes of the design.
  */
 const CLEARANCE_SEGMENTS = new Set([
-  'clearance', 'allowance', 'tolerance', 'play', 'spiel', 'passung', 'zugabe', 'toleranz', 'luft', 'gap', 'fit',
+  'clearance', 'allowance', 'tolerance', 'play', 'spiel', 'passung', 'zugabe', 'toleranz', 'luft', 'gap', 'fit', 'spalt',
   // German compounds that are a clearance or an allowance as a whole.
   'lochzugabe', 'steckpassung', 'presspassung', 'schiebepassung', 'axialspiel', 'radialspiel', 'restluft',
 ]);
+/** Endings that make a run-together segment a clearance; none ends a common word of other meaning ("kartenspiel", "abluft" and "einpassung" pass). */
+const CLEARANCE_ENDINGS = ['clearance', 'allowance', 'tolerance', 'toleranz', 'zugabe', 'gap', 'spalt'];
+const isClearanceSegment = (segment: string): boolean =>
+  CLEARANCE_SEGMENTS.has(segment) || CLEARANCE_ENDINGS.some((ending) => segment.endsWith(ending));
 const GROUPED_EXAMPLE = '"[Monitor] Ultrawide-Höhe"';
 const PRINT_EXAMPLE = `"[${PRINT_GROUP}] Bodenstärke [auto 5×layer]"`;
 
@@ -608,7 +613,7 @@ function decideNewParameters(command: string, params: Record<string, unknown>): 
       );
     }
     // Only the forms designFit.ts refits ("[auto 3×line]") keep a clearance a parameter.
-    if (fitMarkOf(comment ?? '') === null && segmentsOf(name).some((segment) => CLEARANCE_SEGMENTS.has(segment))) {
+    if (fitMarkOf(comment ?? '') === null && segmentsOf(name).some(isClearanceSegment)) {
       return refuse(
         `${JSON.stringify(name)} would be a clearance or allowance parameter, and those are never parameters of their own: the hole ` +
           'allowance and the clearances come from the print profile, and partbuddy_block and partbuddy_mechanism apply them themselves. ' +
