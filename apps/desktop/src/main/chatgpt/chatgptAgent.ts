@@ -98,6 +98,11 @@ export class ChatGptAgent implements AgentBackend {
    * from it instead of counted again in full.
    */
   private cacheKey = randomUUID();
+  /**
+   * The sticky-routing token of the running turn (`x-codex-turn-state`): the server sets it on the turn's first answer,
+   * and Codex sends it back with every further request of that turn, never in another turn (codex-rs/core/src/client.rs).
+   */
+  private turnState: string | null = null;
   private abort: AbortController | null = null;
   private busy = false;
   private sequence = 0;
@@ -209,6 +214,7 @@ export class ChatGptAgent implements AgentBackend {
   private async run(upstream: UpstreamTools, signal: AbortSignal): Promise<void> {
     const started = Date.now();
     let research = false;
+    this.turnState = null;
     try {
       const provider = createOpenAI({ apiKey: 'replaced-per-request', baseURL: RESOURCE, fetch: this.authorizedFetch() });
       research = (this.options.research?.() ?? false) && !this.webSearchRefused;
@@ -290,7 +296,13 @@ export class ChatGptAgent implements AgentBackend {
     return async (input, init) => {
       const headers = new Headers(init?.headers);
       headers.set('Authorization', `Bearer ${await this.options.account.accessToken()}`);
+      // "ChatGPT derives cache affinity from the Responses session-id header" (codex-rs/core/src/client.rs, issue #446):
+      // the same conversation reaches the same cache only with these, as Codex sends them.
+      headers.set('session-id', this.cacheKey);
+      headers.set('thread-id', this.cacheKey);
+      if (this.turnState) headers.set('x-codex-turn-state', this.turnState);
       const response = await base(input, { ...init, headers });
+      this.turnState ??= response.headers.get('x-codex-turn-state');
       const usage = usageFromHeaders(response.headers);
       if (usage.length > 0) {
         this.usage = usage;

@@ -22,12 +22,20 @@ const completed = (id: string) => ({
   response: { id, created_at: 1, model: 'gpt-test', service_tier: null, incomplete_details: null, usage: { input_tokens: 10, output_tokens: 5 } },
 });
 
+/** The sticky-routing token the Codex backend sets on a turn's first answer. */
+function withTurnState(response: Response): Response {
+  response.headers.set('x-codex-turn-state', 'turn-1');
+  return response;
+}
+
 /** OpenAI's Responses API as Sign in with ChatGPT serves it: a namespaced tool call, then the answer. */
 function fakeOpenAI(firstTool: string) {
   const bodies: Record<string, unknown>[] = [];
   const auth: string[] = [];
+  const routing: { session: string | null; turn: string | null }[] = [];
   const fetchFn = ((url: string | URL, init?: RequestInit): Promise<Response> => {
     auth.push(new Headers(init?.headers).get('Authorization') ?? '');
+    if (!String(url).endsWith('/models')) routing.push({ session: new Headers(init?.headers).get('session-id'), turn: new Headers(init?.headers).get('x-codex-turn-state') });
     if (String(url).endsWith('/models')) {
       return Promise.resolve(
         Response.json({
@@ -43,14 +51,14 @@ function fakeOpenAI(firstTool: string) {
     bodies.push(body);
     if (bodies.length === 1) {
       const item = { type: 'function_call', id: 'fc_1', call_id: 'call_1', name: firstTool, namespace: 'solidcraft', arguments: '' };
-      return Promise.resolve(sse([
+      return Promise.resolve(withTurnState(sse([
         ...created('resp_1'),
         { type: 'response.output_item.added', output_index: 0, item },
         { type: 'response.function_call_arguments.delta', item_id: 'fc_1', output_index: 0, delta: '{}' },
         { type: 'response.function_call_arguments.done', item_id: 'fc_1', output_index: 0, arguments: '{}' },
         { type: 'response.output_item.done', output_index: 0, item: { ...item, arguments: '{}', status: 'completed' } },
         completed('resp_1'),
-      ]));
+      ])));
     }
     const message = { type: 'message', id: 'msg_1', role: 'assistant', status: 'in_progress', content: [] };
     return Promise.resolve(sse([
@@ -66,7 +74,7 @@ function fakeOpenAI(firstTool: string) {
       completed('resp_2'),
     ]));
   }) as typeof fetch;
-  return { fetchFn, bodies, auth };
+  return { fetchFn, bodies, auth, routing };
 }
 
 /** `answer` stands in for OpenAI's answers to the turn's requests; the model list stays the fake's. */
@@ -167,6 +175,8 @@ describe('ChatGPT agent', () => {
     // One cache key for all requests of a conversation (issue #446), so OpenAI reads the sent prefix from its cache.
     expect(first.prompt_cache_key).toMatch(/^[0-9a-f-]{36}$/);
     expect(openai.bodies[1]?.prompt_cache_key).toBe(first.prompt_cache_key);
+    // The session-id header ChatGPT takes its cache affinity from, and the turn's routing token from its first answer on.
+    expect(openai.routing).toEqual([{ session: first.prompt_cache_key, turn: null }, { session: first.prompt_cache_key, turn: 'turn-1' }]);
     for (const field of ['temperature', 'max_output_tokens', 'previous_response_id', 'top_p']) expect(first).not.toHaveProperty(field);
     expect(JSON.stringify(first.input)).not.toContain('"role":"system"');
     expect(first.tools).toEqual([expect.objectContaining({ type: 'namespace', name: 'solidcraft' })]);
