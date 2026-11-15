@@ -1482,9 +1482,9 @@ test('model and effort are chosen at the chip and kept for new chats (B1)', asyn
     const menu = page.getByTestId('agent-menu');
     // Only what the plan offers: the aliases, without pinned older versions.
     await expect(menu.getByTestId('model-option')).toHaveText([/^Opus 9/, /^Sonnet 9/, /^Haiku 9/]);
-    // Automatic per step (issue #446): Opus plans, Sonnet builds, Haiku reviews, until a model pins the chat.
+    // Automatic per step (issue #446): Opus plans and builds, Haiku reviews, until a model pins the chat.
     await expect(menu.getByTestId('phase-plan')).toContainText('Opus 9 · Medium');
-    await expect(menu.getByTestId('phase-build')).toContainText('Sonnet 9 · Medium');
+    await expect(menu.getByTestId('phase-build')).toContainText('Opus 9 · Medium');
     await expect(menu.getByTestId('phase-review')).toContainText('Haiku 9 · Medium');
     await expect(menu.getByTestId('effort-option')).toHaveCount(0);
     await menu.getByTestId('model-option').filter({ hasText: 'Sonnet 9' }).click();

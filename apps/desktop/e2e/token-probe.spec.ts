@@ -118,6 +118,15 @@ test('token probe: a real Claude Code build and change', async () => {
       await expect(page.getByTestId('agent-pinned')).toBeVisible();
       await page.keyboard.press('Escape');
     }
+    // PROBE_BUILD=<entry>: the model of the build step, as its list names it ("Opus 5.5 · Low").
+    if (process.env.PROBE_BUILD) {
+      await page.getByTestId('agent-status').click();
+      await page.getByTestId('phase-build').getByRole('button').click();
+      await page.getByRole('option', { name: process.env.PROBE_BUILD, exact: true }).click();
+      await expect(page.getByTestId('phase-build')).toContainText(process.env.PROBE_BUILD);
+      await page.getByTestId('agent-menu').press('Escape');
+      await expect(page.getByTestId('agent-menu')).toBeHidden();
+    }
     const start = tokenLines().length;
     await send(page, BUILD);
     await waitForTurn(page);

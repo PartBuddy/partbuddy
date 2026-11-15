@@ -72,17 +72,18 @@ export interface PhaseStore {
 }
 
 /**
- * PartBuddy's standard per step for Claude Code (Manuel, 2026-11-15: plan strong, build medium, review small). The plan
- * runs with the route's own choice (CLAUDE_STANDARD, or the one the user kept for new chats).
+ * PartBuddy's standard per step for Claude Code: plan and build with the route's own choice (CLAUDE_STANDARD, or the one
+ * the user kept for new chats), review with the small model. Manuel, 2026-11-15, after one run each: building with
+ * Sonnet (−38 % tokens) or Opus at low effort (−18 %) came out visibly plainer, so the user picks a lighter build model.
  */
-export const CLAUDE_PHASES: PhaseChoices = { build: { model: 'sonnet', effort: 'medium' }, review: { model: 'haiku', effort: null } };
+export const CLAUDE_PHASES: PhaseChoices = { review: { model: 'haiku', effort: null } };
 
 /** A model the account lists as its small one: GPT's mini and nano, Codex's spark and luna, Claude's haiku. */
 const SMALL = /mini|nano|spark|luna|haiku/i;
 
 /**
  * The standard per step where the route names no models of its own (ChatGPT, whose list changes with the account):
- * build with the plan's model at low effort, review with the account's small model, or the plan's at its lowest effort.
+ * build as planned (as on Claude Code), review with the account's small model, or the plan's at its lowest effort.
  */
 export function listedPhases(options: readonly ModelOption[], plan: ModelChoice | null): PhaseChoices {
   if (!plan) return {};
@@ -90,7 +91,6 @@ export function listedPhases(options: readonly ModelOption[], plan: ModelChoice 
   const low = option?.efforts.includes('low') ? 'low' : (option?.efforts[0] ?? plan.effort);
   const small = options.find((item) => SMALL.test(item.id) || SMALL.test(item.name));
   return {
-    build: { model: plan.model, effort: low },
     review: small ? { model: small.id, effort: small.efforts.includes('low') ? 'low' : fallbackEffort(small) } : { model: plan.model, effort: low },
   };
 }
