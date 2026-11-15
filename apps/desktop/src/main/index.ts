@@ -803,7 +803,8 @@ if (!app.requestSingleInstanceLock()) {
       review.newTurn();
       const lines = [
         // Once after a restart: what the earlier conversation about this design was about.
-        chats?.takeDigest() ?? null,
+        // A fresh conversation (after a restart, another route, a compacted one) goes on from a summary of this chat (issue #446).
+        conversation.fresh ? (chats?.handover() ?? null) : (chats?.takeDigest() ?? null),
         // The printer and material (M7), once per conversation and again after a change.
         profileNote.take(conversation.route, conversation.fresh, printNote(printProfiles.part())),
         checkKnown ? null : checkLine,

@@ -48,6 +48,8 @@ export interface ChatArchiveOptions {
 export class ChatArchive {
   private pending: StoredChatItem[] | null = null;
   private digest: string | null = null;
+  /** The conversation as last loaded or saved, for the summary a fresh conversation starts with. */
+  private items: StoredChatItem[] = [];
 
   constructor(private readonly options: ChatArchiveOptions) {}
 
@@ -64,6 +66,7 @@ export class ChatArchive {
         return null;
       }
       this.digest = chatDigest(parsed.data.items);
+      this.items = parsed.data.items;
       return parsed.data;
     } catch (error) {
       this.options.log(`the saved conversation could not be read: ${(error as Error).message}`);
@@ -73,6 +76,7 @@ export class ChatArchive {
 
   save(items: StoredChatItem[]): void {
     this.pending = items;
+    this.items = items;
     this.flush();
   }
 
@@ -97,5 +101,15 @@ export class ChatArchive {
     const digest = this.digest;
     this.digest = null;
     return digest;
+  }
+
+  /**
+   * The summary for a message that starts a fresh conversation (issue #446): after a restart, but also after a switch to
+   * another route or a conversation Claude Code compacted, so the model goes on from what was said and built instead of
+   * asking and looking everything up again. Null without an earlier conversation.
+   */
+  handover(): string | null {
+    this.digest = null;
+    return chatDigest(this.items);
   }
 }
