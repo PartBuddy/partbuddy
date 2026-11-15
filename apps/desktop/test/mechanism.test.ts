@@ -1105,8 +1105,8 @@ describe('the snap closure of a lid (G3)', () => {
     expect(built.content[0]).toMatchObject({ text: expect.stringContaining("Built the closure \"Closure\" between Box (the box) and Lid (the lid): a lip 1.4 mm thick and 4 mm high inside the lid, 0.25 mm clear of the box's wall, a bead 1 mm high that snaps 0.25 mm into a rille") as string });
     // The trial of the box gave no answer here: the answer says what to keep instead.
     expect(built.content[0]).toMatchObject({ text: expect.stringContaining("PartBuddy could not try Box's wall: keep it straight where the lip goes in, and at least 1.35 mm thick behind the rille.") as string });
-    // The timeline read for a hinge in the lid (#446) comes first; with none, nothing more is asked.
-    expect(batches).toHaveLength(7);
+    // The timeline read for a hinge in the lid (#446) comes first; with none, nothing more is asked but the parameters the lid's box may follow.
+    expect(batches).toHaveLength(8);
     expect(batches[0]).toBe('document.inspect');
     // Audit R39: the notch goes through the lid's rim, so the guidance does not say that no wall is cut through.
     expect(MECHANISM_GUIDANCE).not.toContain('no wall cut through');

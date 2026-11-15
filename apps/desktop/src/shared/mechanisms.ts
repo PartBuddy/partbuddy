@@ -181,6 +181,75 @@ export function hingeSteps(spec: HingeSpec): Step[] {
   ];
 }
 
+/** Per world axis, the expression over the design's parameters a mechanism's place follows there and its value now (mm); unset where it stays. */
+export type Follow = readonly ({ expr: string; at: number } | undefined)[];
+
+/** A world coordinate `value` as an expression that moves with `follow` (it keeps its distance to `follow.at`), or the number. */
+export function followed(follow: Follow[number], value: number): number | string {
+  if (!follow) return value;
+  const off = Math.round((value - follow.at) * 1e6) / 1e6;
+  return off === 0 ? `(${follow.expr})` : `(${follow.expr}) ${off < 0 ? '-' : '+'} ${String(Math.abs(off))} mm`;
+}
+
+/** The principal sketch planes by their normal's axis, as SolidCraft 0.42.0 lays them (measured): the world axis and sign of the sketch's x and y; each normal points +. */
+const PLANES: Record<number, { plane: string; u: [number, number]; v: [number, number] }> = { 0: { plane: 'YZ', u: [1, 1], v: [2, 1] }, 1: { plane: 'XZ', u: [0, 1], v: [2, -1] }, 2: { plane: 'XY', u: [0, 1], v: [1, 1] } };
+
+/**
+ * The steps of a mechanism built at today's values, made to follow the parameters (#446: "Make the box 10 mm taller" left
+ * hinge and closure behind, and the model took them back and built them again). Bases of cylinders, cones and boxes take
+ * expressions; a sketch's own plane takes numbers only (SolidCraft 0.42.0), so a profile drawn on a plane square to an
+ * axis is drawn again on the principal plane there, at an offset, in world coordinates that are expressions where they
+ * follow; one drawn looking down the axis starts where its extrusion ended. `fixed` counts what could not be made to
+ * follow (a plane at a slant): then the caller keeps the steps as they were, as a mechanism half moved is broken.
+ */
+export function followSteps(steps: Step[], follow: Follow): { steps: Step[]; fixed: number } {
+  let fixed = 0;
+  // The sketch being drawn: from its local x, y to the principal plane's.
+  let drawn: ((point: [number, number]) => [number | string, number | string]) | null = null;
+  const point = (value: unknown) => (Array.isArray(value) ? (value as unknown[]).map((entry, i) => (typeof entry === 'number' ? followed(follow[i], entry) : entry)) : value);
+  const out = steps.map((step, n): Step => {
+    const { command, params } = step;
+    if (command === 'solid.cylinder' || command === 'solid.cone') return { command, params: { ...params, base: point(params.base) } };
+    if (command === 'solid.box') return { command, params: { ...params, corner: point(params.corner) } };
+    if (command === 'sketch.create') {
+      drawn = null;
+      const plane = params.plane as { origin?: unknown; x_dir?: unknown; y_dir?: unknown } | string;
+      if (typeof plane !== 'object') return step;
+      const [origin, x, y] = [plane.origin, plane.x_dir, plane.y_dir] as Vec3[];
+      const unit = (dir: Vec3 | undefined) => (dir && dir.filter((value) => Math.abs(value) > 1e-9).length === 1 && dir.some((value) => Math.abs(Math.abs(value) - 1) < 1e-9) ? dir : null);
+      const normal = x && y && unit(x) && unit(y) ? unit(cross(x, y)) : null;
+      const distance = Number.parseFloat(String(steps.slice(n + 1).find((later) => later.command === 'solid.extrude')?.params.distance));
+      if (!origin || !x || !y || !normal || !Number.isFinite(distance)) {
+        fixed += 1;
+        return step;
+      }
+      const axis = normal.findIndex((value) => Math.abs(value) > 0.5);
+      const principal = PLANES[axis];
+      if (!principal) {
+        fixed += 1;
+        return step;
+      }
+      const { plane: name, u, v } = principal;
+      // Looking down the axis the profile goes the other way: drawn where its extrusion ends, it runs up the axis as far.
+      const offset = (origin[axis] ?? 0) - ((normal[axis] ?? 0) < 0 ? distance : 0);
+      const flip = (value: number | string, sign: number) => (sign > 0 ? value : typeof value === 'number' ? -value + 0 : `-(${value})`);
+      drawn = ([a, b]) => {
+        const world = origin.map((value, i) => Math.round((value + a * (x[i] ?? 0) + b * (y[i] ?? 0)) * 1e6) / 1e6);
+        return [flip(followed(follow[u[0]], world[u[0]] ?? 0), u[1]), flip(followed(follow[v[0]], world[v[0]] ?? 0), v[1])];
+      };
+      const at = followed(follow[axis], Math.round(offset * 1e6) / 1e6);
+      return { command, params: { ...params, plane: name, offset: typeof at === 'number' ? `${String(at)} mm` : at } };
+    }
+    if (command.startsWith('sketch.') && drawn) {
+      const local = drawn;
+      const pair = (value: unknown) => (Array.isArray(value) && value.length === 2 && value.every((entry) => typeof entry === 'number') ? local(value as [number, number]) : value);
+      return { command, params: Object.fromEntries(Object.entries(params).map(([key, value]) => [key, key === 'points' && Array.isArray(value) ? value.map(pair) : pair(value)])) };
+    }
+    return step;
+  });
+  return { steps: out, fixed };
+}
+
 /** How far the pin of a lying hinge bridges inside a knuckle of the moving body, from one fixed knuckle to the next (mm). */
 export function pinBridge(spec: Pick<HingeSpec, 'from' | 'to' | 'gap' | 'knuckles'>): number {
   const length = Math.hypot(...spec.to.map((value, i) => value - (spec.from[i] ?? 0)));
