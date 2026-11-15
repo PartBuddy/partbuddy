@@ -102,6 +102,7 @@ test('token probe: a real Claude Code build and change', async () => {
   const launched = await launchApp({ isolated: false, work, env: measureEnv(work, '7952') });
   const { page } = launched;
   const phases: { phase: string; lines: string[] }[] = [];
+  const result: Record<string, unknown> = {};
   const log = join(work, 'partbuddy.log');
   const tokenLines = () => (existsSync(log) ? readFileSync(log, 'utf8') : '').split('\n').filter((line) => line.includes('turn tokens'));
   const mark = (phase: string, before: number) => phases.push({ phase, lines: tokenLines().slice(before) });
@@ -128,8 +129,17 @@ test('token probe: a real Claude Code build and change', async () => {
     await send(page, CHANGE);
     await waitForTurn(page);
     mark('change', before);
+    // What came out, for comparing models by quality too: the check's findings, the parameters and a picture.
+    result.answers = await page.getByTestId('assistant-text').allInnerTexts();
+    result.parameters = await page.getByTestId('parameter').allInnerTexts();
+    await page.getByTestId('print-check').click();
+    result.findings = await page.getByTestId('print-check-panel').locator('[data-kind]').allInnerTexts();
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('0');
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: join(work, 'built-iso.png') });
   } finally {
-    writeFileSync(resolve(target), JSON.stringify({ work, phases }, null, 1));
+    writeFileSync(resolve(target), JSON.stringify({ work, phases, ...result }, null, 1));
     await launched.close();
   }
 });
