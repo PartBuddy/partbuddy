@@ -223,6 +223,15 @@ test('edges and vertices can be picked, and the view switches projection and sta
   await page.waitForTimeout(1200);
   const back = await cameraOf(page);
   expect(back && back.position[1] > back.target[1]).toBe(true);
+  // "Ansicht von oben" in the chat turns the camera as its key does, without a model turn (issue #446).
+  const composer = page.getByRole('textbox', { name: 'Message to the assistant' });
+  await composer.fill('Ansicht von oben');
+  await composer.press('Enter');
+  await page.waitForTimeout(1200);
+  const top = await cameraOf(page);
+  expect(top && top.position[2] > top.target[2] && Math.abs(top.position[0] - top.target[0]) < 1 && Math.abs(top.position[1] - top.target[1]) < 1).toBe(true);
+  await expect(composer).toHaveValue('');
+  await expect(page.getByTestId('assistant-text')).toHaveCount(0);
 });
 
 test('the view highlights the faces a step changed and can follow them', async () => {

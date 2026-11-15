@@ -5,6 +5,7 @@ import { Button as AriaButton, Header, Menu, MenuItem, MenuSection, MenuTrigger,
 
 import type { ExportFormat, Slicer } from '../../../shared/contract';
 import { FINE_CHORD } from '../../../shared/exportQuality';
+import { LOCAL_COMMAND_EVENT, type LocalCommand } from '../assistant/localCommand';
 import { useAssistant, selectedStatus } from '../assistant/store';
 import { ExportConfirm } from '../print/ExportConfirm';
 import { asksBeforeExport } from '../print/report';
@@ -101,6 +102,21 @@ export function DesignActions() {
     };
   }, [canUndo, canRedo, undo, redo]);
 
+  // Undo, redo and export typed in the chat run here, as their buttons (issue #446).
+  const exportRef = useRef<(target: ExportTarget) => void>(() => undefined);
+  useEffect(() => {
+    const onCommand = (event: Event) => {
+      const command = (event as CustomEvent<LocalCommand>).detail;
+      if (command.kind === 'undo' && canUndo) undo();
+      if (command.kind === 'redo' && canRedo) redo();
+      if (command.kind === 'export') exportRef.current(command.format);
+    };
+    window.addEventListener(LOCAL_COMMAND_EVENT, onCommand);
+    return () => {
+      window.removeEventListener(LOCAL_COMMAND_EVENT, onCommand);
+    };
+  }, [canUndo, canRedo, undo, redo]);
+
   // Bodies that look like bought standard parts but could not be checked went along as printed ones: the user hears it with the result.
   const unchecked = (bodies: string[] | undefined) => (bodies && bodies.length > 0 ? ` ${t('actions.uncheckedParts', { bodies: bodies.slice(0, 5).join(', '), count: bodies.length })}` : '');
   // Hidden bodies are not mirrored, so neither checked nor exported: the result names them (audit D24).
@@ -138,6 +154,10 @@ export function DesignActions() {
     }
     exportNow(target);
   };
+  useEffect(() => {
+    exportRef.current = exportAs;
+  });
+
 
   // The slicers SolidCraft finds, read each time the menu opens (one may have been installed since).
   const loadSlicers = (open: boolean) => {

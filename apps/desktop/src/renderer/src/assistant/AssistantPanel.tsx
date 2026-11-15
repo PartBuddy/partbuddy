@@ -38,6 +38,7 @@ import { Busy } from '../ui/Feedback';
 import { ChatResizer, useChatWidth } from '../shell/ChatResizer';
 import { AgentChip } from './AgentChip';
 import { sendToAssistant } from './send';
+import { LOCAL_COMMAND_EVENT, localCommand, type LocalCommand } from './localCommand';
 import { QuestionCard } from './QuestionCard';
 import { Answer } from './Answer';
 import { retryMessage, ROUNDS, rowsOf, sameEntries, sameList } from './rows';
@@ -549,6 +550,14 @@ export function AssistantPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queued, ready]);
   const send = () => {
+    // A short undo, view or export command runs at once, without a model turn (issue #446).
+    const command = !sketch && photos.length === 0 && !drawing ? localCommand(draft) : null;
+    if (command) {
+      setDraft('');
+      // The design actions and the view tools carry it out, as their buttons and keys do.
+      window.dispatchEvent(new CustomEvent<LocalCommand>(LOCAL_COMMAND_EVENT, { detail: command }));
+      return;
+    }
     // A sketch, a photo or a drawing alone is a message too: build a part from it.
     const text = draft.trim() || (drawing ? t('assistant.drawing.defaultText') : photos.length > 0 ? t('assistant.photo.defaultText') : sketch ? t('assistant.sketch.defaultText') : '');
     if (!text || !(ready || (busy && connected))) return;

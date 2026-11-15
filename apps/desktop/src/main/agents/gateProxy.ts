@@ -7,7 +7,7 @@ import { Server, WebStandardStreamableHTTPServerTransport } from '@modelcontextp
 
 import { REPEAT_LIMIT } from './loop';
 import { decide, decideParameterNames, inputProblem, offeredTool, type ToolDecision } from './policy';
-import { withSkillNote, withToolNotes } from './toolNotes';
+import { compactDescription, withSkillNote, withToolNotes } from './toolNotes';
 
 /** A tool as the upstream MCP server lists it, passed through unchanged. */
 export interface UpstreamTool {
@@ -183,7 +183,7 @@ export class GateProxy {
       try {
         const result = await this.upstream.callTool(name, args, id);
         this.onCall({ id, name, summary, decision: 'allowed', ok: result.isError !== true });
-        return withSkillNote(name, result) as never;
+        return withSkillNote(name, compactDescription(name, result)) as never;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.onCall({ id, name, summary, decision: 'allowed', ok: false });

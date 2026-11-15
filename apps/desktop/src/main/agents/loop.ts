@@ -6,7 +6,7 @@ import { decide, decideParameterNames, inputProblem, offeredTool, type ToolDecis
 import { ANSWER_GUIDANCE, questionGuidance } from './questions';
 import { REVIEW_GUIDANCE } from './review';
 import { NO_RESEARCH_GUIDANCE, RESEARCH_GUIDANCE } from './research';
-import { withSkillNote, withToolNotes } from './toolNotes';
+import { compactDescription, withSkillNote, withToolNotes } from './toolNotes';
 import { SCREENSHOT_GUIDANCE, VIEW_GUIDANCE } from './viewContext';
 import { ASSEMBLY_GUIDANCE, JOINT_GUIDANCE } from './assemblyTool';
 import { BLOCK_GUIDANCE, BLOCK_TOOL } from './blockTool';
@@ -256,7 +256,7 @@ async function callTool(upstream: UpstreamTools, definition: UpstreamTool, args:
   try {
     const result = await upstream.callTool(name, args, id);
     options.event({ type: 'tool', id, name, summary, decision: 'allowed', ok: result.isError !== true });
-    return resultText(withSkillNote(name, result));
+    return resultText(withSkillNote(name, compactDescription(name, result)));
   } catch (error) {
     options.event({ type: 'tool', id, name, summary, decision: 'allowed', ok: false });
     return `SolidCraft tool failed: ${(error as Error).message}`;

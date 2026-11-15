@@ -17,6 +17,7 @@ import {
 } from 'react-aria-components';
 
 import { useStudio, type DisplayMode, type Section, type StandardView } from '../state/store';
+import { LOCAL_COMMAND_EVENT, type LocalCommand } from '../assistant/localCommand';
 import { CadIcon } from '../ui/CadIcon';
 import { JointPanel, playableValues } from './JointPanel';
 import { bodiesBox, faceSection, sectionSpan } from './section';
@@ -308,6 +309,18 @@ export function ViewTools() {
       window.removeEventListener('keydown', onKey);
     };
   }, [requestView, setProjection, setDimensions]);
+
+  // A view typed in the chat ("Ansicht von oben") turns the camera as its key does (issue #446).
+  useEffect(() => {
+    const onCommand = (event: Event) => {
+      const command = (event as CustomEvent<LocalCommand>).detail;
+      if (command.kind === 'view') requestView(command.view);
+    };
+    window.addEventListener(LOCAL_COMMAND_EVENT, onCommand);
+    return () => {
+      window.removeEventListener(LOCAL_COMMAND_EVENT, onCommand);
+    };
+  }, [requestView]);
 
   const views: { view: StandardView; key: string; icon: ReactNode }[] = [
     { view: 'fit', key: 'F', icon: <IconMaximize className="size-icon-sm" aria-hidden /> },
