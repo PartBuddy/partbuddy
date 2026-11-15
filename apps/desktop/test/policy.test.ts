@@ -256,6 +256,8 @@ describe('tool policy: new parameters keep the rules of toolNotes.ts (groups, no
     for (const name of [
       'lochzugabe', 'Lochzugabe', 'passung', 'presspassung', 'schiebepassung', 'axialspiel', 'radialspiel', 'restluft',
       'lid_gap', 'Lid-Gap', 'fitClearance', 'Spiel', 'hole_allowance', 'pin_tolerance', 'axle_play', 'deckel_luft', 'lid_fit', 'zugabe_loch', 'toleranz', 'gap2',
+      // Run-together names and German "Spalt" (open point of #414).
+      'lidgap', 'deckelspalt', 'Spalt', 'luftspalt_deckel', 'holeclearance', 'pinTolerance', 'bohrungszugabe',
     ]) {
       expect(reasonOfAdd(name, '[Deckel] Breite'), name).toContain('would be a clearance or allowance parameter');
     }
@@ -289,6 +291,8 @@ describe('tool policy: new parameters keep the rules of toolNotes.ts (groups, no
       ['fitting', '[Box] Breite'],
       ['display_w', '[Display] Breite'],
       ['spielbrett', '[Box] Breite'],
+      ['text_offset', '[Schrift] Abstand'],
+      ['spalten', '[Raster] Spalten'],
     ] as const) {
       expect(execute('parameters.add', add(name, comment).params), `${name} ${comment}`).toEqual({ allow: true });
     }
