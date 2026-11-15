@@ -4,3 +4,5 @@ self-hosted-runner:
     - partbuddy
     # Windows runner with SolidCraft for the website screenshots (site-sync.yml, docs/website.md)
     - partbuddy-shots
+    # GitHub-hosted, newer than actionlint 1.7.12's list (installer.yml); drop once actionlint knows it.
+    - ubuntu-26.04
