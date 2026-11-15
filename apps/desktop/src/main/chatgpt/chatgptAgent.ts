@@ -253,6 +253,7 @@ export class ChatGptAgent implements AgentBackend {
       const steps: Awaited<ReturnType<typeof streamText>['steps']>[number][] = [];
       // The turn's own step first; a send-back for the review runs as the review step (issue #446).
       let step = this.steps()?.[this.phase] ?? this.choice;
+      let wentOn = false;
       for (;;) {
         this.options.log(`ChatGPT ${this.phase} with ${step?.model ?? '?'} ${step?.effort ?? ''}`.trimEnd());
         const result = streamText({
@@ -283,6 +284,14 @@ export class ChatGptAgent implements AgentBackend {
         }
         this.history.push(...(await result.responseMessages));
         steps.push(...(await result.steps));
+        // A turn that ended right after a web search, without a word to the user, goes on once (seen 2026-11-15, issue #446):
+        // otherwise the user's message is spent and has to be sent again.
+        if (!wentOn && !signal.aborted && endedSilently(steps)) {
+          wentOn = true;
+          this.options.log('ChatGPT ended a turn after a web search without an answer; it is sent on once');
+          this.history.push({ role: 'user', content: GO_ON });
+          continue;
+        }
         // A changing turn that ended without the review goes back to the model once (review.ts), with rounds left for it.
         const back = signal.aborted || repeatsItself({ steps }) || steps.length > MAX_STEPS - 2 ? null : (this.options.review?.due() ?? null);
         if (!back) break;
@@ -378,6 +387,15 @@ export class ChatGptAgent implements AgentBackend {
     this.models = models;
     this.choice = allowedChoice(models, this.choice ?? this.options.choices.get('chatgpt')) ?? allowedChoice(models, { model: first.id, effort: null });
   }
+}
+
+/** Sent when a turn ended after a web search without an answer. */
+export const GO_ON = '[PartBuddy: your turn ended after the web search without a word to the user. Go on with the request.]';
+
+/** The last round only searched the web (the server ran it) and said nothing: the turn stopped half way. */
+export function endedSilently(steps: readonly { text: string; toolCalls: readonly { providerExecuted?: boolean }[] }[]): boolean {
+  const last = steps.at(-1);
+  return last !== undefined && last.text.trim() === '' && last.toolCalls.length > 0 && last.toolCalls.every((call) => call.providerExecuted === true);
 }
 
 /** Maps Sign in with ChatGPT errors to a sentence the user can act on. */
