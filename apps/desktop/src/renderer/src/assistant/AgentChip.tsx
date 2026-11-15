@@ -8,7 +8,7 @@ import { useStudio } from '../state/store';
 import { StatusDot, badgeClass, dotTone } from '../ui/Feedback';
 import { selectedStatus, useAssistant } from './store';
 import { linkClass, pressable } from '../ui/Button';
-import { choiceRowClass, RadioMark, segmentClass, segmentGroupClass } from '../ui/Choice';
+import { choiceRowClass, RadioMark, segmentClass, segmentGroupClass, SelectField } from '../ui/Choice';
 import { popoverPanelClass } from '../ui/Overlay';
 
 type T = ReturnType<typeof useTranslation>['t'];
@@ -83,6 +83,63 @@ function chipLabel(t: T, status: AgentStatus): string {
   return detail ? `${route} · ${detail}` : route;
 }
 
+const PHASES = ['plan', 'build', 'review'] as const;
+
+/** A step's model as one entry of its list: model and effort, or the model alone. */
+const stepId = (choice: ModelChoice | undefined) => (choice ? `${choice.model}|${choice.effort ?? ''}` : '');
+
+/**
+ * A model per step of the work (issue #446, Manuel 2026-11-15): automatic per step, each step's model kept for new
+ * chats. A model picked in the list below pins this chat to it until "Automatic per step" again.
+ */
+function PhaseSection({ status }: { status: AgentStatus }) {
+  const { t } = useTranslation();
+  const api = platform().agent;
+  const steps = status.phases;
+  if (!steps) return null;
+  if (status.pinned) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 px-2" data-testid="agent-pinned">
+        <span className="text-xs text-text-muted">{t('assistant.phases.pinned')}</span>
+        <AriaButton
+          className={`text-xs ${linkClass}`}
+          onPress={() => {
+            void api.automatic();
+          }}
+          data-testid="agent-automatic"
+        >
+          {t('assistant.phases.automatic')}
+        </AriaButton>
+      </div>
+    );
+  }
+  const items = (status.models ?? []).flatMap((model) =>
+    (model.efforts.length > 0 ? model.efforts : [null]).map((effort) => ({
+      id: stepId({ model: model.id, effort }),
+      label: effort ? `${modelName(t, model)} · ${effortLabel(t, effort)}` : modelName(t, model),
+    })),
+  );
+  return (
+    <div className="flex flex-col gap-2 px-2" data-testid="agent-phases">
+      <span className="text-xs font-semibold text-text-muted">{t('assistant.phases.title')}</span>
+      {PHASES.map((phase) => (
+        <SelectField
+          key={phase}
+          label={t(`assistant.phases.${phase}`)}
+          value={stepId(steps[phase])}
+          items={items}
+          onChange={(id) => {
+            const [model = '', effort = ''] = id.split('|');
+            void api.phaseModel(phase, { model, effort: effort || null });
+          }}
+          testId={`phase-${phase}`}
+        />
+      ))}
+      <span className="text-xs text-text-subtle">{t('assistant.phases.hint')}</span>
+    </div>
+  );
+}
+
 /**
  * Model and effort of the selected route (B1, decided 2026-11-05): only what the plan offers, in
  * effect from the next answer, also in a running conversation; "Keep for new chats" stores it.
@@ -100,18 +157,22 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
   };
   const kept = status.defaultChoice;
   const isDefault = kept?.model === current.id && (kept.effort ?? null) === effort;
+  // With a model per step, the list below pins this chat to one model; without a pin no entry is chosen (issue #446).
+  const stepped = status.phases !== undefined;
+  const pinned = !stepped || status.pinned === true;
   return (
     <div className="flex flex-col gap-2 border-t border-border pt-2" data-testid="agent-model">
+      <PhaseSection status={status} />
       <RadioGroup
-        aria-label={t('assistant.model.title')}
-        value={current.id}
+        aria-label={t(stepped ? 'assistant.phases.pin' : 'assistant.model.title')}
+        value={pinned ? current.id : null}
         onChange={(id) => {
           const next = models.find((model) => model.id === id);
           if (next) choose({ model: next.id, effort: effort !== null && next.efforts.includes(effort) ? effort : null });
         }}
         className="flex max-h-menu-max flex-col gap-1 overflow-auto"
       >
-        <span className="px-2 text-xs font-semibold text-text-muted">{t('assistant.model.title')}</span>
+        <span className="px-2 text-xs font-semibold text-text-muted">{t(stepped ? 'assistant.phases.pin' : 'assistant.model.title')}</span>
         {models.map((model) => (
           <RadioField key={model.id} value={model.id}>
             <RadioButton className={choiceRowClass} data-testid="model-option">
@@ -124,7 +185,7 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
           </RadioField>
         ))}
       </RadioGroup>
-      {current.efforts.length > 0 ? (
+      {pinned && current.efforts.length > 0 ? (
         <RadioGroup
           aria-label={t('assistant.effort.title')}
           value={effort}
@@ -148,7 +209,7 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2 px-2">
         <span className="text-xs text-text-subtle">{t('assistant.model.applies')}</span>
-        {isDefault ? (
+        {!pinned ? null : isDefault ? (
           <span className="text-xs text-text-muted" data-testid="model-is-default">
             {t('assistant.model.isDefault')}
           </span>

@@ -360,6 +360,16 @@
       "line": "Auswahl: {what} · {bodies}"
     },
     "earlierSession": "Frühere Sitzung, bis {date, date, short} {date, time, short}",
+    "phases": {
+      "title": "Automatisch je Arbeitsschritt",
+      "plan": "Fragen und Plan",
+      "build": "Bauen und Ändern",
+      "review": "Prüfen",
+      "hint": "Gilt auch für neue Chats. Ein starkes Modell plant, ein leichteres baut, das kleinste prüft: Das schont das Kontingent deines Abos.",
+      "pin": "Ein Modell für diesen Chat",
+      "pinned": "Dieser Chat nutzt für jeden Schritt dasselbe Modell.",
+      "automatic": "Automatisch je Arbeitsschritt"
+    },
     "model": {
       "title": "Modell",
       "applies": "Gilt ab der nächsten Antwort, auch mitten im Gespräch.",
