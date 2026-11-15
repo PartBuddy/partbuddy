@@ -31,7 +31,7 @@
     "react-hotkeys-hook": "5.3.3",
     "react-i18next": "17.1.13",
     "three": "0.187.0",
-    "three-mesh-bvh": "0.9.17",
+    "three-mesh-bvh": "0.9.18",
     "zustand": "5.1.0"
   },
   "devDependencies": {

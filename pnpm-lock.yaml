@@ -269,8 +269,8 @@ importers:
         specifier: 0.187.0
         version: 0.187.0
       three-mesh-bvh:
-        specifier: 0.9.17
-        version: 0.9.17(three@0.187.0)
+        specifier: 0.9.18
+        version: 0.9.18(three@0.187.0)
       xstate:
         specifier: 5.33.4
         version: 5.33.4
@@ -359,8 +359,8 @@ importers:
         specifier: 0.187.0
         version: 0.187.0
       three-mesh-bvh:
-        specifier: 0.9.17
-        version: 0.9.17(three@0.187.0)
+        specifier: 0.9.18
+        version: 0.9.18(three@0.187.0)
     devDependencies:
       '@eslint/js':
         specifier: 10.0.1
@@ -438,8 +438,8 @@ importers:
         specifier: 0.187.0
         version: 0.187.0
       three-mesh-bvh:
-        specifier: 0.9.17
-        version: 0.9.17(three@0.187.0)
+        specifier: 0.9.18
+        version: 0.9.18(three@0.187.0)
       zustand:
         specifier: 5.1.0
         version: 5.1.0(@types/react@19.3.0)(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
@@ -3368,8 +3368,8 @@ packages:
     peerDependencies:
       three: '>= 0.159.0'
 
-  three-mesh-bvh@0.9.17:
-    resolution: {integrity: sha512-uU2DNnTHsMcrsAM1kiLXEeLx4JNsPLayLTPE5Rf7exbFRuQYEifS4DhGEA+lDiU8/7mID1PsE9sH8i6p5prZSg==}
+  three-mesh-bvh@0.9.18:
+    resolution: {integrity: sha512-S76hOBnsSG4jsuEyCu98K63klONG4NwJANabPY1LUD5l7oUgu2xtKC0IwnX/XyPzo4YZ1D7ZU+gHVA479UdQmA==}
     peerDependencies:
       three: '>= 0.159.0'
 
@@ -7046,7 +7046,7 @@ snapshots:
     dependencies:
       three: 0.187.0
 
-  three-mesh-bvh@0.9.17(three@0.187.0):
+  three-mesh-bvh@0.9.18(three@0.187.0):
     dependencies:
       three: 0.187.0
 
