@@ -61,6 +61,31 @@ export function modelsFromList(body: unknown): ModelOption[] {
   return options.slice(0, 30);
 }
 
+/**
+ * The plan's limits from the headers of a Codex answer (issue #446), as Codex itself reads them
+ * (codex-rs/codex-api/src/rate_limits.rs): `x-codex-primary-used-percent`, `-window-minutes` and `-reset-at`, the same
+ * for `secondary`. Windows of 5 hours and 7 days get the names Claude Code uses, so the chat words them alike.
+ */
+export function usageFromHeaders(headers: Headers): NonNullable<AgentStatus['usage']> {
+  const usage: NonNullable<AgentStatus['usage']> = [];
+  for (const slot of ['primary', 'secondary']) {
+    const number = (name: string) => {
+      const value = Number(headers.get(`x-codex-${slot}-${name}`) ?? Number.NaN);
+      return Number.isFinite(value) ? value : null;
+    };
+    const percent = number('used-percent');
+    if (percent === null) continue;
+    const minutes = number('window-minutes');
+    const reset = number('reset-at');
+    usage.push({
+      window: minutes === 300 ? 'five_hour' : minutes === 10080 ? 'seven_day' : minutes === null ? slot : `${String(Math.round(minutes))} min`,
+      used: Math.min(1, Math.max(0, percent / 100)),
+      resetsAt: reset !== null && Number.isInteger(reset) && reset >= 0 ? reset : null,
+    });
+  }
+  return usage;
+}
+
 export class ChatGptAgent implements AgentBackend {
   /** The models of the account, once listed. */
   private models: ModelOption[] | null = null;
@@ -80,6 +105,8 @@ export class ChatGptAgent implements AgentBackend {
   private webSearchRefused = false;
   /** How full the conversation is after the last turn. */
   private context: AgentStatus['context'] | null = null;
+  /** The plan's limits from the last answer's headers. */
+  private usage: AgentStatus['usage'] | null = null;
   /** The last turn used all its tool rounds; the next message tells the model (audit R57). */
   private cutShort = false;
 
@@ -97,6 +124,7 @@ export class ChatGptAgent implements AgentBackend {
     if (account.email) status.account = account.email;
     if (account.detail && !status.detail) status.detail = account.detail;
     if (this.context && account.state === 'signedIn') status.context = this.context;
+    if (this.usage && account.state === 'signedIn') status.usage = this.usage;
     return { ...status, ...choiceStatus(this.models, this.choice, this.options.choices.get('chatgpt')) };
   }
 
@@ -261,7 +289,13 @@ export class ChatGptAgent implements AgentBackend {
     return async (input, init) => {
       const headers = new Headers(init?.headers);
       headers.set('Authorization', `Bearer ${await this.options.account.accessToken()}`);
-      return base(input, { ...init, headers });
+      const response = await base(input, { ...init, headers });
+      const usage = usageFromHeaders(response.headers);
+      if (usage.length > 0) {
+        this.usage = usage;
+        this.options.changed();
+      }
+      return response;
     };
   }
 

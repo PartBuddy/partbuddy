@@ -4,7 +4,7 @@ import { Assistant, type AgentBackend } from '../src/main/agents/assistant';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import type { ChatGptAccount } from '../src/main/chatgpt/account';
 import { MAX_STEPS, ROUNDS_DETAIL, ROUNDS_NOTE } from '../src/main/agents/loop';
-import { ChatGptAgent } from '../src/main/chatgpt/chatgptAgent';
+import { ChatGptAgent, usageFromHeaders } from '../src/main/chatgpt/chatgptAgent';
 import type { TurnReview } from '../src/main/agents/review';
 import type { AgentEvent, AgentKind, AgentStatus } from '../src/shared/contract';
 
@@ -291,5 +291,22 @@ describe('assistant routes', () => {
     expect(state.selected).toBe('chatgpt');
     expect(state.agents.map((a) => a.agent)).toEqual(['claude-code', 'chatgpt', 'local']);
     expect(states.length).toBeGreaterThan(0);
+  });
+});
+
+describe('ChatGPT plan limits (issue 446)', () => {
+  it('reads the windows from the Codex headers, as Codex does', () => {
+    const headers = new Headers({
+      'x-codex-primary-used-percent': '42.5',
+      'x-codex-primary-window-minutes': '300',
+      'x-codex-primary-reset-at': '1794117600',
+      'x-codex-secondary-used-percent': '130',
+      'x-codex-secondary-window-minutes': '10080',
+    });
+    expect(usageFromHeaders(headers)).toEqual([
+      { window: 'five_hour', used: 0.425, resetsAt: 1794117600 },
+      { window: 'seven_day', used: 1, resetsAt: null },
+    ]);
+    expect(usageFromHeaders(new Headers({ 'x-codex-primary-used-percent': 'x' }))).toEqual([]);
   });
 });
