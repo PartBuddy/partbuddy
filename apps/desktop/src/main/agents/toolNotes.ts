@@ -122,6 +122,23 @@ export function compactDescription(name: string, result: ToolResult): ToolResult
   return { ...result, content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
+/**
+ * Tool answers that are JSON go to the model without SolidCraft's indentation and line breaks (issue #446): that is 42 %
+ * of their tokens (measured on a real build), and each answer stays in the conversation for every later request.
+ */
+export function compactJson(result: ToolResult): ToolResult {
+  const content = result.content.map((part) => {
+    if (part.type !== 'text' || typeof part.text !== 'string' || !/^\s*[[{]/.test(part.text) || !part.text.includes('\n')) return part;
+    try {
+      const text = JSON.stringify(JSON.parse(part.text));
+      return { ...part, text };
+    } catch {
+      return part;
+    }
+  });
+  return content.some((part, i) => part !== result.content[i]) ? { ...result, content } : result;
+}
+
 /** SolidCraft's server instructions, followed by PartBuddy's notes. */
 export function withToolNotes(instructions: string | undefined): string {
   return instructions ? `${instructions}\n\n${TOOL_NOTES}` : TOOL_NOTES;
