@@ -218,6 +218,11 @@ export function printCheckNote(report: PrintCheckReport, view = false): string {
  * or a finding changed, else as one line with the measures that changed. Thirty steps of a build would otherwise
  * carry thirty copies of the same note.
  */
+/** Every finding with its faces and numbers, not the lines shown: a change in the thirteenth finding is a change. */
+function verdictOf(report: PrintCheckReport): string {
+  return JSON.stringify([report.status, report.measuring === true, report.unmeasured ?? [], report.unchecked ?? [], report.findings, report.omitted ?? 0]);
+}
+
 export class CheckTold {
   private verdict: string | null = null;
   private readonly bodies = new Map<string, string>();
@@ -228,9 +233,16 @@ export class CheckTold {
     this.bodies.clear();
   }
 
+  /**
+   * True when a tool answer of this turn already told exactly this check, verdict and measures (issue #446): the next
+   * message then need not carry it again in full.
+   */
+  knows(report: PrintCheckReport): boolean {
+    return verdictOf(report) === this.verdict && (report.bodies ?? []).every((body) => this.bodies.get(body.name) === measureLine(body)) && this.bodies.size === (report.bodies ?? []).length;
+  }
+
   note(report: PrintCheckReport): string {
-    // Every finding with its faces and numbers, not the lines shown: a change in the thirteenth finding is a change.
-    const verdict = JSON.stringify([report.status, report.measuring === true, report.unmeasured ?? [], report.unchecked ?? [], report.findings, report.omitted ?? 0]);
+    const verdict = verdictOf(report);
     const same = verdict === this.verdict;
     const changed = (body: Body) => this.bodies.get(body.name) !== measureLine(body);
     const short = same

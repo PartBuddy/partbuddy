@@ -789,6 +789,10 @@ if (!app.requestSingleInstanceLock()) {
       });
       const conversation = agent.conversation();
       const sentAt = new Date();
+      // The check as the last turn's tool answers told it goes not again in full with this message (issue #446); it is still
+      // recorded as sent, so a later change of it is told.
+      const checkLine = printCheck ? checkNote.take(conversation.route, conversation.fresh, printCheckNote(printCheck)) : null;
+      const checkKnown = printCheck !== null && !conversation.fresh && checkTold.knows(printCheck);
       checkTold.forget();
       review.newTurn();
       const lines = [
@@ -796,7 +800,7 @@ if (!app.requestSingleInstanceLock()) {
         chats?.takeDigest() ?? null,
         // The printer and material (M7), once per conversation and again after a change.
         profileNote.take(conversation.route, conversation.fresh, printNote(printProfiles.part())),
-        printCheck ? checkNote.take(conversation.route, conversation.fresh, printCheckNote(printCheck)) : null,
+        checkKnown ? null : checkLine,
         questions.answer(answer),
         steps.takeNote(),
         notesService.selectionNote(selections ?? []),
