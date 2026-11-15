@@ -202,6 +202,7 @@ const COMMAND_ID = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
  * installed font by its family too, which stays allowed.
  */
 const FILE_ARGUMENTS: Record<string, readonly string[]> = {
+  'sketch.insert_airfoil': ['path'],
   'sketch.insert_dxf': ['path'],
   'sketch.insert_svg': ['path'],
   'sketch.drawing_bounds': ['path'],

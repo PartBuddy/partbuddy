@@ -96,3 +96,11 @@ minimum and now reads *supported*. Checked on 0.41.0: the full contract suite (r
 BC-27) and the audit harness of phase 4 (109 cases). 0.41.0 adds three commands in allowed groups
 (`model.mesh`, `sketch.spline.handles`, `sketch.spline.reset_handles`) and the `plugin` group, which
 the policy refuses (#401).
+
+### Update 2026-11-15: SolidCraft 0.42.0 is recommended
+
+0.42.0 (stable) is the recommended version and the first start links it; 0.41.0 now reads *supported*,
+0.40.1 stays the minimum. 0.42.0 adds two commands in allowed groups: `solid.cell_grid` (checked after
+each change like the other modelling commands) and `sketch.insert_airfoil`, whose `path` argument the
+policy refuses like the other file arguments. No group was added, none removed. Its new app ID
+(`io.tangencylabs.solidcraft`) does not touch PartBuddy, which finds SolidCraft by its program path.

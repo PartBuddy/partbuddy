@@ -128,6 +128,7 @@ describe('tool policy: command groups are an allow list', () => {
 
 describe('tool policy: files by argument, per command (audit N-normteile-policy-4, -5)', () => {
   const fileCommands: [string, string][] = [
+    ['sketch.insert_airfoil', 'path'],
     ['sketch.insert_dxf', 'path'],
     ['sketch.insert_svg', 'path'],
     ['sketch.drawing_bounds', 'path'],
