@@ -11,7 +11,8 @@ const box = readFileSync(join(__dirname, 'fixtures', 'describe-solid-box.json'),
 describe('describe_command without its schemas (issue 446)', () => {
   it('keeps the signature, the description and one line per parameter with its values', () => {
     const result = compactDescription('describe_command', { content: [{ type: 'text', text: box }] });
-    const text = String(result.content[0]?.text ?? '');
+    const part = result.content[0];
+    const text = typeof part?.text === 'string' ? part.text : '';
     expect(text.length).toBeLessThan(box.length / 3);
     expect(text).toContain('solid.box (Box): Add a box primitive.');
     expect(text).toContain('params: length, width, height: expr;');
