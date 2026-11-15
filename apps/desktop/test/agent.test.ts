@@ -15,7 +15,7 @@ import { decide, TOOL_ARGUMENTS } from '../src/main/agents/policy';
 import { Review } from '../src/main/agents/review';
 import { TOOL_NOTES } from '../src/main/agents/toolNotes';
 import { reduce, type ConversationItem } from '../src/renderer/src/assistant/store';
-import type { AgentEvent, AgentStatus, ModelChoice } from '../src/shared/contract';
+import type { AgentEvent, AgentStatus, ModelChoice, Phase, PhaseChoices } from '../src/shared/contract';
 
 const cleanups: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
@@ -414,6 +414,8 @@ describe('agent service with a fake Claude Code', { timeout: 20_000 }, () => {
     const billing = { allowed: false };
     const kept: { choice: ModelChoice | null } = { choice: null };
     const choices = { get: () => kept.choice, set: (_route: string, choice: ModelChoice) => (kept.choice = choice) };
+    let stepModels: PhaseChoices = {};
+    const phases = { phases: () => stepModels, setPhase: (_route: string, phase: Phase, choice: ModelChoice | null) => (stepModels = { ...stepModels, [phase]: choice ?? undefined }) };
     const statuses: AgentStatus[] = [];
     const events: AgentEvent[] = [];
     const service = new AgentService(
@@ -430,6 +432,7 @@ describe('agent service with a fake Claude Code', { timeout: 20_000 }, () => {
         tools: () => Promise.resolve(review ? review.tools(changing(upstream, review)) : upstream),
         log: () => undefined,
         choices,
+        phases,
         ...(review ? { review } : {}),
       },
       { status: (status) => statuses.push(status), event: (event) => events.push(event) },
@@ -491,6 +494,22 @@ describe('agent service with a fake Claude Code', { timeout: 20_000 }, () => {
     expect(events.filter((e) => e.type === 'text').at(-1)).toEqual({ type: 'text', text: 'model haiku effort medium' });
 
     await expect(service.chooseModel({ model: 'gpt-9', effort: null }, false)).rejects.toThrow(/not offered/);
+  });
+
+  it('builds with a step model the user chose, in the same session, unless the chat is pinned (issue 446)', async () => {
+    const { service, events } = setup();
+    await service.refresh();
+    expect(service.status()).toMatchObject({ phase: 'plan', model: 'opus', phases: { build: { model: 'opus' }, review: { model: 'haiku' } } });
+    await service.phaseModel('build', { model: 'sonnet', effort: 'medium' });
+    await service.send('Which model?', [], null, [], 'sketch', 'plan');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(1), { timeout: 15_000 });
+    await service.send('Which model now?', [], null, [], 'sketch', 'build');
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'done')).toHaveLength(2), { timeout: 15_000 });
+    expect(events.filter((e) => e.type === 'text').map((e) => (e as { text: string }).text)).toEqual(['model opus effort medium', 'model sonnet effort medium']);
+    await service.chooseModel({ model: 'opus', effort: 'high' }, false);
+    expect(service.status()).toMatchObject({ pinned: true, phases: { build: { model: 'opus', effort: 'high' } } });
+    await service.automatic();
+    expect(service.status().pinned).toBeUndefined();
   });
 
   it('asks the user to sign in when Claude Code is signed out', async () => {

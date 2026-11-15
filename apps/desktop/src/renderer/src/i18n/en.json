@@ -360,6 +360,16 @@
       "line": "Selected: {what} · {bodies}"
     },
     "earlierSession": "Earlier session, until {date, date, short} {date, time, short}",
+    "phases": {
+      "title": "Automatic per step",
+      "plan": "Questions and plan",
+      "build": "Building and changes",
+      "review": "Review",
+      "hint": "Kept for new chats. A strong model plans, a lighter one builds, the smallest reviews: that saves your plan's usage.",
+      "pin": "One model for this chat",
+      "pinned": "This chat uses one model for every step.",
+      "automatic": "Automatic per step"
+    },
     "model": {
       "title": "Model",
       "applies": "Applies from the next answer, also mid-conversation.",

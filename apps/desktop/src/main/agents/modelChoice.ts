@@ -1,4 +1,4 @@
-import type { AgentKind, AgentStatus, ModelChoice, ModelOption } from '../../shared/contract';
+import type { AgentKind, AgentStatus, ModelChoice, ModelOption, Phase, PhaseChoices } from '../../shared/contract';
 
 /**
  * Model and effort of an assistant route (plan step B1, decided 2026-11-05): chosen at the chip in
@@ -58,5 +58,61 @@ export function withoutChoice(status: AgentStatus): AgentStatus {
   delete rest.model;
   delete rest.effort;
   delete rest.defaultChoice;
+  delete rest.phase;
+  delete rest.phases;
+  delete rest.pinned;
+  delete rest.phaseDefaults;
   return rest;
+}
+
+/** The models per step a route runs with for new chats (issue #446), kept in the settings. */
+export interface PhaseStore {
+  phases(route: AgentKind): PhaseChoices;
+  setPhase(route: AgentKind, phase: Phase, choice: ModelChoice | null): void;
+}
+
+/**
+ * PartBuddy's standard per step for Claude Code: plan and build with the route's own choice (CLAUDE_STANDARD, or the one
+ * the user kept for new chats), review with the small model. Manuel, 2026-11-15, after one run each: building with
+ * Sonnet (−38 % tokens) or Opus at low effort (−18 %) came out visibly plainer, so the user picks a lighter build model.
+ */
+export const CLAUDE_PHASES: PhaseChoices = { review: { model: 'haiku', effort: null } };
+
+/** A model the account lists as its small one: GPT's mini and nano, Codex's spark and luna, Claude's haiku. */
+const SMALL = /mini|nano|spark|luna|haiku/i;
+
+/**
+ * The standard per step where the route names no models of its own (ChatGPT, whose list changes with the account):
+ * build as planned (as on Claude Code), review with the account's small model, or the plan's at its lowest effort.
+ */
+export function listedPhases(options: readonly ModelOption[], plan: ModelChoice | null): PhaseChoices {
+  if (!plan) return {};
+  const option = options.find((item) => item.id === plan.model);
+  const low = option?.efforts.includes('low') ? 'low' : (option?.efforts[0] ?? plan.effort);
+  const small = options.find((item) => SMALL.test(item.id) || SMALL.test(item.name));
+  return {
+    review: small ? { model: small.id, effort: small.efforts.includes('low') ? 'low' : fallbackEffort(small) } : { model: plan.model, effort: low },
+  };
+}
+
+/**
+ * The model each step runs with: the one pinned for this chat for every step, else the user's choice for the step,
+ * else PartBuddy's standard for it, else the plan's model. Only what the account offers is taken.
+ */
+export function phaseChoices(options: readonly ModelOption[], plan: ModelChoice | null, pinned: ModelChoice | null, stored: PhaseChoices, standard: PhaseChoices): Required<PhaseChoices> | null {
+  const base = allowedChoice(options, pinned) ?? allowedChoice(options, stored.plan ?? null) ?? allowedChoice(options, plan);
+  if (!base) return null;
+  if (pinned && allowedChoice(options, pinned)) return { plan: base, build: base, review: base };
+  const step = (phase: 'build' | 'review') => allowedChoice(options, stored[phase] ?? null) ?? allowedChoice(options, standard[phase] ?? null) ?? base;
+  return { plan: base, build: step('build'), review: step('review') };
+}
+
+/** The status fields of the steps: the step of the turn, each step's model, the pin and the user's models per step. */
+export function phaseStatus(steps: Required<PhaseChoices> | null, phase: Phase, pinned: boolean, stored: PhaseChoices) {
+  return {
+    phase,
+    ...(steps ? { phases: steps } : {}),
+    ...(pinned ? { pinned: true } : {}),
+    ...(Object.keys(stored).length > 0 ? { phaseDefaults: stored } : {}),
+  };
 }

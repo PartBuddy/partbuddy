@@ -102,6 +102,7 @@ test('token probe: a real Claude Code build and change', async () => {
   const launched = await launchApp({ isolated: false, work, env: measureEnv(work, '7952') });
   const { page } = launched;
   const phases: { phase: string; lines: string[] }[] = [];
+  const result: Record<string, unknown> = {};
   const log = join(work, 'partbuddy.log');
   const tokenLines = () => (existsSync(log) ? readFileSync(log, 'utf8') : '').split('\n').filter((line) => line.includes('turn tokens'));
   const mark = (phase: string, before: number) => phases.push({ phase, lines: tokenLines().slice(before) });
@@ -110,6 +111,22 @@ test('token probe: a real Claude Code build and change', async () => {
     if (chatgpt) await pickChatGpt(page);
     await expect(page.getByTestId('agent-status')).toContainText(chatgpt ? 'ChatGPT' : 'Claude Code', { timeout: 30_000 });
     await expect(page.getByTestId('agent-status')).not.toContainText('not signed in');
+    // PROBE_PIN=<model name>: one model for every step, as the comparison with the models per step (issue #446).
+    if (process.env.PROBE_PIN) {
+      await page.getByTestId('agent-status').click();
+      await page.getByTestId('agent-menu').getByTestId('model-option').filter({ hasText: process.env.PROBE_PIN }).first().click();
+      await expect(page.getByTestId('agent-pinned')).toBeVisible();
+      await page.keyboard.press('Escape');
+    }
+    // PROBE_BUILD=<entry>: the model of the build step, as its list names it ("Opus 5.5 · Low").
+    if (process.env.PROBE_BUILD) {
+      await page.getByTestId('agent-status').click();
+      await page.getByTestId('phase-build').getByRole('button').click();
+      await page.getByRole('option', { name: process.env.PROBE_BUILD, exact: true }).click();
+      await expect(page.getByTestId('phase-build')).toContainText(process.env.PROBE_BUILD);
+      await page.getByTestId('agent-menu').press('Escape');
+      await expect(page.getByTestId('agent-menu')).toBeHidden();
+    }
     const start = tokenLines().length;
     await send(page, BUILD);
     await waitForTurn(page);
@@ -128,8 +145,17 @@ test('token probe: a real Claude Code build and change', async () => {
     await send(page, CHANGE);
     await waitForTurn(page);
     mark('change', before);
+    // What came out, for comparing models by quality too: the check's findings, the parameters and a picture.
+    result.answers = await page.getByTestId('assistant-text').allInnerTexts();
+    result.parameters = await page.getByTestId('parameter').allInnerTexts();
+    await page.getByTestId('print-check').click();
+    result.findings = await page.getByTestId('print-check-panel').locator('[data-kind]').allInnerTexts();
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('0');
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: join(work, 'built-iso.png') });
   } finally {
-    writeFileSync(resolve(target), JSON.stringify({ work, phases }, null, 1));
+    writeFileSync(resolve(target), JSON.stringify({ work, phases, ...result }, null, 1));
     await launched.close();
   }
 });

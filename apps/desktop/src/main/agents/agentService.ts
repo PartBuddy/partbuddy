@@ -2,11 +2,11 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
+import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Phase, Selection } from '../../shared/contract';
 import { ClaudeSession, findClaudeCode, listModels, readAuth, readVersion, startSignIn, type ClaudeAuth, type ClaudeCommand } from './claudeCode';
 import { userEvent, type AgentBackend, type PictureKind } from './assistant';
 import { GateProxy, type UpstreamTools } from './gateProxy';
-import { allowedChoice, choiceStatus, CLAUDE_STANDARD, withoutChoice, type ChoiceStore } from './modelChoice';
+import { allowedChoice, choiceStatus, CLAUDE_PHASES, CLAUDE_STANDARD, phaseChoices, phaseStatus, withoutChoice, type ChoiceStore, type PhaseStore } from './modelChoice';
 import { tokensLine } from './loop';
 import type { TurnReview } from './review';
 import { composeMessage } from './viewContext';
@@ -32,6 +32,8 @@ export interface AgentServiceOptions {
   tools(): Promise<UpstreamTools | null>;
   /** The model and effort kept for new chats (B1). */
   choices: ChoiceStore;
+  /** The models per step kept for new chats (issue #446). */
+  phases?: PhaseStore;
   /** Whether the assistant may research on the web (B7); read when a conversation starts. */
   research?: () => boolean;
   /** Lists the models of the plan; Claude Code's own `initialize` answer by default (tests replace it). */
@@ -66,6 +68,12 @@ export class AgentService implements AgentBackend {
   private login: ReturnType<typeof startSignIn> | null = null;
   /** Model and effort from the next turn on; null: Claude Code's own default. */
   private choice: ModelChoice | null = null;
+  /** One model the user picked for every step of this chat (issue #446). */
+  private pinned: ModelChoice | null = null;
+  /** The step of the running or last turn. */
+  private phase: Phase = 'plan';
+  /** The model the running session works with now. */
+  private sessionChoice: ModelChoice | null = null;
   /** Claude Code compacted the session since the last message: the next one counts as fresh (audit H-11). */
   private compacted = false;
   /** The user pressed Stop or started a new conversation in this turn: no send-back for the review. */
@@ -135,14 +143,16 @@ export class AgentService implements AgentBackend {
     });
   }
 
-  async send(text: string, selections: Selection[] = [], note: string | null = null, images: readonly Uint8Array[] = [], kind: PictureKind = 'sketch'): Promise<void> {
+  async send(text: string, selections: Selection[] = [], note: string | null = null, images: readonly Uint8Array[] = [], kind: PictureKind = 'sketch', phase: Phase = 'build'): Promise<void> {
     if (this.current.state !== 'ready') throw new Error(`assistant is ${this.current.state}`);
+    this.phase = phase;
     const tools = await this.options.tools();
     if (!tools) {
       this.listeners.event({ type: 'error', message: 'SolidCraft is not connected' });
       return;
     }
     await this.ensureSession(tools);
+    this.use(this.steps()?.[phase] ?? null);
     this.stopping = false;
     this.reviewMs = 0;
     // The notes for a fresh conversation (print profile, check) were read before this call and go with this message.
@@ -160,10 +170,40 @@ export class AgentService implements AgentBackend {
     const allowed = allowedChoice(this.models, choice);
     if (!allowed) throw new Error(`model ${choice.model} is not offered by this plan`);
     this.choice = allowed;
+    this.pinned = allowed;
     if (asDefault) this.options.choices.set('claude-code', allowed);
-    this.session?.choose(allowed);
+    this.use(allowed);
     this.setStatus(this.current);
     await Promise.resolve();
+  }
+
+  async phaseModel(phase: Phase, choice: ModelChoice | null): Promise<void> {
+    if (!this.models) throw new Error('Claude Code has not listed its models yet');
+    const allowed = choice ? allowedChoice(this.models, choice) : null;
+    if (choice && !allowed) throw new Error(`model ${choice.model} is not offered by this plan`);
+    this.options.phases?.setPhase('claude-code', phase, allowed);
+    this.setStatus(this.current);
+    await Promise.resolve();
+  }
+
+  async automatic(): Promise<void> {
+    this.pinned = null;
+    this.setStatus(this.current);
+    await Promise.resolve();
+  }
+
+  /** The model of each step in this chat (modelChoice.ts `phaseChoices`). */
+  private steps() {
+    return phaseChoices(this.models ?? [], this.choice, this.pinned, this.options.phases?.phases('claude-code') ?? {}, CLAUDE_PHASES);
+  }
+
+  /** Switches the running session to a step's model when it works with another (`set_model`, B1). */
+  private use(choice: ModelChoice | null): void {
+    if (!choice || !this.session?.running) return;
+    if (this.sessionChoice?.model === choice.model && this.sessionChoice.effort === choice.effort) return;
+    this.session.choose(choice);
+    this.sessionChoice = choice;
+    this.options.log(`Claude Code ${this.phase} with ${choice.model} ${choice.effort ?? ''}`.trimEnd());
   }
 
   async allowApiBilling(allow: boolean): Promise<void> {
@@ -188,6 +228,8 @@ export class AgentService implements AgentBackend {
     this.stopping = true;
     await this.session?.stop();
     this.session = null;
+    this.pinned = null;
+    this.phase = 'plan';
     this.context = { used: 0, size: 0 };
     this.setStatus(this.current);
   }
@@ -241,7 +283,9 @@ export class AgentService implements AgentBackend {
     let announced = false;
     this.context = { used: 0, size: 0 };
     this.compacted = false;
-    const session = new ClaudeSession({ claude: this.claude, env: this.options.env, cwd: this.options.workDir, mcpConfigPath: configPath, choice: this.choice, research: this.options.research?.() ?? false });
+    // The session starts with the model of the step at hand; `use` switches it for later steps.
+    this.sessionChoice = this.steps()?.[this.phase] ?? this.choice;
+    const session = new ClaudeSession({ claude: this.claude, env: this.options.env, cwd: this.options.workDir, mcpConfigPath: configPath, choice: this.sessionChoice, research: this.options.research?.() ?? false });
     session.onEvent((event) => {
       switch (event.type) {
         case 'textDelta':
@@ -258,6 +302,10 @@ export class AgentService implements AgentBackend {
           const back = event.ok && !this.stopping && session.running ? (this.options.review?.due() ?? null) : null;
           if (back) {
             this.reviewMs += event.durationMs ?? 0;
+            // The review runs as its own step, with its model (issue #446).
+            this.phase = 'review';
+            this.use(this.steps()?.review ?? null);
+            this.setStatus(this.current);
             session.send(back);
             break;
           }
@@ -330,7 +378,8 @@ export class AgentService implements AgentBackend {
   private setStatus(status: AgentStatus): void {
     this.current = {
       ...withoutChoice(status),
-      ...choiceStatus(this.models, this.choice, this.options.choices.get('claude-code')),
+      ...choiceStatus(this.models, this.steps()?.[this.phase] ?? this.choice, this.options.choices.get('claude-code')),
+      ...(this.models ? phaseStatus(this.steps(), this.phase, this.pinned !== null, this.options.phases?.phases('claude-code') ?? {}) : {}),
       // The last limits Claude Code reported stay through refreshes until the next answer brings new ones.
       ...(this.usage && status.state !== 'signedOut' && status.state !== 'notInstalled' ? { usage: this.usage } : {}),
     };

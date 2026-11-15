@@ -228,6 +228,11 @@ export class Questions {
     return this.pending;
   }
 
+  /** No plan got Go in this conversation yet: a turn on an empty design is still asking and planning (issue #446). */
+  get planning(): boolean {
+    return !this.approved;
+  }
+
   tools(upstream: UpstreamTools): UpstreamTools {
     return {
       instructions: () => upstream.instructions(),

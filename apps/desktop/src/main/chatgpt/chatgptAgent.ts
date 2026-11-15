@@ -3,9 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { createOpenAI } from '@ai-sdk/openai';
 import { stepCountIs, streamText, type ModelMessage } from 'ai';
 
-import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } from '../../shared/contract';
+import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Phase, Selection } from '../../shared/contract';
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
-import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
+import { allowedChoice, choiceStatus, listedPhases, phaseChoices, phaseStatus, type ChoiceStore, type PhaseStore } from '../agents/modelChoice';
 import type { UpstreamTools } from '../agents/gateProxy';
 import { contextAfter, instructionsFor, tokensLine, turnTokens, withEarlierResultsCleared, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
 import { sourceOfUrl } from '../agents/research';
@@ -30,6 +30,8 @@ export interface ChatGptAgentOptions {
   log(message: string): void;
   /** The model and effort kept for new chats (B1). */
   choices: ChoiceStore;
+  /** The models per step kept for new chats (issue #446). */
+  phases?: PhaseStore;
   /** Whether ChatGPT may search the web (B7); read for every request. */
   research?: () => boolean;
   /** The review before "done" (review.ts), asked when the model ends a turn. */
@@ -89,8 +91,12 @@ export function usageFromHeaders(headers: Headers): NonNullable<AgentStatus['usa
 export class ChatGptAgent implements AgentBackend {
   /** The models of the account, once listed. */
   private models: ModelOption[] | null = null;
-  /** Model and effort from the next turn on. */
+  /** Model and effort from the next turn on: the plan's, from which the other steps follow. */
   private choice: ModelChoice | null = null;
+  /** One model the user picked for every step of this chat (issue #446). */
+  private pinned: ModelChoice | null = null;
+  /** The step of the running or last turn. */
+  private phase: Phase = 'plan';
   private history: ModelMessage[] = [];
   /**
    * Sent as `prompt_cache_key` with every request of the conversation, as Codex does with its session id (issue #446):
@@ -130,7 +136,18 @@ export class ChatGptAgent implements AgentBackend {
     if (account.detail && !status.detail) status.detail = account.detail;
     if (this.context && account.state === 'signedIn') status.context = this.context;
     if (this.usage && account.state === 'signedIn') status.usage = this.usage;
-    return { ...status, ...choiceStatus(this.models, this.choice, this.options.choices.get('chatgpt')) };
+    const steps = this.steps();
+    return {
+      ...status,
+      ...choiceStatus(this.models, steps?.[this.phase] ?? this.choice, this.options.choices.get('chatgpt')),
+      ...phaseStatus(steps, this.phase, this.pinned !== null, this.options.phases?.phases('chatgpt') ?? {}),
+    };
+  }
+
+  /** The model of each step in this chat (modelChoice.ts `phaseChoices`). */
+  private steps() {
+    const models = this.models ?? [];
+    return phaseChoices(models, this.choice, this.pinned, this.options.phases?.phases('chatgpt') ?? {}, listedPhases(models, this.choice));
   }
 
   async refresh(): Promise<AgentStatus> {
@@ -153,6 +170,8 @@ export class ChatGptAgent implements AgentBackend {
     await this.stop();
     this.history = [];
     this.cacheKey = randomUUID();
+    this.pinned = null;
+    this.phase = 'plan';
     this.context = null;
     this.cutShort = false;
     this.models = null;
@@ -171,6 +190,8 @@ export class ChatGptAgent implements AgentBackend {
     await this.stop();
     this.history = [];
     this.cacheKey = randomUUID();
+    this.pinned = null;
+    this.phase = 'plan';
     this.context = null;
     this.cutShort = false;
   }
@@ -183,7 +204,8 @@ export class ChatGptAgent implements AgentBackend {
     return this.history.length === 0;
   }
 
-  async send(text: string, selections: Selection[] = [], note: string | null = null, images: readonly Uint8Array[] = [], kind: PictureKind = 'sketch'): Promise<void> {
+  async send(text: string, selections: Selection[] = [], note: string | null = null, images: readonly Uint8Array[] = [], kind: PictureKind = 'sketch', phase: Phase = 'build'): Promise<void> {
+    this.phase = phase;
     if (this.status().state !== 'ready') throw new Error(`assistant is ${this.status().state}`);
     const upstream = await this.options.tools();
     if (!upstream) {
@@ -229,9 +251,12 @@ export class ChatGptAgent implements AgentBackend {
         ...(research ? { web_search: provider.tools.webSearch({}) } : {}) };
       // Both passes of a turn (the second only after a send-back for the review) share its MAX_STEPS rounds.
       const steps: Awaited<ReturnType<typeof streamText>['steps']>[number][] = [];
+      // The turn's own step first; a send-back for the review runs as the review step (issue #446).
+      let step = this.steps()?.[this.phase] ?? this.choice;
       for (;;) {
+        this.options.log(`ChatGPT ${this.phase} with ${step?.model ?? '?'} ${step?.effort ?? ''}`.trimEnd());
         const result = streamText({
-          model: provider.responses(this.choice?.model ?? ''),
+          model: provider.responses(step?.model ?? ''),
           messages: this.history,
           tools,
           stopWhen: [stepCountIs(MAX_STEPS - steps.length), repeatsItself],
@@ -242,7 +267,7 @@ export class ChatGptAgent implements AgentBackend {
               promptCacheKey: this.cacheKey,
               instructions: instructionsFor(upstream, research),
               systemMessageMode: 'remove',
-              ...(this.choice?.effort ? { reasoningEffort: this.choice.effort } : {}),
+              ...(step?.effort ? { reasoningEffort: step.effort } : {}),
             },
           },
         });
@@ -263,8 +288,11 @@ export class ChatGptAgent implements AgentBackend {
         if (!back) break;
         // The send-back line in the chat (review.ts) closes the first pass's words; the second pass gets its own bubble.
         this.history.push({ role: 'user', content: back });
+        this.phase = 'review';
+        step = this.steps()?.review ?? step;
+        this.options.changed();
       }
-      this.context = contextAfter(steps, this.models?.find((model) => model.id === this.choice?.model)?.context) ?? this.context;
+      this.context = contextAfter(steps, this.models?.find((model) => model.id === step?.model)?.context) ?? this.context;
       this.options.log(tokensLine('ChatGPT', turnTokens(steps)));
       if (repeatsItself({ steps })) {
         this.options.event({ type: 'error', message: LOOP_NOTICE });
@@ -318,8 +346,23 @@ export class ChatGptAgent implements AgentBackend {
     const allowed = allowedChoice(this.models ?? [], choice);
     if (!allowed) throw new Error(`model ${choice.model} is not offered for this ChatGPT account`);
     this.choice = allowed;
+    this.pinned = allowed;
     if (asDefault) this.options.choices.set('chatgpt', allowed);
     this.options.changed();
+  }
+
+  async phaseModel(phase: Phase, choice: ModelChoice | null): Promise<void> {
+    if (!this.models) await this.readModels();
+    const allowed = choice ? allowedChoice(this.models ?? [], choice) : null;
+    if (choice && !allowed) throw new Error(`model ${choice.model} is not offered for this ChatGPT account`);
+    this.options.phases?.setPhase('chatgpt', phase, allowed);
+    this.options.changed();
+  }
+
+  async automatic(): Promise<void> {
+    this.pinned = null;
+    this.options.changed();
+    await Promise.resolve();
   }
 
   /** The models OpenAI lists for this ChatGPT account, and the choice: the kept one if offered, else the first. */

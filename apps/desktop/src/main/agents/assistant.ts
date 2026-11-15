@@ -1,4 +1,4 @@
-import type { AgentKind, AgentStatus, AssistantState, ModelChoice, Selection } from '../../shared/contract';
+import type { AgentKind, AgentStatus, AssistantState, ModelChoice, Phase, Selection } from '../../shared/contract';
 import type { SelectionSummary } from './viewContext';
 
 /** What a picture that goes along with a message is: a rough sketch (F4), a photo (F6) or an SVG drawing. */
@@ -25,13 +25,18 @@ export interface AgentBackend {
    * `selections`: what the user selected in PartBuddy's view, sent along as a short note.
    * `note`: what the user changed or undid since the model's last turn (work log, M2a) and notes.
    * `images`: PNGs that go along as pictures, a rough sketch (F4), photos (F6) or a drawing as `kind` says.
+   * `phase`: the step of the work this turn is, which picks its model (issue #446); building when not given.
    */
-  send(text: string, selections?: Selection[], note?: string | null, images?: readonly Uint8Array[], kind?: PictureKind): Promise<void>;
+  send(text: string, selections?: Selection[], note?: string | null, images?: readonly Uint8Array[], kind?: PictureKind, phase?: Phase): Promise<void>;
   stop(): Promise<void>;
   /** Ends the conversation; the next message starts a new one (another project, B2). */
   newConversation(): Promise<void>;
-  /** Model and effort from the next turn on; with `asDefault` also kept for new chats (B1). */
+  /** Model and effort from the next turn on, for every step of this chat; with `asDefault` also kept for new chats (B1). */
   chooseModel(choice: ModelChoice, asDefault: boolean): Promise<void>;
+  /** The model of one step for new chats and this one, unless pinned; null: PartBuddy's standard (issue #446). */
+  phaseModel(phase: Phase, choice: ModelChoice | null): Promise<void>;
+  /** Ends the pin of this chat: each step takes its own model again. */
+  automatic(): Promise<void>;
   /** True when the next message starts a new conversation, or one that kept only a summary of earlier messages (compacted). */
   freshConversation(): boolean;
   signIn(): void;
@@ -76,8 +81,8 @@ export class Assistant {
     return this.state();
   }
 
-  send(text: string, selections: Selection[] = [], note: string | null = null, images: readonly Uint8Array[] = [], kind: PictureKind = 'sketch'): Promise<void> {
-    return this.current().send(text, selections, note, images, kind);
+  send(text: string, selections: Selection[] = [], note: string | null = null, images: readonly Uint8Array[] = [], kind: PictureKind = 'sketch', phase: Phase = 'build'): Promise<void> {
+    return this.current().send(text, selections, note, images, kind, phase);
   }
 
   stop(): Promise<void> {
@@ -91,6 +96,16 @@ export class Assistant {
 
   async chooseModel(choice: ModelChoice, asDefault: boolean): Promise<AssistantState> {
     await this.current().chooseModel(choice, asDefault);
+    return this.state();
+  }
+
+  async phaseModel(phase: Phase, choice: ModelChoice | null): Promise<AssistantState> {
+    await this.current().phaseModel(phase, choice);
+    return this.state();
+  }
+
+  async automatic(): Promise<AssistantState> {
+    await this.current().automatic();
     return this.state();
   }
 
