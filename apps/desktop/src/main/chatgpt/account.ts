@@ -25,6 +25,8 @@ export interface AccountOptions {
   /** OpenAI's key set; discovered from auth.openai.com when absent (tests pass a local one). */
   jwks?: SignInOptions['jwks'];
   onStatus(status: ChatGptStatus): void;
+  /** Diagnostics for the log file; never receives tokens or account data. */
+  log?: (message: string) => void;
 }
 
 /**
@@ -35,6 +37,8 @@ export class ChatGptAccount {
   private credentials: Credentials | null = null;
   private current: ChatGptStatus = { state: 'signedOut' };
   private renewing: Promise<Credentials> | null = null;
+  /** The sign-in waiting for the browser; a new sign-in replaces it (issue #445). */
+  private pending: AbortController | null = null;
 
   constructor(private readonly options: AccountOptions) {}
 
@@ -50,7 +54,11 @@ export class ChatGptAccount {
   }
 
   async signIn(): Promise<ChatGptStatus> {
+    this.pending?.abort();
+    const attempt = new AbortController();
+    this.pending = attempt;
     const saved = this.savedClient();
+    this.log(`ChatGPT sign-in started (${saved ? 'returning registration' : 'new registration'})`);
     this.set({ state: 'signingIn' });
     try {
       const credentials = await signIn({
@@ -58,24 +66,41 @@ export class ChatGptAccount {
         clientId: saved?.clientId,
         idTokenHint: saved?.idToken,
         openBrowser: this.options.openBrowser,
+        signal: attempt.signal,
         ...(this.options.fetch ? { fetch: this.options.fetch } : {}),
         ...(this.options.jwks ? { jwks: this.options.jwks } : {}),
       });
       // A returning sign-in must be the same account as the saved registration.
       if (saved && saved.subject !== credentials.subject) throw new SignInError('a different ChatGPT account signed in', 'invalid');
       this.save(credentials);
+      this.log('ChatGPT sign-in succeeded');
       this.publish();
     } catch (error) {
-      this.publish(error instanceof Error ? error.message : String(error));
+      // A replaced attempt leaves the status to the attempt that replaced it.
+      if (attempt.signal.aborted) {
+        this.log('ChatGPT sign-in replaced by a new attempt');
+        return this.current;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      // A returning sign-in that failed forgets the registration, so the next attempt registers afresh.
+      if (saved) this.options.store.remove(CLIENT);
+      this.log(`Warning: ChatGPT sign-in failed (${error instanceof SignInError ? error.kind : 'error'}): ${message}`);
+      this.publish(`Sign-in failed: ${message}. Continue with ChatGPT starts a new sign-in.`);
+    } finally {
+      if (this.pending === attempt) this.pending = null;
     }
     return this.current;
   }
 
   async signOut(): Promise<ChatGptStatus> {
+    this.pending?.abort();
     const credentials = this.credentials;
     this.credentials = null;
     this.options.store.remove(TOKENS);
+    // Revoking ends this registration at OpenAI; the next sign-in starts a fresh one (issue #445).
+    this.options.store.remove(CLIENT);
     const confirmed = credentials ? await revoke(credentials, this.options.fetch) : true;
+    this.log(`ChatGPT signed out (revocation ${confirmed ? 'confirmed' : 'not confirmed'})`);
     this.publish(confirmed ? undefined : 'signed out here; OpenAI did not confirm the revocation, disconnect PartBuddy in ChatGPT settings');
     return this.current;
   }
@@ -123,6 +148,10 @@ export class ChatGptAccount {
     if (credentials?.email) status.email = credentials.email;
     if (detail) status.detail = detail.slice(0, 500);
     this.set(status);
+  }
+
+  private log(message: string): void {
+    this.options.log?.(message);
   }
 
   private set(status: ChatGptStatus): void {
