@@ -1,5 +1,5 @@
 // Stand-in for Claude Code that records what PartBuddy sends to a model (issue #446): the role
-// (`--append-system-prompt`), the MCP server's instructions and tool list, and every user message.
+// (`--system-prompt`), the MCP server's instructions and tool list, and every user message.
 // It answers each message at once and calls no tool, so no model and no plan usage are involved.
 // PROBE_OUT: the JSON file the record goes to, rewritten after every message.
 import { writeFileSync } from 'node:fs';
@@ -17,7 +17,7 @@ if (args[0] === '--version') {
   console.log(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai', subscriptionType: 'max' }));
 } else if (args.includes('-p')) {
   const configPath = flag('--mcp-config');
-  const record = { args, role: flag('--append-system-prompt'), instructions: null, tools: null, messages: [] };
+  const record = { args, role: flag('--system-prompt') ?? flag('--append-system-prompt'), instructions: null, tools: null, messages: [] };
   const save = () => process.env.PROBE_OUT && writeFileSync(process.env.PROBE_OUT, JSON.stringify(record, null, 1));
   out({ type: 'system', subtype: 'init', model: 'probe' });
   for await (const line of createInterface({ input: process.stdin })) {

@@ -317,7 +317,11 @@ function resultTokens(message: Record<string, unknown>): TurnTokens | null {
   };
 }
 
-/** The role Claude Code gets as `--append-system-prompt`. */
+/**
+ * The role Claude Code gets as `--system-prompt`, in place of its own prompt for writing software (issue #446): that one
+ * cost about 2,900 tokens with every request (measured with Claude Code 2.1.302: 3,687 tokens with
+ * `--append-system-prompt` against 781 with `--system-prompt`, `--tools ""`), and none of it is about modelling parts.
+ */
 export function roleOf(research: boolean): string {
   return rolePrompt(false, research);
 }
@@ -359,6 +363,10 @@ export class ClaudeSession {
     if (this.child) return;
     const { claude, env, cwd, mcpConfigPath } = this.options;
     const research = this.options.research === true;
+    // Claude Code's tool search (issue #446): PartBuddy's tools go out by name only and load when the model needs them.
+    // Measured 2026-11-15 on a real build: 10,400 tokens per request at the start instead of 32,800, the whole run
+    // 1.05 M input instead of 1.48 M with the same result; mechanisms, drawings and assemblies stay out until needed.
+    const search = ['ToolSearch'];
     const args = [
       ...claude.prefix,
       '-p',
@@ -366,17 +374,18 @@ export class ClaudeSession {
       '--output-format', 'stream-json',
       '--verbose',
       '--include-partial-messages',
-      '--tools', research ? CLAUDE_RESEARCH_TOOLS.join(',') : '',
+      '--tools', [...(research ? CLAUDE_RESEARCH_TOOLS : []), ...search].join(','),
       '--strict-mcp-config',
       '--mcp-config', mcpConfigPath,
-      '--allowedTools', ['mcp__partbuddy', ...(research ? CLAUDE_RESEARCH_TOOLS : [])].join(','),
+      '--allowedTools', ['mcp__partbuddy', ...(research ? CLAUDE_RESEARCH_TOOLS : []), ...search].join(','),
       '--setting-sources', '',
       '--no-session-persistence',
-      '--append-system-prompt', roleOf(research),
+      '--system-prompt', roleOf(research),
       ...choiceArgs(this.options.choice ?? null),
     ];
     // Argument array without a shell; the MCP token is in the config file, not on the command line.
-    const child = spawn(claude.command, args, { cwd, env, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, shell: false });
+    // ENABLE_TOOL_SEARCH: Claude Code decides on its own otherwise, and turns the search off behind a proxy.
+    const child = spawn(claude.command, args, { cwd, env: { ...env, ENABLE_TOOL_SEARCH: 'true' }, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, shell: false });
     this.child = child;
     const lines = createInterface({ input: child.stdout });
     // PARTBUDDY_CLAUDE_TRACE=<file>: Claude Code's raw stream for diagnosis (which events a real run sends);
