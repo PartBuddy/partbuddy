@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { createOpenAI } from '@ai-sdk/openai';
 import { stepCountIs, streamText, type ModelMessage } from 'ai';
 
@@ -65,6 +67,12 @@ export class ChatGptAgent implements AgentBackend {
   /** Model and effort from the next turn on. */
   private choice: ModelChoice | null = null;
   private history: ModelMessage[] = [];
+  /**
+   * Sent as `prompt_cache_key` with every request of the conversation, as Codex does with its session id (issue #446):
+   * OpenAI routes requests with the same key to the same cache, so the role, tools and history already sent are read
+   * from it instead of counted again in full.
+   */
+  private cacheKey = randomUUID();
   private abort: AbortController | null = null;
   private busy = false;
   private sequence = 0;
@@ -111,6 +119,7 @@ export class ChatGptAgent implements AgentBackend {
   async signOut(): Promise<void> {
     await this.stop();
     this.history = [];
+    this.cacheKey = randomUUID();
     this.context = null;
     this.cutShort = false;
     this.models = null;
@@ -128,6 +137,7 @@ export class ChatGptAgent implements AgentBackend {
   async newConversation(): Promise<void> {
     await this.stop();
     this.history = [];
+    this.cacheKey = randomUUID();
     this.context = null;
     this.cutShort = false;
   }
@@ -194,6 +204,7 @@ export class ChatGptAgent implements AgentBackend {
           providerOptions: {
             openai: {
               store: false,
+              promptCacheKey: this.cacheKey,
               instructions: instructionsFor(upstream, research),
               systemMessageMode: 'remove',
               ...(this.choice?.effort ? { reasoningEffort: this.choice.effort } : {}),

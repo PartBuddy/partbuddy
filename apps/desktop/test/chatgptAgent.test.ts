@@ -164,6 +164,9 @@ describe('ChatGPT agent', () => {
     const first = openai.bodies[0] ?? {};
     expect(first).toMatchObject({ model: 'gpt-5-test', store: false, stream: true });
     expect(typeof first.instructions).toBe('string');
+    // One cache key for all requests of a conversation (issue #446), so OpenAI reads the sent prefix from its cache.
+    expect(first.prompt_cache_key).toMatch(/^[0-9a-f-]{36}$/);
+    expect(openai.bodies[1]?.prompt_cache_key).toBe(first.prompt_cache_key);
     for (const field of ['temperature', 'max_output_tokens', 'previous_response_id', 'top_p']) expect(first).not.toHaveProperty(field);
     expect(JSON.stringify(first.input)).not.toContain('"role":"system"');
     expect(first.tools).toEqual([expect.objectContaining({ type: 'namespace', name: 'solidcraft' })]);
