@@ -72,7 +72,9 @@ export async function launchApp(
   // Nor do they review before "done" (review.ts), unless a test turns it on.
   if (env.PARTBUDDY_CLAUDE_COMMAND && env.PARTBUDDY_FINAL_REVIEW === undefined) env.PARTBUDDY_FINAL_REVIEW = '0';
   const app = await electron.launch({
-    args: [appDir, '--lang=en-US', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', `--user-data-dir=${join(work, 'profile')}`, HOVER, ...(options.args ?? [])],
+    // Software rendering keeps the pictures of tests alike on every machine, but a window drawn with it shows black on
+    // the screen (seen 2026-11-15 over Remote Desktop): a window shown on purpose (leftmost) renders with the GPU.
+    args: [appDir, '--lang=en-US', ...(env.PARTBUDDY_WINDOW_DISPLAY === 'leftmost' ? [] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']), `--user-data-dir=${join(work, 'profile')}`, HOVER, ...(options.args ?? [])],
     cwd: appDir,
     env,
     colorScheme: options.colorScheme === undefined ? 'light' : options.colorScheme,

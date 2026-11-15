@@ -75,11 +75,12 @@ import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
 import { logoTitle } from '../shared/drawingPlacement';
 
 app.setName('PartBuddy');
-// Windows counts a window beside all displays as covered and stops painting it; test runs
-// (PARTBUDDY_WINDOW_DISPLAY=offscreen) keep it painting.
+// Windows counts a window beside all displays, or behind other windows, as covered and stops painting it: a test
+// window then stays black, also one shown on purpose (PARTBUDDY_WINDOW_DISPLAY=leftmost, Manuel 2026-11-15). Every test
+// run keeps it painting.
 /** Test runs and screenshot runs (any PARTBUDDY_WINDOW_DISPLAY) never open Explorer windows. */
 const testRun = process.env.PARTBUDDY_WINDOW_DISPLAY !== undefined;
-if (process.env.PARTBUDDY_WINDOW_DISPLAY === 'offscreen') app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+if (testRun) app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 /**
  * Builds are served from a privileged custom scheme instead of file:// (Electron security
@@ -195,8 +196,8 @@ function createWindow(): BrowserWindow {
       spellcheck: false,
       // The interface size the user chose (2026-11-07); changed later with setZoomFactor.
       zoomFactor: settingsStore.get('zoom'),
-      // Off screen the window must keep rendering, or the 3D view of a test stays empty.
-      ...(placement?.hidden ? { backgroundThrottling: false } : {}),
+      // A test window keeps rendering off screen and behind other windows, or it and its 3D view stay empty.
+      ...(placement ? { backgroundThrottling: false } : {}),
     },
   });
   window.once('ready-to-show', () => {
