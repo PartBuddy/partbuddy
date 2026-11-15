@@ -28,9 +28,13 @@ const measureEnv = (work: string, port: string) => ({
   ...(chatgpt ? { PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-measure' } : { PARTBUDDY_CLAUDE_TRACE: join(work, 'claude-trace.jsonl') }),
 });
 
+/** The chip of a ChatGPT route that is signed in and names its model. */
+const READY = /^ChatGPT · (?!not signed in|checking|not available|working)/;
+
 async function pickChatGpt(page: Page): Promise<void> {
   await page.getByTestId('agent-status').click();
   await page.getByTestId('agent-menu').getByText('ChatGPT', { exact: true }).click();
+  await page.keyboard.press('Escape');
 }
 test.skip(target === '', 'set PROBE_OUT to the file for the record');
 
@@ -57,8 +61,8 @@ test('token probe: sign in to ChatGPT', async () => {
   try {
     await pickChatGpt(page);
     await page.getByRole('button', { name: 'Continue with ChatGPT' }).click();
-    await expect(page.getByTestId('agent-status')).not.toContainText('not signed in', { timeout: 15 * 60 * 1000 });
-    await expect(page.getByTestId('agent-status')).toContainText('ChatGPT');
+    // Signing in shows 'checking' first; only a ready route names its model.
+    await expect(page.getByTestId('agent-status')).toHaveText(READY, { timeout: 15 * 60 * 1000 });
   } finally {
     await launched.close();
   }
@@ -106,7 +110,6 @@ test('token probe: a real Claude Code build and change', async () => {
     if (chatgpt) await pickChatGpt(page);
     await expect(page.getByTestId('agent-status')).toContainText(chatgpt ? 'ChatGPT' : 'Claude Code', { timeout: 30_000 });
     await expect(page.getByTestId('agent-status')).not.toContainText('not signed in');
-    if (chatgpt) await page.keyboard.press('Escape');
     const start = tokenLines().length;
     await send(page, BUILD);
     await waitForTurn(page);

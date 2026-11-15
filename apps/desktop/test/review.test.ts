@@ -12,7 +12,7 @@ import { WorkLog, type DesignHistory } from '../src/main/agents/workLog';
  * review what changed the design: `solid.*` commands and `set_parameter` add to the history, undo and redo move in it,
  * everything else only reads. `failing` names calls that answer an error and change nothing.
  */
-function setup(options: { pictures?: boolean; enabled?: boolean; failing?: string[]; noShots?: boolean } = {}) {
+function setup(options: { pictures?: boolean; enabled?: boolean; failing?: string[]; noShots?: boolean; findings?: boolean } = {}) {
   const calls: { name: string; args: Record<string, unknown> }[] = [];
   const lines: string[] = [];
   const history: DesignHistory = { documentId: 'd', revision: 1, undo: 0, redo: 0 };
@@ -35,7 +35,7 @@ function setup(options: { pictures?: boolean; enabled?: boolean; failing?: strin
     },
   };
   const events: AgentEvent[] = [];
-  const review = new Review((line) => lines.push(line), () => options.pictures ?? false, options.enabled ?? true, (event) => events.push(event));
+  const review = new Review((line) => lines.push(line), () => options.pictures ?? false, options.enabled ?? true, (event) => events.push(event), () => options.findings ?? true);
   const steps = new WorkLog({
     history: () => Promise.resolve({ ...history }),
     travel: () => Promise.resolve(),
@@ -68,6 +68,13 @@ describe('the review before "done"', () => {
       'the assistant ended a changing turn without partbuddy_review; it is sent back once',
       'the assistant ended a changing turn without partbuddy_review although it was sent back once; the turn ends without it',
     ]);
+  });
+
+  it('lets a changing turn end without the review when its check is clean (issue 446)', async () => {
+    const { review, call, lines } = setup({ findings: false });
+    await call('execute', box);
+    expect(review.due()).toBeNull();
+    expect(lines).toEqual([]);
   });
 
   it('lets a turn end that reviewed after its last change, and not one that changed again after the review', async () => {
