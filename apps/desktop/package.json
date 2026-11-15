@@ -19,7 +19,7 @@
     "dist:mac": "electron-vite build && electron-builder --mac --publish never"
   },
   "dependencies": {
-    "@ai-sdk/openai": "4.0.106",
+    "@ai-sdk/openai": "4.0.111",
     "@modelcontextprotocol/client": "2.4.0",
     "@modelcontextprotocol/server": "2.4.0",
     "@napi-rs/keyring": "2.1.2",
@@ -30,7 +30,7 @@
     "@shikijs/langs": "4.6.0",
     "@shikijs/themes": "4.6.0",
     "@tabler/icons-react": "3.50.0",
-    "ai": "7.0.159",
+    "ai": "7.0.165",
     "clipper2-ts": "2.0.1-19",
     "electron-updater": "6.8.12",
     "fflate": "0.8.3",
