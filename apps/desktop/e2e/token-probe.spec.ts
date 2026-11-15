@@ -38,8 +38,9 @@ async function pickChatGpt(page: Page): Promise<void> {
 }
 test.skip(target === '', 'set PROBE_OUT to the file for the record');
 
-const BUILD = 'Build a wall hook for a 40 mm tube, screwed to the wall.';
-const CHANGE = 'Make the hook 5 mm wider.';
+// PROBE_BUILD_TEXT / PROBE_CHANGE_TEXT: another request and change than the wall hook, e.g. a part with a mechanism.
+const BUILD = process.env.PROBE_BUILD_TEXT ?? 'Build a wall hook for a 40 mm tube, screwed to the wall.';
+const CHANGE = process.env.PROBE_CHANGE_TEXT ?? 'Make the hook 5 mm wider.';
 
 async function waitForTurn(page: Page): Promise<void> {
   const stop = page.getByRole('button', { name: 'Stop' });
