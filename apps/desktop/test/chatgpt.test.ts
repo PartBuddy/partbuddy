@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 /** A stand-in for auth.openai.com: signs ID tokens with a local key and records token requests. */
-async function fakeOpenAI(options: { subject?: string; scope?: string; decline?: boolean } = {}) {
+async function fakeOpenAI(options: { subject?: string; scope?: string; decline?: boolean; hang?: boolean } = {}) {
   const { privateKey, publicKey } = await generateKeyPair('RS256');
   const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'RS256' };
   const jwks = createLocalJWKSet({ keys: [jwk] });
@@ -57,6 +57,9 @@ async function fakeOpenAI(options: { subject?: string; scope?: string; decline?:
   /** Plays the browser: reads the authorize URL and calls the loopback callback. */
   const openBrowser = async (url: string) => {
     const authorize = new URL(url);
+    lastAuthorize = authorize;
+    // A browser whose sign-in page never returns to PartBuddy (issue #445).
+    if (options.hang) return Promise.resolve();
     nonce = authorize.searchParams.get('nonce') ?? '';
     const callback = new URL(authorize.searchParams.get('redirect_uri') ?? '');
     callback.searchParams.set('state', authorize.searchParams.get('state') ?? '');
@@ -70,7 +73,7 @@ async function fakeOpenAI(options: { subject?: string; scope?: string; decline?:
     return Promise.resolve();
   };
   let lastAuthorize: URL | null = null;
-  return { fakeFetch, jwks, openBrowser, requests, authorize: () => lastAuthorize };
+  return { fakeFetch, jwks, openBrowser, requests, options, authorize: () => lastAuthorize };
 }
 
 describe('secret store', () => {
@@ -149,19 +152,74 @@ describe('ChatGPT account', () => {
     return { instance, statuses, store, backend };
   }
 
-  it('signs in, stores tokens only in the credential store and reuses the client on the next sign-in', async () => {
+  it('signs in, stores tokens only in the credential store and reuses the client while it stays signed in', async () => {
     const openai = await fakeOpenAI();
     const { instance, store } = account(openai);
     const status = await instance.signIn();
     expect(status).toEqual({ state: 'signedIn', email: 'someone@example.com' });
     expect(JSON.parse(store.read('chatgpt/client') ?? '{}')).toMatchObject({ clientId: 'oaiapp_test', subject: 'user-1' });
-    await instance.signOut();
-    expect(store.read('chatgpt/tokens')).toBeNull();
-    expect(openai.requests.at(-1)).toMatchObject({ token: 'refresh-1', token_type_hint: 'refresh_token', client_id: 'oaiapp_test' });
+    // A second sign-in without signing out (e.g. after the session ended) keeps the registration.
     await instance.signIn();
     expect(openai.authorize()?.searchParams.get('client_id')).toBe('oaiapp_test');
     expect(openai.authorize()?.searchParams.has('agent_name_hint')).toBe(false);
     expect(openai.authorize()?.searchParams.has('id_token_hint')).toBe(true);
+  });
+
+  // Issue #445: signing out revokes the registration; signing in again must start a fresh flow.
+  it('signs in again after signing out, with the same account', async () => {
+    const openai = await fakeOpenAI();
+    const { instance, store } = account(openai);
+    await instance.signIn();
+    await instance.signOut();
+    expect(store.read('chatgpt/tokens')).toBeNull();
+    expect(store.read('chatgpt/client')).toBeNull();
+    expect(openai.requests.at(-1)).toMatchObject({ token: 'refresh-1', token_type_hint: 'refresh_token', client_id: 'oaiapp_test' });
+    const status = await instance.signIn();
+    expect(openai.authorize()?.searchParams.get('client_id')).toBe('dynamic_agent_client');
+    expect(openai.authorize()?.searchParams.has('id_token_hint')).toBe(false);
+    expect(status).toEqual({ state: 'signedIn', email: 'someone@example.com' });
+  });
+
+  it('signs in again after signing out, with another account', async () => {
+    const openai = await fakeOpenAI();
+    const { instance, store } = account(openai);
+    await instance.signIn();
+    await instance.signOut();
+    openai.options.subject = 'user-2';
+    expect((await instance.signIn()).state).toBe('signedIn');
+    expect(JSON.parse(store.read('chatgpt/client') ?? '{}')).toMatchObject({ subject: 'user-2' });
+  });
+
+  it('starts a fresh registration after a returning sign-in failed', async () => {
+    const openai = await fakeOpenAI();
+    const { instance, store } = account(openai);
+    await instance.signIn();
+    // The session ended at OpenAI (tokens dropped, no sign-out here), then another account signs in.
+    store.remove('chatgpt/tokens');
+    instance.load();
+    openai.options.subject = 'user-2';
+    const failed = await instance.signIn();
+    expect(failed.state).toBe('signedOut');
+    expect(failed.detail).toMatch(/different ChatGPT account/);
+    const retried = await instance.signIn();
+    expect(openai.authorize()?.searchParams.get('client_id')).toBe('dynamic_agent_client');
+    expect(retried.state).toBe('signedIn');
+  });
+
+  it('replaces a sign-in that never returns from the browser with a new one', async () => {
+    const openai = await fakeOpenAI({ hang: true });
+    const { instance, statuses } = account(openai);
+    const stuck = instance.signIn();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(instance.status().state).toBe('signingIn');
+    const stuckPort = new URL(openai.authorize()?.searchParams.get('redirect_uri') ?? '').port;
+    openai.options.hang = false;
+    expect((await instance.signIn()).state).toBe('signedIn');
+    // The first attempt ends at once instead of waiting ten minutes, and does not overwrite the result.
+    await stuck;
+    expect(instance.status().state).toBe('signedIn');
+    expect(statuses.at(-1)?.state).toBe('signedIn');
+    await expect(fetch(`http://127.0.0.1:${stuckPort}/auth/callback`)).rejects.toThrow();
   });
 
   it('marks plan usage as disabled when the consent lacks the plan scope', async () => {

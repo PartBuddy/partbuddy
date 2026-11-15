@@ -250,6 +250,8 @@
       "planInUse": "Nutzt deinen ChatGPT-Plan",
       "manageUsage": "Verbrauch verwalten",
       "waiting": "Warte auf die Anmeldung in deinem Browser",
+      "waitingBody": "Schließe die Anmeldung im geöffneten Browserfenster ab. Kommt sie nicht zu PartBuddy zurück, starte die Anmeldung neu.",
+      "restart": "Anmeldung neu starten",
       "signedOutTitle": "Deinen ChatGPT-Plan nutzen",
       "signedOutBody": "Melde dich mit deinem ChatGPT-Konto an. Anfragen zählen auf deinen Plus- oder Pro-Plan; PartBuddy hält die Anmeldung nur im Windows-Anmeldeinformationsspeicher.",
       "planDisabledTitle": "ChatGPT-Plan ist nicht freigegeben",

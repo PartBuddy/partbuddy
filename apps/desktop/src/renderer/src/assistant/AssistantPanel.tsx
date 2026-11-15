@@ -113,7 +113,20 @@ function Setup() {
     return null;
   }
   if (status.agent === 'chatgpt') {
-    if (status.state === 'checking') return <Busy label={t('assistant.chatgpt.waiting')} />;
+    // A sign-in that never comes back from the browser can be started afresh (issue #445).
+    if (status.state === 'checking') {
+      return (
+        <Notice icon={IconLogin} title={t('assistant.chatgpt.waiting')} body={t('assistant.chatgpt.waitingBody')}>
+          <Button
+            onPress={() => {
+              void api.signIn();
+            }}
+          >
+            {t('assistant.chatgpt.restart')}
+          </Button>
+        </Notice>
+      );
+    }
     if (status.state === 'signedOut' || status.state === 'unavailable') {
       return (
         <Notice

@@ -38,7 +38,7 @@ export interface Credentials {
 export class SignInError extends Error {
   constructor(
     message: string,
-    readonly kind: 'declined' | 'timeout' | 'invalid' | 'network',
+    readonly kind: 'declined' | 'timeout' | 'invalid' | 'network' | 'cancelled',
   ) {
     super(message);
     this.name = 'SignInError';
@@ -67,6 +67,8 @@ export interface SignInOptions {
   /** Opens the system browser (Electron's shell.openExternal). */
   openBrowser: (url: string) => Promise<void>;
   fetch?: typeof fetch;
+  /** Ends a waiting sign-in at once, e.g. when the user starts a new one. */
+  signal?: AbortSignal | undefined;
   /** OpenID configuration, injectable for tests. */
   jwks?: Parameters<typeof jwtVerify>[1];
 }
@@ -133,9 +135,18 @@ export async function signIn(options: SignInOptions): Promise<Credentials> {
         reject(new SignInError('sign-in was not completed in time', 'timeout'));
       }, SIGN_IN_TIMEOUT_MS).unref(),
     );
-    result = await Promise.race([callback, timeout]);
+    const cancelled = new Promise<never>((_, reject) => {
+      const cancel = () => {
+        reject(new SignInError('sign-in was replaced by a new one', 'cancelled'));
+      };
+      if (options.signal?.aborted) cancel();
+      options.signal?.addEventListener('abort', cancel, { once: true });
+    });
+    result = await Promise.race([callback, timeout, cancelled]);
   } finally {
+    // closeAllConnections: a browser's keep-alive connection must not hold the loopback port open.
     server.close();
+    server.closeAllConnections();
   }
 
   if (result.has('error')) throw new SignInError(`sign-in declined (${result.get('error') ?? ''})`, 'declined');

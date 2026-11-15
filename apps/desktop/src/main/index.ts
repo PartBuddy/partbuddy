@@ -696,6 +696,7 @@ if (!app.requestSingleInstanceLock()) {
         await shell.openExternal(url);
       },
       onStatus: changed,
+      log,
     });
     account.load();
     const chatgpt = new ChatGptAgent({ account, tools, event: emitEvent, changed, log, choices: assistantSettings, research: () => assistantSettings.webResearch(), review });

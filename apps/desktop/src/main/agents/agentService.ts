@@ -61,6 +61,8 @@ export class AgentService implements AgentBackend {
   private configPath: string | null = null;
   /** The models of the user's plan, once Claude Code listed them. */
   private models: ModelOption[] | null = null;
+  /** The running `claude auth login`; a new sign-in replaces it instead of piling up processes (issue #445). */
+  private login: ReturnType<typeof startSignIn> | null = null;
   /** Model and effort from the next turn on; null: Claude Code's own default. */
   private choice: ModelChoice | null = null;
   /** Claude Code compacted the session since the last message: the next one counts as fresh (audit H-11). */
@@ -113,8 +115,19 @@ export class AgentService implements AgentBackend {
 
   signIn(): void {
     if (!this.claude) return;
+    if (this.login?.exitCode === null) {
+      this.options.log('Claude Code sign-in replaced by a new attempt');
+      this.login.kill();
+    }
+    this.options.log('Claude Code sign-in started');
     const child = startSignIn(this.claude, this.options.env);
-    child.once('exit', () => {
+    this.login = child;
+    child.once('error', (error) => {
+      this.options.log(`Warning: Claude Code sign-in could not start: ${error.message}`);
+    });
+    child.once('exit', (code) => {
+      if (this.login === child) this.login = null;
+      this.options.log(`Claude Code sign-in ended (${code === null ? 'stopped' : `exit ${String(code)}`})`);
       // Another account may have another plan: its models are read again.
       this.models = null;
       void this.refresh();
