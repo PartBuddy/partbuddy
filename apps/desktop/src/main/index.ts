@@ -19,6 +19,7 @@ import { SettingsStore } from './settingsStore';
 import { RESET_KEYS } from '../shared/settings';
 import { Updates } from './updates';
 import { Assistant } from './agents/assistant';
+import { commonSignatures, withSignatures } from './agents/signatures';
 import { SolidCraftTools } from './agents/solidcraftTools';
 import type { UpstreamTools } from './agents/gateProxy';
 import { guardNotes } from './agents/noteGuard';
@@ -662,7 +663,7 @@ if (!app.requestSingleInstanceLock()) {
     let toolsCache: { port: number; tools: UpstreamTools; close(): Promise<void> } | null = null;
     const tools = async () => {
       const headless = supervisor.headlessTools();
-      if (headless) return track(headless);
+      if (headless) return track(withSignatures(headless, await commonSignatures(headless, log)));
       const port = supervisor.connectedPort();
       const executable = findExecutable(engineEnvironment);
       if (port === null || !executable) return null;
@@ -670,7 +671,7 @@ if (!app.requestSingleInstanceLock()) {
         await toolsCache?.close();
         const next = new SolidCraftTools({ solidcraftExe: executable, port, allowPath: projects, env: process.env });
         await next.connect();
-        toolsCache = { port, tools: track(next), close: () => next.close() };
+        toolsCache = { port, tools: track(withSignatures(next, await commonSignatures(next, log))), close: () => next.close() };
       }
       return toolsCache.tools;
     };
