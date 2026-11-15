@@ -1,0 +1,328 @@
+{
+ "12": {
+  "commands": [
+   {
+    "command": "parameters.add",
+    "params": {
+     "name": "length",
+     "expression": "80 mm",
+     "comment": "[Box] Outer length"
+    }
+   },
+   {
+    "command": "parameters.add",
+    "params": {
+     "name": "width",
+     "expression": "60 mm",
+     "comment": "[Box] Outer width"
+    }
+   },
+   {
+    "command": "parameters.add",
+    "params": {
+     "name": "box_height",
+     "expression": "32 mm",
+     "comment": "[Box] Box height"
+    }
+   },
+   {
+    "command": "parameters.add",
+    "params": {
+     "name": "lid_height",
+     "expression": "8 mm",
+     "comment": "[Lid] Lid height"
+    }
+   },
+   {
+    "command": "parameters.add",
+    "params": {
+     "name": "wall",
+     "expression": "1.8 mm",
+     "comment": "[Druck] Wall [auto 4×line]"
+    }
+   },
+   {
+    "command": "parameters.add",
+    "params": {
+     "name": "base_t",
+     "expression": "1.2 mm",
+     "comment": "[Druck] Floor and lid top [auto 6×layer]"
+    }
+   },
+   {
+    "command": "parameters.add",
+    "params": {
+     "name": "edge_r",
+     "expression": "2 mm",
+     "comment": "[Box] Outer edge radius"
+    }
+   },
+   {
+    "command": "parameters.add",
+    "params": {
+     "name": "hinge_gap",
+     "expression": "0.8 mm",
+     "comment": "[Druck] Gap box to open lid [auto 2×nozzle]"
+    }
+   },
+   {
+    "command": "solid.box",
+    "params": {
+     "length": "length",
+     "width": "width",
+     "height": "box_height",
+     "corner": [
+      0,
+      0,
+      0
+     ],
+     "name": "Box block",
+     "body_name": "Box"
+    }
+   },
+   {
+    "command": "solid.fillet",
+    "params": {
+     "edges": [
+      [
+       0,
+       0,
+       16
+      ],
+      [
+       80,
+       0,
+       16
+      ],
+      [
+       0,
+       60,
+       16
+      ],
+      [
+       80,
+       60,
+       16
+      ]
+     ],
+     "radius": "edge_r",
+     "name": "Box corners"
+    }
+   },
+   {
+    "command": "solid.box",
+    "params": {
+     "length": "length - 2*wall",
+     "width": "width - 2*wall",
+     "height": "box_height",
+     "corner": [
+      "wall",
+      "wall",
+      "base_t"
+     ],
+     "operation": "cut",
+     "targets": [
+      "Box"
+     ],
+     "name": "Box pocket"
+    }
+   },
+   {
+    "command": "solid.fillet",
+    "params": {
+     "edges": [
+      [
+       1.8,
+       1.8,
+       20
+      ],
+      [
+       78.2,
+       1.8,
+       20
+      ],
+      [
+       1.8,
+       58.2,
+       20
+      ],
+      [
+       78.2,
+       58.2,
+       20
+      ]
+     ],
+     "radius": 0.4,
+     "name": "Box inner corners"
+    }
+   }
+  ],
+  "verbose": false,
+  "expect": {
+   "volume_mm3": 20778.3,
+   "bodies": 1,
+   "bbox": {
+    "min": [
+     0,
+     0,
+     0
+    ],
+    "max": [
+     80,
+     60,
+     32
+    ]
+   }
+  }
+ },
+ "13": {
+  "commands": [
+   {
+    "command": "solid.box",
+    "params": {
+     "length": "length",
+     "width": "width",
+     "height": "lid_height",
+     "corner": [
+      0,
+      "width + hinge_gap",
+      0
+     ],
+     "name": "Lid block",
+     "body_name": "Lid"
+    }
+   },
+   {
+    "command": "solid.fillet",
+    "params": {
+     "edges": [
+      [
+       0,
+       60.8,
+       4
+      ],
+      [
+       80,
+       60.8,
+       4
+      ],
+      [
+       0,
+       120.8,
+       4
+      ],
+      [
+       80,
+       120.8,
+       4
+      ]
+     ],
+     "radius": "edge_r",
+     "name": "Lid corners",
+     "body": "Lid"
+    }
+   },
+   {
+    "command": "solid.box",
+    "params": {
+     "length": "length - 2*wall",
+     "width": "width - 2*wall",
+     "height": "lid_height",
+     "corner": [
+      "wall",
+      "width + hinge_gap + wall",
+      "base_t"
+     ],
+     "operation": "cut",
+     "targets": [
+      "Lid"
+     ],
+     "name": "Lid pocket"
+    }
+   },
+   {
+    "command": "solid.fillet",
+    "params": {
+     "edges": [
+      [
+       1.8,
+       62.6,
+       5
+      ],
+      [
+       78.2,
+       62.6,
+       5
+      ],
+      [
+       1.8,
+       119,
+       5
+      ],
+      [
+       78.2,
+       119,
+       5
+      ]
+     ],
+     "radius": 0.4,
+     "name": "Lid inner corners",
+     "body": "Lid"
+    }
+   }
+  ],
+  "verbose": false,
+  "expect": {
+   "volume_mm3": 29850.9,
+   "bodies": 2,
+   "bbox": {
+    "min": [
+     0,
+     0,
+     0
+    ],
+    "max": [
+     80,
+     120.8,
+     32
+    ]
+   }
+  }
+ },
+ "16": {
+  "commands": [
+   {
+    "command": "set_parameter",
+    "params": {
+     "name": "box_height",
+     "value": "20 mm"
+    }
+   },
+   {
+    "command": "set_parameter",
+    "params": {
+     "name": "lid_height",
+     "value": "20 mm"
+    }
+   }
+  ],
+  "coalesce_parameters": true,
+  "verbose": false,
+  "expect": {
+   "volume_mm3": 29851,
+   "bodies": 2,
+   "bbox": {
+    "min": [
+     0,
+     0,
+     0
+    ],
+    "max": [
+     80,
+     120.8,
+     20
+    ]
+   }
+  }
+ }
+}
