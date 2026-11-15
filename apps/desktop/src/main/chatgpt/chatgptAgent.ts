@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { createOpenAI } from '@ai-sdk/openai';
 import { stepCountIs, streamText, type ModelMessage } from 'ai';
 
@@ -5,7 +7,7 @@ import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Selection } fro
 import { userEvent, type AgentBackend, type PictureKind } from '../agents/assistant';
 import { allowedChoice, choiceStatus, type ChoiceStore } from '../agents/modelChoice';
 import type { UpstreamTools } from '../agents/gateProxy';
-import { contextAfter, instructionsFor, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
+import { contextAfter, instructionsFor, tokensLine, turnTokens, withEarlierResultsCleared, LOOP_NOTICE, MAX_STEPS, policyToolSet, repeatsItself, ROUNDS_DETAIL, usedAllRounds, withRoundsNote } from '../agents/loop';
 import { sourceOfUrl } from '../agents/research';
 import type { TurnReview } from '../agents/review';
 import { composeMessage } from '../agents/viewContext';
@@ -59,12 +61,48 @@ export function modelsFromList(body: unknown): ModelOption[] {
   return options.slice(0, 30);
 }
 
+/**
+ * The plan's limits from the headers of a Codex answer (issue #446), as Codex itself reads them
+ * (codex-rs/codex-api/src/rate_limits.rs): `x-codex-primary-used-percent`, `-window-minutes` and `-reset-at`, the same
+ * for `secondary`. Windows of 5 hours and 7 days get the names Claude Code uses, so the chat words them alike.
+ */
+export function usageFromHeaders(headers: Headers): NonNullable<AgentStatus['usage']> {
+  const usage: NonNullable<AgentStatus['usage']> = [];
+  for (const slot of ['primary', 'secondary']) {
+    const number = (name: string) => {
+      const value = Number(headers.get(`x-codex-${slot}-${name}`) ?? Number.NaN);
+      return Number.isFinite(value) ? value : null;
+    };
+    const percent = number('used-percent');
+    if (percent === null) continue;
+    const minutes = number('window-minutes');
+    const reset = number('reset-at');
+    usage.push({
+      window: minutes === 300 ? 'five_hour' : minutes === 10080 ? 'seven_day' : minutes === null ? slot : `${String(Math.round(minutes))} min`,
+      used: Math.min(1, Math.max(0, percent / 100)),
+      resetsAt: reset !== null && Number.isInteger(reset) && reset >= 0 ? reset : null,
+    });
+  }
+  return usage;
+}
+
 export class ChatGptAgent implements AgentBackend {
   /** The models of the account, once listed. */
   private models: ModelOption[] | null = null;
   /** Model and effort from the next turn on. */
   private choice: ModelChoice | null = null;
   private history: ModelMessage[] = [];
+  /**
+   * Sent as `prompt_cache_key` with every request of the conversation, as Codex does with its session id (issue #446):
+   * OpenAI routes requests with the same key to the same cache, so the role, tools and history already sent are read
+   * from it instead of counted again in full.
+   */
+  private cacheKey = randomUUID();
+  /**
+   * The sticky-routing token of the running turn (`x-codex-turn-state`): the server sets it on the turn's first answer,
+   * and Codex sends it back with every further request of that turn, never in another turn (codex-rs/core/src/client.rs).
+   */
+  private turnState: string | null = null;
   private abort: AbortController | null = null;
   private busy = false;
   private sequence = 0;
@@ -72,6 +110,8 @@ export class ChatGptAgent implements AgentBackend {
   private webSearchRefused = false;
   /** How full the conversation is after the last turn. */
   private context: AgentStatus['context'] | null = null;
+  /** The plan's limits from the last answer's headers. */
+  private usage: AgentStatus['usage'] | null = null;
   /** The last turn used all its tool rounds; the next message tells the model (audit R57). */
   private cutShort = false;
 
@@ -89,6 +129,7 @@ export class ChatGptAgent implements AgentBackend {
     if (account.email) status.account = account.email;
     if (account.detail && !status.detail) status.detail = account.detail;
     if (this.context && account.state === 'signedIn') status.context = this.context;
+    if (this.usage && account.state === 'signedIn') status.usage = this.usage;
     return { ...status, ...choiceStatus(this.models, this.choice, this.options.choices.get('chatgpt')) };
   }
 
@@ -111,6 +152,7 @@ export class ChatGptAgent implements AgentBackend {
   async signOut(): Promise<void> {
     await this.stop();
     this.history = [];
+    this.cacheKey = randomUUID();
     this.context = null;
     this.cutShort = false;
     this.models = null;
@@ -128,6 +170,7 @@ export class ChatGptAgent implements AgentBackend {
   async newConversation(): Promise<void> {
     await this.stop();
     this.history = [];
+    this.cacheKey = randomUUID();
     this.context = null;
     this.cutShort = false;
   }
@@ -151,6 +194,7 @@ export class ChatGptAgent implements AgentBackend {
     const message = composeMessage(text, selections, withRoundsNote(this.cutShort, note));
     this.cutShort = false;
     this.options.event(userEvent(text, message.label, message.summary, images.length > 0 ? kind : undefined));
+    this.history = withEarlierResultsCleared(this.history);
     this.history.push(
       images.length > 0
         ? { role: 'user', content: [{ type: 'text', text: message.prompt }, ...images.map((image) => ({ type: 'image' as const, image, mediaType: 'image/png' }))] }
@@ -170,6 +214,7 @@ export class ChatGptAgent implements AgentBackend {
   private async run(upstream: UpstreamTools, signal: AbortSignal): Promise<void> {
     const started = Date.now();
     let research = false;
+    this.turnState = null;
     try {
       const provider = createOpenAI({ apiKey: 'replaced-per-request', baseURL: RESOURCE, fetch: this.authorizedFetch() });
       research = (this.options.research?.() ?? false) && !this.webSearchRefused;
@@ -194,6 +239,7 @@ export class ChatGptAgent implements AgentBackend {
           providerOptions: {
             openai: {
               store: false,
+              promptCacheKey: this.cacheKey,
               instructions: instructionsFor(upstream, research),
               systemMessageMode: 'remove',
               ...(this.choice?.effort ? { reasoningEffort: this.choice.effort } : {}),
@@ -219,6 +265,7 @@ export class ChatGptAgent implements AgentBackend {
         this.history.push({ role: 'user', content: back });
       }
       this.context = contextAfter(steps, this.models?.find((model) => model.id === this.choice?.model)?.context) ?? this.context;
+      this.options.log(tokensLine('ChatGPT', turnTokens(steps)));
       if (repeatsItself({ steps })) {
         this.options.event({ type: 'error', message: LOOP_NOTICE });
         this.options.event({ type: 'done', ok: false, durationMs: Date.now() - started, detail: 'failed' });
@@ -249,7 +296,19 @@ export class ChatGptAgent implements AgentBackend {
     return async (input, init) => {
       const headers = new Headers(init?.headers);
       headers.set('Authorization', `Bearer ${await this.options.account.accessToken()}`);
-      return base(input, { ...init, headers });
+      // "ChatGPT derives cache affinity from the Responses session-id header" (codex-rs/core/src/client.rs, issue #446):
+      // the same conversation reaches the same cache only with these, as Codex sends them.
+      headers.set('session-id', this.cacheKey);
+      headers.set('thread-id', this.cacheKey);
+      if (this.turnState) headers.set('x-codex-turn-state', this.turnState);
+      const response = await base(input, { ...init, headers });
+      this.turnState ??= response.headers.get('x-codex-turn-state');
+      const usage = usageFromHeaders(response.headers);
+      if (usage.length > 0) {
+        this.usage = usage;
+        this.options.changed();
+      }
+      return response;
     };
   }
 

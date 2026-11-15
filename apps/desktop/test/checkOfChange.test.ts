@@ -169,6 +169,17 @@ describe('designs of several bodies: the mesh check goes ahead of the measures (
     );
   });
 
+  it('knows a check a tool answer already told, so the next message need not carry it (issue 446)', () => {
+    const told = new CheckTold();
+    const clean: PrintCheckReport = { status: 'ready', findings: [], nozzle: 0.4, revision: 2 };
+    expect(told.knows(clean)).toBe(false);
+    told.note(clean);
+    expect(told.knows({ ...clean, revision: 3 })).toBe(true);
+    expect(told.knows({ ...clean, status: 'warn', findings: [{ kind: 'open', severity: 'warn', bodies: ['A'] }] })).toBe(false);
+    told.forget();
+    expect(told.knows(clean)).toBe(false);
+  });
+
   it('does not send partbuddy_view back to partbuddy_view: from the view a preliminary check says that the rest is coming', () => {
     const fromView = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 2, measuring: true }, true);
     expect(fromView).toContain('Preliminary: clearance and joints still being measured (bodies that overlap or come closer than the push fit, or than the print-in-place gap where they print as one piece and move, joints that stop before a limit, or within a turn or as far as the parts reach where they have none); the full check will be here in a moment.');

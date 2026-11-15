@@ -1,4 +1,4 @@
-import { jsonSchema, tool, type StopCondition, type ToolSet } from 'ai';
+import { jsonSchema, tool, type LanguageModelUsage, type ModelMessage, type StopCondition, type ToolSet } from 'ai';
 
 import type { AgentEvent } from '../../shared/contract';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
@@ -134,6 +134,69 @@ export function contextAfter(steps: { usage: { inputTokens?: number | undefined;
   const usage = steps.at(-1)?.usage;
   if (!size || typeof usage?.inputTokens !== 'number') return null;
   return { used: Math.max(0, Math.round(usage.inputTokens + (usage.outputTokens ?? 0))), size };
+}
+
+/** The newest tool results that stay whole when a new turn starts (issue #446; Anthropic's context editing keeps 3). */
+export const KEPT_RESULTS = 3;
+
+/** Shorter tool results stay as they are: replacing them would save little. */
+const SHORT_RESULT_CHARS = 400;
+
+/** What stands in for a removed result. */
+export const CLEARED_RESULT = '[PartBuddy: result of an earlier turn, removed to save tokens. Call the tool again if you need it.]';
+
+/**
+ * The history with the long tool results of earlier turns replaced, all but the newest {@link KEPT_RESULTS} (issue #446):
+ * every request of this loop carries the whole history, and old answers (the print check after each change, design
+ * views) are stale once the design moved on. Called once when a turn starts, so the prefix stays the same, and cached,
+ * through the turn's rounds.
+ */
+export function withEarlierResultsCleared(history: readonly ModelMessage[]): ModelMessage[] {
+  let kept = 0;
+  return history
+    .slice()
+    .reverse()
+    .map((message) => {
+      if (message.role !== 'tool') return message;
+      return {
+        ...message,
+        content: message.content.map((part) => {
+          if (part.type !== 'tool-result') return part;
+          kept += 1;
+          const output = part.output;
+          const text = output.type === 'text' || output.type === 'error-text' ? output.value : output.type === 'json' || output.type === 'error-json' ? JSON.stringify(output.value) : null;
+          if (kept <= KEPT_RESULTS || text === null || text.length <= SHORT_RESULT_CHARS || text === CLEARED_RESULT) return part;
+          return { ...part, output: { type: 'text' as const, value: CLEARED_RESULT } };
+        }),
+      };
+    })
+    .reverse();
+}
+
+/** What a turn cost in tokens (issue #446), summed over its requests; missing counts are 0. */
+export interface TurnTokens {
+  requests: number;
+  input: number;
+  cached: number;
+  output: number;
+  reasoning: number;
+}
+
+/** The tokens of a turn of this loop, from the AI SDK's usage of each step (each step is one request). */
+export function turnTokens(steps: readonly { usage: LanguageModelUsage }[]): TurnTokens {
+  const sum = { requests: steps.length, input: 0, cached: 0, output: 0, reasoning: 0 };
+  for (const { usage } of steps) {
+    sum.input += usage.inputTokens ?? 0;
+    sum.cached += usage.inputTokenDetails.cacheReadTokens ?? 0;
+    sum.output += usage.outputTokens ?? 0;
+    sum.reasoning += usage.outputTokenDetails.reasoningTokens ?? 0;
+  }
+  return sum;
+}
+
+/** The log line of a turn's tokens, the same on every route so runs can be compared. */
+export function tokensLine(route: string, tokens: TurnTokens): string {
+  return `${route} turn tokens: ${String(tokens.requests)} requests, input ${String(tokens.input)} (cached ${String(tokens.cached)}), output ${String(tokens.output)} (reasoning ${String(tokens.reasoning)})`;
 }
 
 /**

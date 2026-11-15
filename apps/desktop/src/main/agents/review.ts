@@ -33,8 +33,9 @@ export const SAME_STATE = `Nothing changed since your last ${REVIEW_TOOL} in thi
 
 /** Added to the role prompt of every route. */
 export const REVIEW_GUIDANCE =
-  `After your last change of a turn, before you call the part done, call ${REVIEW_TOOL} once and go through its checklist; ` +
-  'PartBuddy sends you back when you skip it. A single parameter change, undo and redo need none.';
+  `When the ready-to-print check after your last change of a turn still has findings, call ${REVIEW_TOOL} once before you ` +
+  'call the part done and go through its checklist; PartBuddy sends you back when you skip it. A clean check, a single ' +
+  'parameter change, undo and redo need none (issue 446: each review is a whole further round).';
 
 /** The views of the review's pictures: straight on, from above, and at an angle. */
 const VIEWS = ['front', 'top', 'iso'] as const;
@@ -79,6 +80,11 @@ export class Review implements TurnReview {
     private readonly enabled: boolean = process.env.PARTBUDDY_FINAL_REVIEW !== '0',
     /** Shows the review in the chat: that it ran with its pictures, or the send-back and the end without it. */
     private readonly emit: (event: AgentEvent) => void = () => undefined,
+    /**
+     * Whether the check of the design as it is now has findings, or is not there yet (Manuel, 2026-11-15, issue #446):
+     * a turn whose check is clean ends without the send-back, which costs a whole further round.
+     */
+    private readonly findings: () => boolean = () => true,
   ) {}
 
   /** A new message from the user: what earlier turns changed no longer asks for a review. */
@@ -127,7 +133,7 @@ export class Review implements TurnReview {
   }
 
   private owed(): boolean {
-    return this.changes > 0 || this.parameters > 1;
+    return (this.changes > 0 || this.parameters > 1) && this.findings();
   }
 
   private forget(): void {
