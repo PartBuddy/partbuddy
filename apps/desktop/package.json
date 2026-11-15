@@ -48,7 +48,7 @@
     "streamdown": "2.7.1",
     "three": "0.187.0",
     "three-mesh-bvh": "0.9.17",
-    "xstate": "5.33.3",
+    "xstate": "5.33.4",
     "zod": "4.6.7",
     "zustand": "5.1.0"
   },
