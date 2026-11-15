@@ -564,12 +564,18 @@ export function lipSteps(spec: LipSpec): Step[] {
     return typeof spec.radius === 'number' ? mm(Math.max(spec.radius - inset, least)) : `max(${by(spec.radius, -inset)}, ${mm(least)})`;
   };
   // A ring between two outlines of the lid's room, each moved in by an inset, from the height `z` upwards.
+  // At the wall with the hinge an outline reaches no further than the room (#446): reaching into the wall, the foot
+  // filled the rooms of the knuckles that open through it, and the cut below that clears this wall left 0.2 mm of it.
+  const hinged = spec.hinge && !spec.flat ? (spec.side.startsWith('y') ? (spec.side.endsWith('+') ? 'y0' : 'y1') : spec.side.endsWith('+') ? 'x0' : 'x1') : null;
   const ring = (label: string, z: string, outside: number, distance: string): Step[] => [
     { command: 'sketch.create', params: { plane: 'XY', offset: z, project_edges: false, name: label } },
-    ...[outside, inner].map((inset) => ({
-      command: round_ ? 'sketch.rectangle.rounded' : 'sketch.rectangle.two_point',
-      params: { p0: [by(x0, inset), by(y0, inset)], p1: [by(x1, -inset), by(y1, -inset)], ...(round_ ? { radius: ringRadius(inset) } : {}) },
-    })),
+    ...[outside, inner].map((inset) => {
+      const edge = (wall: string) => (wall === hinged ? Math.max(inset, 0) : inset);
+      return {
+        command: round_ ? 'sketch.rectangle.rounded' : 'sketch.rectangle.two_point',
+        params: { p0: [by(x0, edge('x0')), by(y0, edge('y0'))], p1: [by(x1, -edge('x1')), by(y1, -edge('y1'))], ...(round_ ? { radius: ringRadius(inset) } : {}) },
+      };
+    }),
     { command: 'solid.extrude', params: { distance, operation: 'join', targets: [spec.moving], name: label } },
   ];
   // The wall with the catch: across it runs `n` (out of the room), along it the bead.

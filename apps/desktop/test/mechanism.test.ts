@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import type { Run } from '../src/main/agents/takeBack';
-import { activated, snapNeeds, unusedSaid, closureTrial, latchTrial, MECHANISM_GUIDANCE, MECHANISM_TOOL, snapTrial, pegStock, screwStock, hingeOf, lineProblem, reach, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool, refusal, railFace, freeName, layOn } from '../src/main/agents/mechanismTool';
+import { activated, snapNeeds, unusedSaid, closureTrial, latchTrial, MECHANISM_GUIDANCE, MECHANISM_TOOL, snapTrial, pegStock, screwStock, hingeOf, lineProblem, reach, skinProblem, latchOf, lidOf, lipOf, occurrenceOf, pegOf, railTravel, screwOf, slideOf, snapOf, withMechanismTool, refusal, hingeLine, builtHinges, railFace, freeName, layOn } from '../src/main/agents/mechanismTool';
 import { decide } from '../src/main/agents/policy';
 import { METADATA_PREFIX } from '../src/main/notes/noteRecord';
 import { describeToolCall } from '../src/shared/stepPhrases';
@@ -650,7 +650,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(ended.sent.flat().some((step) => step.params.operation === 'join')).toBe(false);
     // Behind the flap's rooms the wall reaches two lines deep along a third of the line, and is plastic right behind them all along: a skin, how thin not known.
     const ribbed = await run((step) => trial(step, { part: { moving: [1, 1 / 3] } }));
-    expect(ribbed.text).toBe("Not built: the rooms of the knuckles would leave a skin under two lines of the 0.4 mm nozzle (0.9 mm) of Flap's wall behind them, along about 20 mm of the line. Make that wall thicker there, so it keeps 0.9 mm behind the rooms, or thinner than the rooms reach. Nothing was built.");
+    expect(ribbed.text).toBe("Not built: the rooms of the knuckles would leave a skin under two lines of the 0.4 mm nozzle (0.9 mm) of Flap's wall behind them, along about 20 mm of the line. Make that wall at least 2.3 mm thick there, so it keeps 0.9 mm behind the rooms, which go 1.4 mm into it, or under 1.4 mm, so they open through it. Nothing was built.");
     // A wall that ends 10 mm before the line does: where it is, it keeps two lines; the answer says how much of the line that is.
     const short = await run((step) => trial(step, { part: { moving: [2 / 3, 2 / 3] } }));
     expect(short.error).toBe(false);
@@ -1105,7 +1105,9 @@ describe('the snap closure of a lid (G3)', () => {
     expect(built.content[0]).toMatchObject({ text: expect.stringContaining("Built the closure \"Closure\" between Box (the box) and Lid (the lid): a lip 1.4 mm thick and 4 mm high inside the lid, 0.25 mm clear of the box's wall, a bead 1 mm high that snaps 0.25 mm into a rille") as string });
     // The trial of the box gave no answer here: the answer says what to keep instead.
     expect(built.content[0]).toMatchObject({ text: expect.stringContaining("PartBuddy could not try Box's wall: keep it straight where the lip goes in, and at least 1.35 mm thick behind the rille.") as string });
-    expect(batches).toHaveLength(6);
+    // The timeline read for a hinge in the lid (#446) comes first; with none, nothing more is asked.
+    expect(batches).toHaveLength(7);
+    expect(batches[0]).toBe('document.inspect');
     // Audit R39: the notch goes through the lid's rim, so the guidance does not say that no wall is cut through.
     expect(MECHANISM_GUIDANCE).not.toContain('no wall cut through');
     expect(MECHANISM_GUIDANCE).toContain("only a notch for a fingernail in the lid's rim");
@@ -2213,7 +2215,7 @@ describe('what the tool answers and what the guide checks (audit BC-15)', () => 
 
   it('asks for no joint command by hand, and says it is a mechanism or a connection (H-26, R49)', async () => {
     const description = await withMechanismDescription();
-    expect(description.startsWith('Build a mechanism or a connection between two bodies from proven geometry; the answer says how it prints. hinge: knuckles in turn on both bodies and a pin through them, the same gap everywhere, printed in place as one piece. Give the hinge line (from, to)')).toBe(true);
+    expect(description.startsWith('Build a mechanism or a connection between two bodies from proven geometry; the answer says how it prints. hinge: knuckles in turn on both bodies and a pin through them, the same gap everywhere, printed in place as one piece. Leave out from and to when the two stand side by side')).toBe(true);
     expect(description).not.toMatch(/joint\.(limits|as_built)/);
   });
 
@@ -2456,5 +2458,131 @@ describe('the print profile in the mechanism tool (audit BC-16)', () => {
     const refused = await tools.callTool('partbuddy_mechanism', { kind: 'snap', fixed: 'Base', moving: 'Cover', from: [0, 20, 2], to: [-1, 20, 2], wall: 1 });
     expect(refused.isError).toBe(true);
     expect(lines).toEqual([expect.stringMatching(/^partbuddy_mechanism snap not built: wall must be 1\.6–10 mm/) as string]);
+  });
+});
+
+// #446 (run of 2026-11-15): a hinged box took five mechanism calls, three refused, before it was built.
+describe('the line and the hinge found from the design (issue 446)', () => {
+  type Step = { command: string; params: Record<string, unknown> };
+  const box = (min: [number, number, number], max: [number, number, number]) => ({ min, max });
+  const tool = (answer: (step: Step) => unknown, sent: Step[][] = []): UpstreamTools => ({
+    instructions: () => undefined,
+    listTools: () => Promise.resolve([]),
+    callTool: (name, args) => {
+      if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Base' }, { name: 'Flap' }, { name: 'Box' }, { name: 'Lid' }] }) }] });
+      const commands = args.commands as Step[];
+      sent.push(commands);
+      return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results: commands.map((step) => answer(step) ?? (step.command === 'inspect.interference' ? { count: 0 } : step.command === 'component.list' ? { components: [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ name: 'Flap:1' }] }] } : step.command === 'joint.sweep' ? { stopped_at: step.params.to } : {})) }) }] });
+    },
+  });
+  const plates = { bodies: [{ name: 'Base', bbox: { min: [0, 0, 0], max: [40, 30, 4] } }, { name: 'Flap', bbox: { min: [44, 0, 0], max: [84, 30, 4] } }] };
+
+  it('puts the line in the middle of the gap, at the rims of a box built open or half the barrel above the bed of plates', () => {
+    expect(hingeLine(box([0, 0, 0], [80, 60, 20]), box([0, 60.8, 0], [80, 120.8, 20]), 6)).toEqual({ from: [0, 60.4, 20], to: [80, 60.4, 20], gap: 0.8 });
+    expect(hingeLine(box([0, 0, 0], [40, 30, 4]), box([44, 0, 0], [84, 30, 4]), 6)).toEqual({ from: [42, 0, 3], to: [42, 30, 3], gap: 4 });
+    // The run's first try: a lid 8 mm high beside a box of 32 mm, whose rims no level line reaches both.
+    expect(hingeLine(box([0, 0, 0], [80, 60, 32]), box([0, 60.8, 0], [80, 120.8, 8]), 6, ['Box', 'Lid'])).toBe("Box's top lies at 32 mm and Lid's at 8 mm: a lid built open beside its box folds shut about a line at both rims, so both must be equally high (split the outer height evenly, for example), or build the lid closed on its box and give from and to");
+    expect(hingeLine(box([0, 0, 0], [40, 30, 4]), box([50, 0, 0], [90, 30, 4]), 6, ['Base', 'Flap'])).toContain('stand 10 mm apart, more than a barrel of 6 mm bridges with 0.5 mm on each (at most 5 mm)');
+    expect(hingeLine(box([0, 0, 0], [40, 30, 4]), box([44, 34, 0], [84, 64, 4]), 6)).toContain('they stand apart diagonally');
+    expect(hingeLine(box([0, 0, 0], [40, 30, 4]), box([44, 28, 0], [84, 60, 4]), 6)).toContain('share 2 mm along the gap');
+  });
+
+  it('builds a hinge without from and to on the line between the bodies, and says where', async () => {
+    const sent: Step[][] = [];
+    const answer = (step: Step) => (step.command === 'inspect.measure' ? plates : trial(step));
+    const built = await withMechanismTool(tool(answer, sent), () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', name: 'Lid hinge' });
+    expect(built.isError).toBeUndefined();
+    expect(String(built.content[0]?.text)).toContain(' PartBuddy put the line in the middle of the 4 mm between the two, from [42, 0, 3] to [42, 30, 3].');
+    expect(sent.flat().find((step) => step.command === 'joint.as_built')?.params).toMatchObject({ at: { point: [42, 15, 3], z: [0, 30, 0] } });
+    // What stands in the way is said, and nothing is built.
+    const far = await withMechanismTool(tool((step) => (step.command === 'inspect.measure' ? { bodies: [plates.bodies[0], { name: 'Flap', bbox: { min: [50, 0, 0], max: [90, 30, 4] } }] } : undefined)), () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap' });
+    expect(far).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('Not built: Base and Flap stand 10 mm apart') as string }] });
+  });
+
+  it('answers a line that misses a body with the line that reaches both', async () => {
+    // The rod on the line given (x 45) meets only the base: the flap is further than the barrel is wide.
+    const answer = (step: Step) => {
+      if (step.command === 'inspect.measure') return plates;
+      if (step.command === 'inspect.clearance' && (step.params.bodies as string[])[0] === 'PartBuddy probe') return { overlaps: [], near: [{ a: 'Base', b: 'PartBuddy probe', distance_mm: 0.95, from: [44, 15, 3], to: [44.95, 15, 3] }] };
+      return undefined;
+    };
+    const refused = await withMechanismTool(tool(answer), () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Base', moving: 'Flap', from: [45, 0, 3], to: [45, 30, 3] });
+    expect(refused.isError).toBe(true);
+    expect(String(refused.content[0]?.text)).toMatch(/^Not built: Flap is further from the hinge line than the barrel is wide \(6 mm\).* A line within reach of both: from \[42, 0, 3\] to \[42, 30, 3\]; leave from and to out, and PartBuddy puts it there\./);
+  });
+
+  it('says how thick the wall behind the rooms must be, or how thin to open through (the third refusal of the run)', () => {
+    const lies = { fixed: { inside: false, distance: 1.8, toward: null }, moving: { inside: false, distance: 1.8, toward: null } };
+    expect(skinProblem({ fixed: { mm: null, least: 0.9, floor: false, along: 38.2 }, moving: null }, { fixed: 'Box', moving: 'Lid', diameter: 6, gap: 0.4 }, lies, 0.4)).toBe(
+      "the rooms of the knuckles would leave a skin under two lines of the 0.4 mm nozzle (0.9 mm) of Box's wall behind them, along about 38.2 mm of the line. Make that wall at least 2.5 mm thick there, so it keeps 0.9 mm behind the rooms, which go 1.6 mm into it, or under 1.6 mm, so they open through it. Nothing was built.",
+    );
+  });
+
+  // The run's closure: its foot filled the rooms of the box's knuckles that open through the lid's wall (17 mm³), and it was taken back.
+  const timeline = (step: Step) => {
+    const features = [
+      { id: 1, name: 'Lid hinge 1 ·', definition: { axis: [1, 0, 0], base: [-0.4, 60.4, 20], height: '9.333 mm', operation: 'cut', participants: ['Lid'], radius: '(6.8 mm) / 2' } },
+      { id: 2, name: 'Lid hinge 2 ·', definition: { axis: [1, 0, 0], base: [8.533, 60.4, 20], height: '9.333 mm', operation: 'cut', participants: ['Box'], radius: '(6.8 mm) / 2' } },
+      { id: 3, name: 'Lid hinge 3 ·', definition: {} },
+      { id: 4, name: 'Lid hinge 1', definition: { axis: [1, 0, 0], base: [0, 60.4, 20], height: '8.533 mm', operation: 'join', participants: ['Box'], radius: '(6 mm) / 2' } },
+      { id: 5, name: 'Lid hinge ●', definition: { axis: [1, 0, 0], base: [0, 60.4, 20], height: '26.4 mm', operation: 'join', participants: ['Box'], radius: '(3 mm) / 2' } },
+      { id: 6, name: 'Box block', definition: {} },
+    ];
+    if (step.command === 'document.inspect') return { undo: 1, timeline: features.map(({ id, name }) => ({ id, name })) };
+    if (step.command !== 'timeline.inspect') return undefined;
+    return { suppressed: false, definition: features.find((feature) => feature.id === step.params.feature)?.definition };
+  };
+  // What of a hinge of three knuckles from [0, 60.4, 20] to [26.4, 60.4, 20] goes into the lid, as hingeSteps makes it.
+  const inLid = (() => {
+    const steps = hingeSteps({ fixed: 'Box', moving: 'Lid', from: [0, 60.4, 20], to: [26.4, 60.4, 20], diameter: 6, gap: 0.4, knuckles: 3, name: 'Lid hinge' });
+    const roof = steps.findIndex((step) => step.params.name === 'Lid hinge △');
+    return [...steps.filter((step) => (step.params.targets as string[] | undefined)?.[0] === 'Lid' && step.params.name !== 'Lid hinge △' && !String(step.params.name).endsWith('▬')), ...steps.slice(roof, steps.findIndex((step, i) => i > roof && step.command === 'solid.extrude') + 1)];
+  })();
+
+  it('reads the hinges built into a lid: the line of the pin, and what of each goes into the lid, as the hinge made it', async () => {
+    const run = (commands: Step[]) => Promise.resolve(commands.map(timeline));
+    const [found, ...more] = await builtHinges(run, 'Lid');
+    expect(more).toEqual([]);
+    expect(found).toMatchObject({ name: 'Lid hinge', from: [0, 60.4, 20], to: [26.4, 60.4, 20] });
+    // The rooms of the box's knuckles, the lid's knuckle, the bore, and the roof over it with its sketch; nothing of the box.
+    expect(found?.steps.filter((step) => !step.command.startsWith('sketch.')).map((step) => [step.params.name, step.params.operation, (step.params.targets as string[])[0]])).toEqual([
+      ['Lid hinge 1 ·', 'cut', 'Lid'],
+      ['Lid hinge 3 ·', 'cut', 'Lid'],
+      ['Lid hinge 2', 'join', 'Lid'],
+      ['Lid hinge ○', 'cut', 'Lid'],
+      ['Lid hinge △', 'cut', 'Lid'],
+      ...(found?.steps.some((step) => String(step.params.name).endsWith('▬')) ? [['Lid hinge 2 ▬', 'cut', 'Lid']] : []),
+    ]);
+    expect(found?.steps.filter((step) => !step.command.startsWith('sketch.'))).toEqual(expect.arrayContaining(inLid.filter((step) => !step.command.startsWith('sketch.'))));
+    expect(await builtHinges(() => Promise.reject(new Error('no')), 'Lid')).toEqual([]);
+    expect(await builtHinges((commands) => Promise.resolve(commands.map(() => ({ timeline: [{ id: 1, name: 'Box block' }] }))), 'Lid')).toEqual([]);
+    // A hinge between two other bodies is not the lid's.
+    expect(await builtHinges(run, 'Flap')).toEqual([]);
+  });
+
+  it('closes about a hinge PartBuddy built without its line given, and makes the lid\'s part of it again after the lip', async () => {
+    const sent: Step[][] = [];
+    const args = { kind: 'closure', fixed: 'Box', moving: 'Lid', from: [1.8, 62.6, 20], to: [24.6, 119, 20], wall: 1.8, radius: 0.4, side: 'y+', name: 'Snap' };
+    const built = await withMechanismTool(tool(timeline, sent), () => 0.4).callTool('partbuddy_mechanism', args);
+    expect(built.isError).toBeUndefined();
+    const text = String(built.content[0]?.text);
+    expect(text).toContain(' It closes about the hinge "Lid hinge", whose line PartBuddy took from the design.');
+    expect(text).toContain(' What of the hinge "Lid hinge" lies in Lid was made again after the lip, as the hinge made it: the lip fills none of its rooms and cuts none of its knuckles.');
+    const spec = lipOf({ ...args, hinge_from: [0, 60.4, 20], hinge_to: [26.4, 60.4, 20] });
+    if (typeof spec === 'string') throw new Error(spec);
+    const [found] = await builtHinges((commands) => Promise.resolve(commands.map(timeline)), 'Lid');
+    const steps = sent.find((batch) => batch.some((step) => step.params.name === 'Lid hinge ○'));
+    expect(steps?.filter((step) => step.command !== 'component.activate')).toEqual([...lipSteps(spec), ...(found?.steps ?? [])]);
+    // A lid that sits closed on its box (lip down) takes no line, but its part of the hinge is still made again.
+    const closed = String((await withMechanismTool(tool(timeline), () => 0.4).callTool('partbuddy_mechanism', { ...args, from: [1.8, 1.8, 20], to: [24.6, 58.2, 20], up: [0, 0, -1] })).content[0]?.text);
+    expect(closed).not.toContain('closes about the hinge');
+    expect(closed).toContain('was made again after the lip');
+  });
+
+  it('lets the foot reach no further than the room at the wall with the hinge (issue 446)', () => {
+    const spec = lipOf({ kind: 'closure', fixed: 'Box', moving: 'Lid', from: [1.8, 62.6, 20], to: [78.2, 119, 20], side: 'y+', hinge_from: [0, 60.4, 20], hinge_to: [80, 60.4, 20] });
+    if (typeof spec === 'string') throw new Error(spec);
+    const foot = lipSteps(spec).find((step) => step.command === 'sketch.rectangle.two_point');
+    expect(foot?.params).toEqual({ p0: ['1.8 mm - 0.2 mm', '62.6 mm'], p1: ['78.2 mm + 0.2 mm', '119 mm + 0.2 mm'] });
   });
 });

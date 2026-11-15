@@ -35,13 +35,13 @@ const mechanismTool: UpstreamTool = {
   name: MECHANISM_TOOL,
   description:
     'Build a mechanism or a connection between two bodies from proven geometry; the answer says how it prints. ' +
-    'hinge: knuckles in turn on both bodies and a pin through them, the same gap everywhere, printed in place as one piece. Give the hinge line (from, to) in the gap between the bodies, level with the bed and half the barrel diameter above it when the part prints lying flat, or straight up when it prints standing (a line at a slant is refused); ' +
+    'hinge: knuckles in turn on both bodies and a pin through them, the same gap everywhere, printed in place as one piece. Leave out from and to when the two stand side by side with a gap along X or Y: PartBuddy puts the line in the middle of the gap, along the stretch both share, at their rims where both are as high (a lid built open beside its box) or half the barrel above the bed for flat plates, and says where. Otherwise give the hinge line (from, to) in the gap between the bodies, level with the bed and half the barrel diameter above it when the part prints lying flat, or straight up when it prints standing (a line at a slant is refused); ' +
     'the line must lie closer to both bodies than the barrel radius less ' + String(HOLD) + ' mm, so the knuckles grow out of them: PartBuddy measures that before it builds. It cuts each knuckle\'s room in the other body itself, a gap wider than the barrel, and carries knuckles that start above the bed on webs at 45° down to their own walls, where the wall reaches about one and a quarter barrel diameters below the line (the answer says where it does not, and what then needs support): add no supports of your own. PartBuddy also measures the walls along the line: a room that would leave less than two lines of a wall (of a floor: four layers, at least ' + String(minimumFloor(0.001)) + ' mm) behind it is refused, with how far to move the line. ' +
     'slide: a dovetail rail on the fixed body and its groove in the moving body, which lies over the rail a gap above the face. Give the middle line of the rail (from, to) on that face and the face normal (up). The two print apart and the moving body is pushed onto the rail from an end. Where the moving body stands high enough over that face (the answer names how high) the groove gets a roof at 45° and prints as it stands; otherwise its ceiling is flat and the answer says how to lay the part. ' +
     'PartBuddy also joins the two with a joint, finds how far it moves before the bodies meet (a slide: while the moving body stays on its rail) and sets that as its limits; the user then moves it with a slider in the view. ' +
     'closure: a snap closure between a lid and its box, nothing standing out: a lip inside the lid that goes into the box along its wall and centres the lid, a bead that snaps into a rille of the box\'s wall, and a notch for a fingernail. ' +
     'Give from and to as opposite corners of the lid\'s inner room at its rim (both at the rim\'s height), up as the way the lip stands out of the lid (+Z when the lid lies open side up, -Z when it sits on the box), wall and radius of the lid, and the side with the catch (a long wall, opposite the hinge). ' +
-    'When the lid is built open beside the box and closes on a hinge, give the hinge line too (hinge_from, hinge_to), so the rille lands where the bead closes. It makes no joint. ' +
+    'When the lid is built open beside the box and closes on a hinge, the rille lands where the bead closes: on a hinge PartBuddy built it takes the line from the design and cuts the rooms of its knuckles again after the lip; for any other hinge give its line (hinge_from, hinge_to). It makes no joint. ' +
     'When the lid is a flat plate without walls of its own, say flat: from and to are then the corners of the box\'s inner room on the plate\'s face towards the box, and the lip stands on that face. ' +
     'screw: one or more screws that hold the moving body on the fixed one: a clearance hole with the room for the head in the moving body, and on the same line the seat of a heat-set insert (or a modelled thread from M5) in the fixed body; the screws go in as standard parts. ' +
     'Give from where the screw goes in (on the outer face of the moving body) and to where its line passes into the fixed body (on the face the two meet at); more lists where further screws of the same kind go in. ' +
@@ -62,7 +62,7 @@ const mechanismTool: UpstreamTool = {
       kind: { type: 'string', enum: ['hinge', 'slide', 'closure', 'screw', 'lid', 'snap', 'plug', 'latch'], description: 'latch: a snap latch outside a box holds its lid down; plug: two parts are plugged together, by pegs in pockets or pushed onto a dovetail; hinge: turns about a line; slide: moves along a line; closure: a lid snaps shut on its box; screw: one body screwed onto the other; lid: a screw lid is made for a round container; snap: snap hooks on one body catch in windows of the other.' },
       fixed: { type: 'string', description: 'The body that stays (exact name); it carries the pin or the rail. closure: the box.' },
       moving: { type: 'string', description: 'The body that moves (exact name). closure: the lid.' },
-      from: { ...vector, description: 'One end of the line in mm. closure: one corner of the lid\'s inner room at its rim. lid: the centre of the container\'s rim. snap: the foot of the hook. latch: the middle of the latch on the line where lid and box meet, on their outer wall.' },
+      from: { ...vector, description: 'One end of the line in mm; hinge: may be left out with to. closure: one corner of the lid\'s inner room at its rim. lid: the centre of the container\'s rim. snap: the foot of the hook. latch: the middle of the latch on the line where lid and box meet, on their outer wall.' },
       to: { ...vector, description: 'The other end of the line in mm. closure: the opposite corner, at the same height. lid: not needed. snap: a point further into the wall the catch goes into. latch: a point straight out of the wall.' },
       up: { ...vector, description: 'slide: the normal of the face of the fixed body the rail stands on; default +Z. closure: the way the lip stands out of the lid, +Z or -Z; default +Z. snap: the way the hook stands out of the fixed body; default +Z. latch: the way from the box to the lid; default +Z.' },
       shape: { type: 'string', enum: ['peg', 'dovetail'], description: 'plug: pegs in pockets, or a dovetail to push together; default peg.' },
@@ -75,7 +75,7 @@ const mechanismTool: UpstreamTool = {
       more: { type: 'array', items: vector, maxItems: SCREWS_MORE, description: `screw: where further screws like this one go in (up to ${String(SCREWS_MORE)}); they run the same way through the same thickness. snap: the feet of further hooks catching the same way (up to ${String(HOOKS_MORE)}). plug: the feet of further pegs (up to ${String(PEGS_MORE)}).` },
       screws: { type: 'boolean', description: 'screw: put the screws in as standard parts; default true.' },
       flat: { type: 'boolean', description: 'closure: true when the lid is a flat plate without walls; the lip then stands on its face, without a foot inside the lid and without a notch.' },
-      hinge_from: { ...vector, description: 'closure: one end of the hinge line the lid closes about, when it is built open.' },
+      hinge_from: { ...vector, description: 'closure: one end of the hinge line the lid closes about, when it is built open; not needed for a hinge built with this tool.' },
       hinge_to: { ...vector, description: 'closure: the other end of that line; it runs along X or along Y.' },
       diameter: { type: 'number', minimum: 3, maximum: 200, description: 'plug: the diameter of the pegs (3 to 20); default 5. hinge: outer diameter of the barrel in mm (4 to 40); default 6, more where a wider nozzle needs it for two lines round the bore. The pin is half of it. lid: the outer diameter of the neck (16 to 200).' },
       starts: { type: 'integer', enum: [1, 2, 3], description: 'lid: threads side by side; default 1. With 2 or 3 the lid closes in less than a turn.' },
@@ -85,7 +85,7 @@ const mechanismTool: UpstreamTool = {
       gap: { type: 'number', minimum: 0.05, maximum: 1, description: "The gap between the parts in mm. hinge: default and least the printer's nozzle, at least 0.3 (up to 1). slide: default the printer's nozzle, at least 0.3 (allowed 0.2 to 1). lid: radial, default three quarters of the nozzle, 0.3 to 0.6 (allowed 0.2 to 0.6). plug with pegs: per side, default the material's push fit to slide and glue (" + String(fitClearance('push', DEFAULT_PRINTER)) + " in PLA), its clamp fit to press (allowed 0.05 to 0.5); plug dovetail: all round, default the push fit (allowed 0.1 to 1). Not used by closure, snap, latch and screw." },
       name: { type: 'string', maxLength: 60, description: "The mechanism's name in the user's language, e.g. \"Lid hinge\"." },
     },
-    required: ['kind', 'fixed', 'moving', 'from'],
+    required: ['kind', 'fixed', 'moving'],
     additionalProperties: false,
   },
 };
@@ -673,6 +673,8 @@ export interface Lies {
   support?: NonNullable<HingeSpec['support']>;
   /** The walls under the line could not be tried, so no knuckle got a web. */
   untried?: boolean;
+  /** Both bodies' bounding boxes (fixed, moving), for a line to offer where the given one misses. */
+  bounds?: Bounds[];
 }
 
 /**
@@ -784,7 +786,8 @@ export async function roomDepths(upstream: UpstreamTools, spec: HingeSpec, callI
     if (!off || level < 0.2 || level < Math.abs(off[2])) return null;
     return { toward: [off[0] / level, off[1] / level, 0], distance: Math.round(level * 100) / 100 };
   };
-  const lies = { fixed: lie(spec.fixed), moving: lie(spec.moving) };
+  const bounds = boundsOf(reply.results?.[2], bodies);
+  const lies = { fixed: lie(spec.fixed), moving: lie(spec.moving), ...(bounds ? { bounds } : {}) };
   const lows = (((reply.results?.[2] as { bodies?: { bbox?: { min?: unknown } }[] } | undefined)?.bodies ?? []) as { bbox?: { min?: unknown } }[]).flatMap((body) => vec3(body.bbox?.min)?.[2] ?? []);
   if (lows.length === 0) return lies;
   const bed = Math.min(...lows);
@@ -809,6 +812,123 @@ export function lineProblem(lies: Pick<Lies, 'fixed' | 'moving'>, spec: HingeSpe
     return `the hinge line lies ${String(lie.distance)} mm from ${spec[key]}, so the barrel overlaps it by ${String(overlap)} mm, under ${String(HOLD)} mm: its knuckles would hang on a sliver. ${where}`;
   }
   return null;
+}
+
+/** A body's bounding box as `inspect.measure` gives it. */
+export interface Bounds {
+  min: Vec3;
+  max: Vec3;
+}
+
+/** The bounding boxes of `names` from an `inspect.measure` answer, or null when one is missing. */
+export function boundsOf(measure: unknown, names: readonly string[]): Bounds[] | null {
+  const bodies = ((measure as { bodies?: unknown } | undefined)?.bodies ?? []) as { name?: unknown; bbox?: { min?: unknown; max?: unknown } }[];
+  const out = names.map((name) => {
+    const body = Array.isArray(bodies) ? bodies.find((entry) => entry.name === name) : undefined;
+    const [min, max] = [vec3(body?.bbox?.min), vec3(body?.bbox?.max)];
+    return min && max ? { min, max } : null;
+  });
+  const known = out.filter((entry) => entry !== null);
+  return known.length === out.length ? known : null;
+}
+
+/**
+ * The hinge line between two bodies that stand side by side, level along X or Y with a gap between them (#446: the
+ * model's own line missed a body, and every retry resent the whole conversation): in the middle of the gap, along the
+ * stretch both bodies share, at the rims where both are as high and taller than the barrel (a box with its lid built
+ * open beside it), half the barrel above the bed where both are as thin as the barrel (flat plates). What stands in the
+ * way of such a line, in words the model can act on, otherwise.
+ */
+export function hingeLine(fixed: Bounds, moving: Bounds, diameter: number, names: [string, string] = ['fixed', 'moving']): { from: Vec3; to: Vec3; gap: number } | string {
+  const r3 = (value: number) => Math.round(value * 1000) / 1000 + 0;
+  const [a, b] = [fixed, moving];
+  const apart = [0, 1].map((k) => Math.max((b.min[k] ?? 0) - (a.max[k] ?? 0), (a.min[k] ?? 0) - (b.max[k] ?? 0)));
+  const sides = [0, 1].filter((k) => (apart[k] ?? 0) >= -0.01);
+  if (sides.length !== 1) return `${names[0]} and ${names[1]} do not stand side by side with a gap along X or along Y${sides.length > 1 ? ' (they stand apart diagonally)' : ''}, so PartBuddy cannot find the hinge line between them: give from and to`;
+  const k = sides[0] ?? 0;
+  const j = 1 - k;
+  const gap = Math.max(0, apart[k] ?? 0);
+  const most = diameter - 2 * HOLD;
+  if (gap > most) return `${names[0]} and ${names[1]} stand ${String(r3(gap))} mm apart, more than a barrel of ${String(diameter)} mm bridges with ${String(HOLD)} mm on each (at most ${String(r3(most))} mm): move them closer, or give a wider diameter`;
+  const [lo, hi] = [Math.max(a.min[j] ?? 0, b.min[j] ?? 0), Math.min(a.max[j] ?? 0, b.max[j] ?? 0)];
+  if (hi - lo < 5) return `${names[0]} and ${names[1]} share ${String(r3(Math.max(0, hi - lo)))} mm along the gap, too short for a hinge: give from and to`;
+  const bed = Math.min(a.min[2], b.min[2]);
+  const [topA, topB] = [a.max[2], b.max[2]];
+  const z = Math.max(topA, topB) - bed <= diameter ? bed + diameter / 2 : Math.abs(topA - topB) <= 0.05 ? Math.min(topA, topB) : null;
+  if (z === null) return `${names[0]}'s top lies at ${String(r3(topA))} mm and ${names[1]}'s at ${String(r3(topB))} mm: a lid built open beside its box folds shut about a line at both rims, so both must be equally high (split the outer height evenly, for example), or build the lid closed on its box and give from and to`;
+  const across = (a.max[k] ?? 0) <= (b.min[k] ?? 0) ? ((a.max[k] ?? 0) + (b.min[k] ?? 0)) / 2 : ((b.max[k] ?? 0) + (a.min[k] ?? 0)) / 2;
+  const point = (along: number): Vec3 => [k === 0 ? r3(across) : r3(along), k === 1 ? r3(across) : r3(along), r3(z)];
+  return { from: point(lo), to: point(hi), gap: r3(gap) };
+}
+
+/** A hinge PartBuddy built into the lid `lid`: the line of its pin, and the steps that make its part in the lid again. */
+export interface BuiltHinge {
+  name: string;
+  from: Vec3;
+  to: Vec3;
+  steps: Step[];
+}
+
+/** A cylinder's diameter from the radius `timeline.inspect` gives: a number, "X mm" or "(X mm) / 2" as the hinge writes it. */
+function diameterOf(radius: unknown): number | null {
+  if (typeof radius === 'number') return 2 * radius;
+  const found = typeof radius === 'string' ? /^\(?([\d.]+) mm\)?( \/ 2)?$/.exec(radius.trim()) : null;
+  return found ? Number(found[1]) * (found[2] ? 1 : 2) : null;
+}
+
+/**
+ * The hinges whose knuckles are in `lid`, read from the timeline (`hingeSteps` names the rooms "<hinge> <n> ·", the
+ * knuckles "<hinge> <n>" and the pin "<hinge> ●"): the line of each, and `hingeSteps` again for it, of which only what
+ * goes into the lid, as it was built: the rooms of the other body's knuckles, the lid's own knuckles, the bore and what lies
+ * over and under the pin. A closure built after the hinge filled the rooms that open through the lid's wall with its foot,
+ * and cut the lid's knuckles off flat where they reach into its room (#446, run of 2026-11-15: 17 mm³ shared with the box,
+ * taken back; then a skin of 0.2 mm over the bore). Made again after the lip, the lid's part of the hinge is as the
+ * hinge made it. Without webs: they lie below the lip and stay. Empty when the design cannot be read.
+ */
+export async function builtHinges(run: Run, lid: string): Promise<BuiltHinge[]> {
+  try {
+    const [design] = await run([{ command: 'document.inspect', params: { timeline: 'summary' } }]);
+    const timeline = (design as { timeline?: unknown } | undefined)?.timeline;
+    const named = (Array.isArray(timeline) ? (timeline as { id?: unknown; name?: unknown }[]) : []).filter((entry): entry is { id?: unknown; name: string } => typeof entry.name === 'string');
+    const pins = named.filter((entry) => entry.name.endsWith(' ●'));
+    if (pins.length === 0) return [];
+    const hingesOf = pins.map((pin) => pin.name.slice(0, -2));
+    // Each hinge's pin, its first knuckle and its first room tell its line, barrel and gap; its rooms count its knuckles.
+    const asked = hingesOf.flatMap((hinge) => [`${hinge} ●`, `${hinge} 1`, `${hinge} 1 ·`].map((name) => named.find((entry) => entry.name === name)));
+    if (asked.some((entry) => !entry)) return [];
+    type Read = { suppressed?: unknown; definition?: { base?: unknown; axis?: unknown; height?: unknown; radius?: unknown; participants?: unknown } } | undefined;
+    const read = (await run(asked.map((entry) => ({ command: 'timeline.inspect', params: { feature: entry?.id } })))) as Read[];
+    const out: BuiltHinge[] = [];
+    for (const [n, name] of hingesOf.entries()) {
+      const [pin, knuckle, room] = [read[3 * n], read[3 * n + 1], read[3 * n + 2]];
+      const [base, axis, height] = [vec3(pin?.definition?.base), vec3(pin?.definition?.axis), Number.parseFloat(String(pin?.definition?.height))];
+      const [owners, others] = [pin?.definition?.participants, room?.definition?.participants];
+      const [diameter, wide] = [diameterOf(knuckle?.definition?.radius), diameterOf(room?.definition?.radius)];
+      if (!base || !axis || !(height > 0) || diameter === null || wide === null || !Array.isArray(owners) || !Array.isArray(others) || [pin, knuckle, room].some((entry) => entry?.suppressed === true)) continue;
+      const [fixed, moving] = [String(owners[0]), String(others[0])];
+      if (![fixed, moving].includes(lid) || fixed === moving) continue;
+      const size = Math.hypot(...axis);
+      const to = base.map((value, i) => Math.round((value + ((axis[i] ?? 0) / size) * height) * 1e6) / 1e6 + 0) as Vec3;
+      const knuckles = named.filter((entry) => entry.name.startsWith(`${name} `) && /^\d+ ·$/.test(entry.name.slice(name.length + 1))).length;
+      const steps = hingeSteps({ fixed, moving, from: base, to, diameter, gap: Math.round(((wide - diameter) / 2) * 1e6) / 1e6, knuckles, name });
+      // A sketch goes with the extrude that ends it: kept when that goes into the lid.
+      const kept: Step[] = [];
+      let sketch: Step[] = [];
+      for (const step of steps) {
+        if (step.command.startsWith('sketch.')) {
+          sketch.push(step);
+          continue;
+        }
+        if (Array.isArray(step.params.targets) && step.params.targets.includes(lid)) kept.push(...sketch, step);
+        sketch = [];
+      }
+      out.push({ name, from: base, to, steps: kept });
+    }
+    return out.filter((hinge) => hinge.steps.length > 0);
+  } catch {
+    // Not readable: the closure is built as asked, and the check for shared volume after it still holds.
+    return [];
+  }
 }
 
 /**
@@ -1271,7 +1391,7 @@ async function printedTogether(run: Run, one: string, two: string): Promise<bool
  * What is wrong with the walls behind the knuckles' rooms, as `skins` measured them; null when they print. A way to move
  * the line is offered only as far as both bodies still hold their knuckles (`HOLD`; review of PR BC-10, 6).
  */
-export function skinProblem(found: Pick<Skins, 'fixed' | 'moving'>, spec: Pick<HingeSpec, 'fixed' | 'moving' | 'diameter'>, lies: Pick<Lies, 'fixed' | 'moving'>, nozzle: number): string | null {
+export function skinProblem(found: Pick<Skins, 'fixed' | 'moving'>, spec: Pick<HingeSpec, 'fixed' | 'moving' | 'diameter'> & { gap?: number }, lies: Pick<Lies, 'fixed' | 'moving'>, nozzle: number): string | null {
   const mm = (value: number) => String(Math.round(value * 100) / 100);
   // How far the line may move away from a body before its knuckles hang on less than HOLD.
   const slack = (lie: Lie | null) => (lie && !lie.inside ? spec.diameter / 2 - HOLD - lie.distance + 1e-6 : Infinity);
@@ -1280,7 +1400,11 @@ export function skinProblem(found: Pick<Skins, 'fixed' | 'moving'>, spec: Pick<H
     if (!skin) continue;
     const other = key === 'fixed' ? 'moving' : 'fixed';
     const solid = skin.floor ? `the ${mm(skin.least)} mm a floor needs to print closed` : `two lines of the ${String(nozzle)} mm nozzle (${mm(skin.least)} mm)`;
-    if (skin.mm === null) return `the rooms of the knuckles would leave a skin under ${solid} of ${spec[key]}'s wall behind them, along about ${mm(skin.along)} mm of the line. Make that wall thicker there, so it keeps ${mm(skin.least)} mm behind the rooms, or thinner than the rooms reach. Nothing was built.`;
+    // How deep the rooms go into the wall from its face nearest the line, where that is known: the two thicknesses that print (#446).
+    const lie = lies[key];
+    const depth = spec.gap !== undefined && lie && !lie.inside ? spec.diameter / 2 + spec.gap - lie.distance : null;
+    const thick = depth !== null && depth > 0 ? `Make that wall at least ${mm(depth + skin.least)} mm thick there, so it keeps ${mm(skin.least)} mm behind the rooms, which go ${mm(depth)} mm into it, or under ${mm(depth)} mm, so they open through it` : `Make that wall thicker there, so it keeps ${mm(skin.least)} mm behind the rooms, or thinner than the rooms reach`;
+    if (skin.mm === null) return `the rooms of the knuckles would leave a skin under ${solid} of ${spec[key]}'s wall behind them, along about ${mm(skin.along)} mm of the line. ${thick}. Nothing was built.`;
     const short = skin.least - skin.mm;
     const ways = [
       short <= slack(lies[key]) ? `move the line ${mm(short)} mm away from that skin, towards ${spec[other]}` : null,
@@ -1502,8 +1626,32 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
   const { upstream, run, callId } = site;
   const { nozzle, layer } = printer;
   if (args.kind === 'hinge') {
-    const spec = hingeOf(args, nozzle, layer);
+    const names = [args.fixed, args.moving].map((name) => (typeof name === 'string' ? name.trim() : '')) as [string, string];
+    const point = (value: Vec3) => `[${value.map(String).join(', ')}]`;
+    // #446: without from and to the line goes between the two bodies, where both hold their knuckles; said in the answer.
+    let placed = '';
+    let asked = args;
+    if (args.from === undefined && args.to === undefined && names[0] && names[1]) {
+      // The barrel first, on a short level line: it depends on the gap and the printer, not on where the line lies.
+      const sized = hingeOf({ ...args, knuckles: undefined, from: [0, 0, 0], to: [20, 0, 0] }, nozzle, layer);
+      if (typeof sized === 'string') throw new Error(sized);
+      const [measure] = await run([{ command: 'inspect.measure', params: { bodies: names } }]);
+      const bounds = boundsOf(measure, names);
+      if (!bounds) throw new Error(`PartBuddy could not measure ${names[0]} and ${names[1]} to find the hinge line between them: give from and to`);
+      const line = hingeLine(bounds[0] as Bounds, bounds[1] as Bounds, sized.diameter, names);
+      if (typeof line === 'string') throw new Error(line);
+      asked = { ...args, from: line.from, to: line.to };
+      placed = ` PartBuddy put the line in the middle of the ${String(line.gap)} mm between the two, from ${point(line.from)} to ${point(line.to)}.`;
+    }
+    const spec = hingeOf(asked, nozzle, layer);
     if (typeof spec === 'string') throw new Error(spec);
+    // Where the line given misses a body: the line between the two that holds, or what stands in its way (#446).
+    const offer = (bounds: Bounds[] | undefined) => {
+      if (!bounds || placed) return '';
+      const line = hingeLine(bounds[0] as Bounds, bounds[1] as Bounds, spec.diameter, names);
+      if (typeof line === 'string') return ` ${line.charAt(0).toUpperCase()}${line.slice(1)}.`;
+      return ` A line within reach of both: from ${point(line.from)} to ${point(line.to)}; leave from and to out, and PartBuddy puts it there.`;
+    };
     const reach = String(Math.round((spec.diameter / 2 - HOLD) * 10) / 10);
     const where = `Put the hinge line within ${reach} mm of both bodies (the barrel is ${String(spec.diameter)} mm, so it must overlap each by at least ${String(HOLD)} mm). PartBuddy cuts each knuckle's room in the other body itself.`;
     let depths: Lies | null = null;
@@ -1529,7 +1677,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
         if (typeof measured === 'string') throw new Error(`PartBuddy could not measure where the hinge line lies against ${spec.fixed} and ${spec.moving}: ${measured}. So it could not check that the knuckles hold and leave no thin skin, and nothing was built. Check that both are solid bodies beside the line (inspect.measure) before you call again`);
         depths = measured;
         const off = lineProblem(depths, spec, where);
-        if (off) throw new Error(off);
+        if (off) throw new Error(`${off}${offer(depths.bounds)}`);
         const tried = await skins(upstream, spec, depths, { nozzle, layer }, callId).catch((cause: unknown) => (cause as Error).message);
         if (typeof tried === 'string') throw new Error(`PartBuddy could not measure the walls behind the knuckles' rooms: ${tried}. So it could not check that none is left as a thin skin, and nothing was built`);
         left = tried;
@@ -1546,7 +1694,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     return (
       `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns): ${String(spec.knuckles)} knuckles, barrel ${String(spec.diameter)} mm, pin ${String(pinDiameter(spec.diameter))} mm, ` +
       `gap ${String(spec.gap)} mm everywhere. It turns from ${String(min)}° to ${String(max)}° before the bodies meet, and those are its limits now; 0° is as designed. ` +
-      `${MOVE} If it should open further, make room where the bodies meet, take the hinge back with undo and call again.${print}${rooms()}${warnings}`
+      `${MOVE} If it should open further, make room where the bodies meet, take the hinge back with undo and call again.${placed}${print}${rooms()}${warnings}`
     );
   }
   if (args.kind === 'slide') {
@@ -1566,13 +1714,23 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     );
   }
   if (args.kind === 'closure') {
-    const spec = lipOf(args, nozzle, layer);
-    if (typeof spec === 'string') throw new Error(spec);
+    // A hinge PartBuddy built into the lid: its line where none is given (a lid built open, lip up), and its part in the
+    // lid made again after the lip, which fills the rooms and cuts the knuckles where they reach into the lid's room (#446).
+    const lid = typeof args.moving === 'string' ? args.moving.trim() : '';
+    const hinges = lid ? await builtHinges(run, lid) : [];
+    const given = args.hinge_from !== undefined || args.hinge_to !== undefined;
+    const level = hinges.find((hinge) => Math.abs(hinge.from[2] - hinge.to[2]) < 1e-6 && (Math.abs(hinge.from[0] - hinge.to[0]) < 1e-6) !== (Math.abs(hinge.from[1] - hinge.to[1]) < 1e-6));
+    const takes = !given && args.flat !== true && (vec3(args.up)?.[2] ?? 1) > 0 ? level : undefined;
+    const spec = lipOf(takes ? { ...args, hinge_from: takes.from, hinge_to: takes.to } : args, nozzle, layer);
+    if (typeof spec === 'string') throw new Error(`${spec}${takes ? ` (the hinge line was taken from the hinge "${takes.name}")` : ''}`);
+    const remade = hinges.flatMap((hinge) => hinge.steps);
+    const about = takes ? ` It closes about the hinge "${takes.name}", whose line PartBuddy took from the design.` : '';
+    const recut = remade.length > 0 ? ` What of ${hinges.map((hinge) => `the hinge "${hinge.name}"`).join(' and ')} lies in ${lid} was made again after the lip, as the hinge made it: the lip fills none of its rooms and cuts none of its knuckles.` : '';
     const thick = lipThick(nozzle);
     const behind = Math.round((RILLE_DEPTH + nozzle * 2 * 1.125) * 100) / 100;
     // Unset: the trial gave no answer, and the answer says what to keep instead.
     let tried: Awaited<ReturnType<typeof closureTrial>> | undefined;
-    const warnings = await build(site, spec, lipSteps(spec), spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`, false, async () => {
+    const warnings = await build(site, spec, [...lipSteps(spec), ...remade], spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`, false, async () => {
       tried = await closureTrial(upstream, spec, nozzle, callId).catch(() => undefined);
       if (tried?.problem) throw new Error(tried.problem);
     });
@@ -1585,10 +1743,10 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     if (spec.flat) {
       // The lip stands along up: the plate prints on its face the other way.
       const laid = await layOn(run, spec.moving, [0, 0, -spec.up], keepFace);
-      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead ${String(beadHigh(layer))} mm high that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up, lying on the plate's outer face, ${laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`}. It makes no joint.${steep}${box}${warnings}`;
+      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead ${String(beadHigh(layer))} mm high that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up, lying on the plate's outer face, ${laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`}. It makes no joint.${recut}${steep}${box}${warnings}`;
     }
     return (
-      `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead ${String(beadHigh(layer))} mm high that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch through the lid's rim to open it. It makes no joint and needs no room outside the box.${unhinged}${steep}${box}${warnings}`
+      `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead ${String(beadHigh(layer))} mm high that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch through the lid's rim to open it. It makes no joint and needs no room outside the box.${about}${unhinged}${recut}${steep}${box}${warnings}`
     );
   }
   if (args.kind === 'lid') {
