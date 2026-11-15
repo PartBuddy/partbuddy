@@ -111,6 +111,13 @@ test('token probe: a real Claude Code build and change', async () => {
     if (chatgpt) await pickChatGpt(page);
     await expect(page.getByTestId('agent-status')).toContainText(chatgpt ? 'ChatGPT' : 'Claude Code', { timeout: 30_000 });
     await expect(page.getByTestId('agent-status')).not.toContainText('not signed in');
+    // PROBE_PIN=<model name>: one model for every step, as the comparison with the models per step (issue #446).
+    if (process.env.PROBE_PIN) {
+      await page.getByTestId('agent-status').click();
+      await page.getByTestId('agent-menu').getByTestId('model-option').filter({ hasText: process.env.PROBE_PIN }).first().click();
+      await expect(page.getByTestId('agent-pinned')).toBeVisible();
+      await page.keyboard.press('Escape');
+    }
     const start = tokenLines().length;
     await send(page, BUILD);
     await waitForTurn(page);
