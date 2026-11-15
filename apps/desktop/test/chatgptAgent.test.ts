@@ -4,7 +4,7 @@ import { Assistant, type AgentBackend } from '../src/main/agents/assistant';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import type { ChatGptAccount } from '../src/main/chatgpt/account';
 import { MAX_STEPS, ROUNDS_DETAIL, ROUNDS_NOTE } from '../src/main/agents/loop';
-import { ChatGptAgent, usageFromHeaders } from '../src/main/chatgpt/chatgptAgent';
+import { ChatGptAgent, endedSilently, usageFromHeaders } from '../src/main/chatgpt/chatgptAgent';
 import type { TurnReview } from '../src/main/agents/review';
 import type { AgentEvent, AgentKind, AgentStatus } from '../src/shared/contract';
 
@@ -320,5 +320,16 @@ describe('ChatGPT plan limits (issue 446)', () => {
       { window: 'seven_day', used: 1, resetsAt: null },
     ]);
     expect(usageFromHeaders(new Headers({ 'x-codex-primary-used-percent': 'x' }))).toEqual([]);
+  });
+});
+
+describe('a ChatGPT turn that stopped after its web search (issue 446)', () => {
+  it('counts only a last round of server-run searches without words as stopped half way', () => {
+    const search = { providerExecuted: true };
+    expect(endedSilently([{ text: '', toolCalls: [search] }])).toBe(true);
+    expect(endedSilently([{ text: 'Found it.', toolCalls: [search] }])).toBe(false);
+    expect(endedSilently([{ text: '', toolCalls: [search, {}] }])).toBe(false);
+    expect(endedSilently([{ text: '', toolCalls: [] }])).toBe(false);
+    expect(endedSilently([])).toBe(false);
   });
 });
