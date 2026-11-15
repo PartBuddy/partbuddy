@@ -129,6 +129,25 @@ export function numericArgs(args: Record<string, unknown>, values: Map<string, n
   return { ...args, point: numeric(args.point), ...(Array.isArray(args.more) ? { more: args.more.map(numeric) } : {}) };
 }
 
+/** Each length expression's value in mm, as SolidCraft works it out over the design's parameters; throws why one comes to none. */
+export async function valuesOf(upstream: UpstreamTools, expressions: readonly string[], callId: string | undefined): Promise<Map<string, number>> {
+  const values = new Map<string, number>();
+  if (expressions.length === 0) return values;
+  // SolidCraft evaluates each as a parameter of its own, deleted right away (no command evaluates one alone).
+  const commands = expressions.flatMap((expression, i) => [
+    { command: 'parameters.add', params: { name: `partbuddy_place_${String(i)}`, expression } },
+    { command: 'parameters.delete', params: { name: `partbuddy_place_${String(i)}` } },
+  ]);
+  const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: { value?: unknown }[]; failed?: { index?: unknown; error?: unknown } };
+  if (reply.failed) throw new Error(String(reply.failed.error).slice(0, 200));
+  expressions.forEach((expression, i) => {
+    const value = reply.results?.[i * 2]?.value;
+    if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`"${expression}" comes to no number`);
+    values.set(expression, value);
+  });
+  return values;
+}
+
 /** The place each SolidCraft command takes as length expressions and follows when the parameters change (measured with 0.42.0). */
 const FOLLOWING: Record<string, string> = { 'solid.hole': 'position', 'solid.cylinder': 'base', 'solid.cone': 'base' };
 
@@ -1043,25 +1062,12 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
     callTool: async (name, given, callId): Promise<ToolResult> => {
       if (name !== BLOCK_TOOL) return upstream.callTool(name, given, callId);
       // Places given as expressions are measured at their value now and built with the expressions, to follow the parameters.
-      const values = new Map<string, number>();
       const expressions = expressionsOf(given);
-      if (expressions.length > 0) {
-        // SolidCraft evaluates each as a parameter of its own, deleted right away (no command evaluates one alone).
-        const commands = expressions.flatMap((expression, i) => [
-          { command: 'parameters.add', params: { name: `partbuddy_place_${String(i)}`, expression } },
-          { command: 'parameters.delete', params: { name: `partbuddy_place_${String(i)}` } },
-        ]);
-        try {
-          const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: { value?: unknown }[]; failed?: { index?: unknown; error?: unknown } };
-          if (reply.failed) throw new Error(String(reply.failed.error).slice(0, 200));
-          expressions.forEach((expression, i) => {
-            const value = reply.results?.[i * 2]?.value;
-            if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`"${expression}" comes to no number`);
-            values.set(expression, value);
-          });
-        } catch (cause) {
-          return { content: [{ type: 'text', text: `Not built: the place ${expressions.map((expression) => `"${expression}"`).join(', ')} is no length over the design's parameters (${(cause as Error).message})` }], isError: true };
-        }
+      let values: Map<string, number>;
+      try {
+        values = await valuesOf(upstream, expressions, callId);
+      } catch (cause) {
+        return { content: [{ type: 'text', text: `Not built: the place ${expressions.map((expression) => `"${expression}"`).join(', ')} is no length over the design's parameters (${(cause as Error).message})` }], isError: true };
       }
       const args = numericArgs(given, values);
       let fit: ToolPrinter = DEFAULT_PRINTER;

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { LID, LIP, WEB, beadHigh, hangs, hingeDiameter, hingeLies, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideOver, slideProblem, slideRoof, slideSteps, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, snapFrame, snapHold, snapHook, snapLimit, snapProblem, snapSteps, snapStrain, snapWindow, standsUpright, limitWords, uprightSaid, latchArm, latchFrame, latchProblem, latchReach, latchSteps, latchStrain, LATCH, SNAP_OFTEN, SHARP_ROOT, pegBore, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
+import { LID, LIP, WEB, beadHigh, hangs, hingeDiameter, hingeLies, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideOver, slideProblem, slideRoof, slideSteps, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, snapFrame, snapHold, snapHook, snapLimit, snapProblem, snapSteps, snapStrain, snapWindow, standsUpright, limitWords, uprightSaid, latchArm, latchFrame, latchProblem, latchReach, latchSteps, latchStrain, LATCH, SNAP_OFTEN, SHARP_ROOT, pegBore, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, followSteps, followed, type Follow, type Size, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, CLEARANCE_NORMAL, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 import { printInPlaceGap, type FitPrinter } from '../../shared/designFit';
@@ -8,7 +8,7 @@ import { DEFAULT_MATERIAL, DEFAULT_PRINTER, drawnHole, fitClearance, heldSaid, u
 
 import { componentOf } from '../solidcraft/actions';
 import { componentsWithBodies, printGroupsOf } from '../solidcraft/mirror';
-import { CURVED_FACE, FACE_DROP, SEAT_UNDER, fallenSaid, seatStock, seatWall, shortOf, type Stock } from './blockTool';
+import { CURVED_FACE, FACE_DROP, SEAT_UNDER, fallenSaid, seatStock, seatWall, shortOf, valuesOf, type Stock } from './blockTool';
 import { markOf, TAKEN_BACK_SAID, takeBack, type Mark, type Run } from './takeBack';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
@@ -22,6 +22,10 @@ import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 export const MECHANISM_TOOL = 'partbuddy_mechanism';
 
 const vector = { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 };
+/** A point whose coordinates may be length expressions over the design's parameters (hinge and closure follow them). */
+const place = { type: 'array', items: { type: ['number', 'string'] }, minItems: 3, maxItems: 3 };
+/** The points of a call that may be given by expressions. */
+const PLACES = ['from', 'to', 'hinge_from', 'hinge_to'] as const;
 
 /** The wall a screw lid's neck keeps at least, under the thread (mm); `neckTrial` measures it at `NECK_POINTS` points round the axis. */
 export const NECK_WALL = 2;
@@ -55,6 +59,7 @@ const mechanismTool: UpstreamTool = {
     'lid: a screw lid for a round container. It coils a thread with 45° flanks onto the container\'s neck and makes the lid itself, with the matching thread, flutes to grip and its top as print face; the two mesh as built. ' +
     'Give the container as fixed, the name the lid shall have as moving (no such body yet), from as the centre of the rim at its height, and diameter as the neck\'s outer diameter; the neck must be a plain upright cylinder of that diameter below the rim, with a wall of at least ' + String(NECK_WALL) + ' mm, as far down as the lid covers it: PartBuddy measures that before it builds and says what is wrong. ' +
     'Holes, seats and pockets are drawn wider by the hole allowance of the material in use, and the default fits are its profile\'s: give sizes as they shall come out. ' +
+    "Hinge and closure follow the design's parameters: when its sizes change they move with the bodies, so change the parameters and leave them be. A hinge whose line PartBuddy finds, and a closure, follow by themselves; a coordinate of from, to, hinge_from and hinge_to may also be a length expression over the parameters (such as width + gap / 2, or height), and a hinge follows those across its line and in height. The other kinds place by the numbers they come to and stay. " +
     'Use this instead of modelling a hinge, a guide, a snap lid, a threaded lid or the holes of a screw joint yourself.',
   inputSchema: {
     type: 'object',
@@ -62,8 +67,8 @@ const mechanismTool: UpstreamTool = {
       kind: { type: 'string', enum: ['hinge', 'slide', 'closure', 'screw', 'lid', 'snap', 'plug', 'latch'], description: 'latch: a snap latch outside a box holds its lid down; plug: two parts are plugged together, by pegs in pockets or pushed onto a dovetail; hinge: turns about a line; slide: moves along a line; closure: a lid snaps shut on its box; screw: one body screwed onto the other; lid: a screw lid is made for a round container; snap: snap hooks on one body catch in windows of the other.' },
       fixed: { type: 'string', description: 'The body that stays (exact name); it carries the pin or the rail. closure: the box.' },
       moving: { type: 'string', description: 'The body that moves (exact name). closure: the lid.' },
-      from: { ...vector, description: 'One end of the line in mm; hinge: may be left out with to. closure: one corner of the lid\'s inner room at its rim. lid: the centre of the container\'s rim. snap: the foot of the hook. latch: the middle of the latch on the line where lid and box meet, on their outer wall.' },
-      to: { ...vector, description: 'The other end of the line in mm. closure: the opposite corner, at the same height. lid: not needed. snap: a point further into the wall the catch goes into. latch: a point straight out of the wall.' },
+      from: { ...place, description: 'One end of the line in mm; hinge: may be left out with to. closure: one corner of the lid\'s inner room at its rim. lid: the centre of the container\'s rim. snap: the foot of the hook. latch: the middle of the latch on the line where lid and box meet, on their outer wall.' },
+      to: { ...place, description: 'The other end of the line in mm. closure: the opposite corner, at the same height. lid: not needed. snap: a point further into the wall the catch goes into. latch: a point straight out of the wall.' },
       up: { ...vector, description: 'slide: the normal of the face of the fixed body the rail stands on; default +Z. closure: the way the lip stands out of the lid, +Z or -Z; default +Z. snap: the way the hook stands out of the fixed body; default +Z. latch: the way from the box to the lid; default +Z.' },
       shape: { type: 'string', enum: ['peg', 'dovetail'], description: 'plug: pegs in pockets, or a dovetail to push together; default peg.' },
       side: { type: 'string', enum: ['x-', 'x+', 'y-', 'y+'], description: 'closure: the wall of the lid\'s inner room with the catch and the notch; with a hinge line, the wall opposite it.' },
@@ -75,8 +80,8 @@ const mechanismTool: UpstreamTool = {
       more: { type: 'array', items: vector, maxItems: SCREWS_MORE, description: `screw: where further screws like this one go in (up to ${String(SCREWS_MORE)}); they run the same way through the same thickness. snap: the feet of further hooks catching the same way (up to ${String(HOOKS_MORE)}). plug: the feet of further pegs (up to ${String(PEGS_MORE)}).` },
       screws: { type: 'boolean', description: 'screw: put the screws in as standard parts; default true.' },
       flat: { type: 'boolean', description: 'closure: true when the lid is a flat plate without walls; the lip then stands on its face, without a foot inside the lid and without a notch.' },
-      hinge_from: { ...vector, description: 'closure: one end of the hinge line the lid closes about, when it is built open; not needed for a hinge built with this tool.' },
-      hinge_to: { ...vector, description: 'closure: the other end of that line; it runs along X or along Y.' },
+      hinge_from: { ...place, description: 'closure: one end of the hinge line the lid closes about, when it is built open; not needed for a hinge built with this tool.' },
+      hinge_to: { ...place, description: 'closure: the other end of that line; it runs along X or along Y.' },
       diameter: { type: 'number', minimum: 3, maximum: 200, description: 'plug: the diameter of the pegs (3 to 20); default 5. hinge: outer diameter of the barrel in mm (4 to 40); default 6, more where a wider nozzle needs it for two lines round the bore. The pin is half of it. lid: the outer diameter of the neck (16 to 200).' },
       starts: { type: 'integer', enum: [1, 2, 3], description: 'lid: threads side by side; default 1. With 2 or 3 the lid closes in less than a turn.' },
       knuckles: { type: 'integer', enum: [3, 5, 7, 9], description: `hinge: how many knuckles; default by the length of the line. Lying, the pin bridges each knuckle of the moving body and may bridge at most ${String(BRIDGE_SPAN)} mm.` },
@@ -391,6 +396,9 @@ interface Site {
   shares?: { name: string; limits: [number, number] };
   /** Where a fit held within its range is written (BC-16 review S2). */
   log?: (line: string) => void;
+  /** The call as the model gave it, its places perhaps by expressions, and their values now. */
+  given?: Record<string, unknown>;
+  values?: Map<string, number>;
 }
 /** Keeps the face a mechanism laid its part on, by the face's name, for the plate view. */
 type KeepFace = (body: string, face: string) => void;
@@ -626,8 +634,29 @@ async function pinOver(run: Run, from: Vec3, line: number[]): Promise<string | n
   return null;
 }
 
+/** Where a hinge's joint is kept on round faces: on its pin (fixed) and on its bore (moving), each with the joint's x. */
+export interface PinFaces {
+  fixed: Vec3;
+  moving: Vec3;
+  x: Vec3;
+}
+
+/**
+ * Points on the round faces of a hinge's pin and bore inside the first knuckle of the moving body, which nothing else
+ * cuts: on top of the pin and under the bore, as lying the pin's underside and the bore's roof are cut flat there.
+ */
+export function pinFaces(spec: HingeSpec): PinFaces {
+  const delta = spec.to.map((value, i) => value - (spec.from[i] ?? 0));
+  const length = Math.hypot(...delta);
+  const knuckle = (length - (spec.knuckles - 1) * spec.gap) / spec.knuckles;
+  const x: Vec3 = hingeLies(spec) === 'lying' ? [0, 0, 1] : [1, 0, 0];
+  const pin = pinDiameter(spec.diameter) / 2;
+  const at = (off: number) => spec.from.map((value, i) => Math.round((value + ((delta[i] ?? 0) / length) * (1.5 * knuckle + spec.gap) + (x[i] ?? 0) * off) * 1e6) / 1e6 + 0) as Vec3;
+  return { fixed: at(pin), moving: at(-pin - spec.gap), x };
+}
+
 /** Makes the two bodies components unless they are, joins them where they are and sets the limits: the range clear of contact within `range`. */
-async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3; to: Vec3; name: string }, type: 'revolute' | 'slider', range: [number, number], step: number, shares?: string): Promise<[number, number]> {
+async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3; to: Vec3; name: string }, type: 'revolute' | 'slider', range: [number, number], step: number, shares?: string, faces?: PinFaces & { gap: number }): Promise<[number, number]> {
   let [listing] = await run([{ command: 'component.list', params: {} }]);
   const loners = [spec.fixed, spec.moving].filter((name) => occurrenceOf(listing, name) === null);
   if (loners.length > 0) [, listing] = await run([{ command: 'component.from_bodies', params: { bodies: loners } }, { command: 'component.list', params: {} }]);
@@ -640,7 +669,13 @@ async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3;
   const sweeps = range.filter((to) => to !== 0).map((to) => ({ command: 'joint.sweep', params: { joint, from: 0, to } }));
   // A hinge prints in place, as one piece; the parts of a guide print apart.
   const together = type === 'revolute' ? printTogether([componentOf(listing, spec.fixed), componentOf(listing, spec.moving)], randomUUID().slice(0, 8), spec.name) : [];
-  if (!shares) await run([{ command: 'joint.as_built', params: { type, a, b, at: { occurrence: a, point: middle, z: axis }, name: spec.name, quiet: true } }, ...together]);
+  // Kept on the round faces of pin and bore, the joint follows both when the parameters move them; at a point it stays,
+  // and kept on one side only it drags the other (measured with 0.42.0, as the hinged box template found with 0.40.0-rc.4).
+  // Each circle's origin is the end of its cylinder, and the bore reaches a gap further than the pin.
+  const joint_ = faces
+    ? { command: 'joint.create', params: { type, a: { occurrence: a, circle: faces.fixed, x: faces.x }, b: { occurrence: b, circle: faces.moving, x: faces.x }, flip: true, offset: -faces.gap, name: spec.name, quiet: true } }
+    : { command: 'joint.as_built', params: { type, a, b, at: { occurrence: a, point: middle, z: axis }, name: spec.name, quiet: true } };
+  if (!shares) await run([joint_, ...together]);
   // SolidCraft refuses a sweep it cannot afford, such as parts that lie against each other along the way: a joint without
   // limits is no mechanism, so the call fails and is taken back (audit H-26: the answer asked for joint.limits by hand).
   let results: unknown[];
@@ -654,6 +689,42 @@ async function join(run: Run, spec: { fixed: string; moving: string; from: Vec3;
   const limits: [number, number] = [limit(range[0]), limit(range[1])];
   await run([{ command: 'joint.limits', params: { joint, min: limits[0], max: limits[1] } }]);
   return limits;
+}
+
+/** Whether a call changes the design's parameters. */
+export function changesParameters(name: string, args: Record<string, unknown>): boolean {
+  if (name === 'set_parameter') return true;
+  if (name === 'execute') return args.command === 'parameters.change';
+  return name === 'batch' && Array.isArray(args.commands) && (args.commands as { command?: unknown }[]).some((step) => step.command === 'parameters.change');
+}
+
+/**
+ * After the parameters changed, each hinge PartBuddy built that follows them (its pin's base by expressions) is run
+ * through its range again and its limits set where the bodies now meet (#446, real run of 2026-11-15: the taller halves
+ * met at -9.4° before the old limit of -11°, and the model swept, set and checked again: 9 more requests). What it did, said
+ * after the call's answer; empty when no hinge follows or one stands away from 0.
+ */
+export async function hingesAgain(run: Run): Promise<string> {
+  try {
+    const [design, joints] = await run([{ command: 'document.inspect', params: { timeline: 'summary' } }, { command: 'joint.list', params: {} }]);
+    const timeline = ((design as { timeline?: unknown } | undefined)?.timeline ?? []) as { id?: unknown; name?: unknown }[];
+    const pins = Array.isArray(timeline) ? timeline.filter((entry) => typeof entry.name === 'string' && entry.name.endsWith(' ●')) : [];
+    const read = pins.length > 0 ? ((await run(pins.map((pin) => ({ command: 'timeline.inspect', params: { feature: pin.id } })))) as ({ definition?: { base?: unknown } } | undefined)[]) : [];
+    const following = new Set(pins.filter((_, i) => { const base: unknown = read[i]?.definition?.base; return Array.isArray(base) && base.some((value) => typeof value === 'string'); }).map((pin) => String(pin.name).slice(0, -2)));
+    const list = ((joints as { joints?: unknown } | undefined)?.joints ?? []) as { name?: unknown; type?: unknown; values?: { value?: unknown }[] }[];
+    const hinges = list.filter((joint) => joint.type === 'revolute' && following.has(String(joint.name)) && (joint.values ?? []).every((value) => value.value === 0));
+    const said: string[] = [];
+    for (const hinge of hinges) {
+      const name = String(hinge.name);
+      const swept = await run([-180, 180].map((to) => ({ command: 'joint.sweep', params: { joint: name, from: 0, to } })));
+      const limits = [reach(swept[0], -180, 1), reach(swept[1], 180, 1)];
+      await run([{ command: 'joint.limits', params: { joint: name, min: limits[0], max: limits[1] } }]);
+      said.push(`"${name}" now turns from ${String(limits[0])}° to ${String(limits[1])}°`);
+    }
+    return said.length > 0 ? ` [PartBuddy ran the hinges that follow the parameters through again and set their limits where the bodies meet now: ${said.join(', ')}.]` : '';
+  } catch (cause) {
+    return ` [PartBuddy could not run the hinges through again after the change (${(cause as Error).message.slice(0, 160)}): check their limits.]`;
+  }
 }
 
 /** The name of the body that measures where the hinge line lies; it is never kept. */
@@ -832,6 +903,68 @@ export function boundsOf(measure: unknown, names: readonly string[]): Bounds[] |
   return known.length === out.length ? known : null;
 }
 
+/** The coordinates of a call's places given as length expressions, each once. */
+export function placeExpressions(args: Record<string, unknown>): string[] {
+  return [...new Set(PLACES.flatMap((key) => (Array.isArray(args[key]) ? (args[key] as unknown[]) : [])).filter((value): value is string => typeof value === 'string').map((value) => value.trim()))];
+}
+
+/** The call with each expression of its places replaced by its value in mm; one without a value stays and is refused as no number. */
+export function numericPlaces(args: Record<string, unknown>, values: Map<string, number>): Record<string, unknown> {
+  const numeric = (entry: unknown) => (Array.isArray(entry) ? entry.map((value: unknown) => (typeof value === 'string' ? (values.get(value.trim()) ?? value) : value)) : entry);
+  return Object.fromEntries(Object.entries(args).map(([key, value]) => [key, (PLACES as readonly string[]).includes(key) ? numeric(value) : value]));
+}
+
+/** The bodies' boxes now, and with each free length parameter (a number of mm no other parameter uses) 1 mm larger. */
+export interface Moves {
+  base: Bounds[];
+  moves: { name: string; value: number; bounds: Bounds[] }[];
+}
+
+/**
+ * How the boxes of `names` move with the design's free length parameters: SolidCraft measures them with each one nudged
+ * by 1 mm in a batch that is rolled back. Null when that cannot be measured; then nothing follows.
+ */
+export async function boundsMoves(upstream: UpstreamTools, run: Run, names: readonly string[], callId: string | undefined): Promise<Moves | null> {
+  try {
+    const [listed, measured] = await run([{ command: 'parameters.list', params: {} }, { command: 'inspect.measure', params: { bodies: names } }]);
+    const base = boundsOf(measured, names);
+    if (!base) return null;
+    type Parameter = { name?: unknown; source?: unknown; uses?: unknown; unit?: unknown; value?: unknown; expression?: unknown };
+    const free = (((listed as { parameters?: unknown } | undefined)?.parameters ?? []) as Parameter[]).filter(
+      (entry): entry is { name: string; value: number; expression: string } =>
+        entry.source === 'user' && Array.isArray(entry.uses) && entry.uses.length === 0 && entry.unit === 'mm' && typeof entry.name === 'string' && typeof entry.value === 'number' && typeof entry.expression === 'string' && /^\s*-?[\d.]+\s*(mm)?\s*$/.test(entry.expression),
+    );
+    if (free.length === 0) return { base, moves: [] };
+    const commands = free.flatMap((entry) => [
+      { command: 'parameters.change', params: { name: entry.name, expression: `${String(entry.value + 1)} mm` } },
+      { command: 'inspect.measure', params: { bodies: names } },
+      { command: 'parameters.change', params: { name: entry.name, expression: entry.expression } },
+    ]);
+    const reply = jsonOf(await upstream.callTool('batch', { commands, rollback: true }, callId)) as { results?: unknown[]; failed?: unknown };
+    if (reply.failed) return null;
+    const moves = free.map((entry, i) => ({ name: entry.name, value: entry.value, bounds: boundsOf(reply.results?.[3 * i + 1], names) }));
+    return moves.every((entry) => entry.bounds !== null) ? { base, moves: moves as Moves['moves'] } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `measure` of the bodies' boxes as an expression over the parameters that move it, with its value now; unset where none
+ * does. Each term is how far it moved when that parameter grew by 1 mm.
+ * shortcut: taken to move in proportion to each parameter, as boxes, shells and fillets do; a size that moves otherwise (a count, an angle) follows wrongly, and the print check after the change shows it.
+ */
+export function expressionOf(measure: (bounds: Bounds[]) => number, moves: Moves): Follow[number] {
+  const r6 = (value: number) => Math.round(value * 1e6) / 1e6 + 0;
+  const at = r6(measure(moves.base));
+  // To 0.1 µm per mm: a round's box moves by a few nm with a size it does not depend on.
+  const terms = moves.moves.map((entry) => ({ ...entry, by: Math.round((measure(entry.bounds) - at) * 1e4) / 1e4 + 0 })).filter((entry) => entry.by !== 0);
+  if (terms.length === 0) return undefined;
+  const rest = r6(terms.reduce((sum, entry) => sum - entry.by * entry.value, at));
+  const parts = [...terms.map((entry) => (entry.by === 1 ? entry.name : `${String(entry.by)} * ${entry.name}`)), ...(rest === 0 ? [] : [`${String(rest)} mm`])];
+  return { expr: parts.join(' + ').replaceAll('+ -', '- '), at };
+}
+
 /**
  * The hinge line between two bodies that stand side by side, level along X or Y with a gap between them (#446: the
  * model's own line missed a body, and every retry resent the whole conversation): in the middle of the gap, along the
@@ -861,12 +994,42 @@ export function hingeLine(fixed: Bounds, moving: Bounds, diameter: number, names
   return { from: point(lo), to: point(hi), gap: r3(gap) };
 }
 
+/**
+ * Per axis, how the line {@link hingeLine} found moves with the parameters: across the gap with its middle, in height with
+ * the rims (their mean, which is either while both are as high) or, for flat plates, with the bed. Along the line it keeps
+ * its length and place.
+ */
+export function hingeFollow(line: { from: Vec3; to: Vec3 }, diameter: number, moves: Moves): Follow {
+  const [fixed, moving] = moves.base as [Bounds, Bounds];
+  const k = Math.abs(line.from[0] - line.to[0]) < 1e-9 ? 0 : 1;
+  const first = fixed.max[k] <= moving.min[k];
+  const across = ([a, b]: Bounds[]) => (a && b ? (first ? a.max[k] + b.min[k] : b.max[k] + a.min[k]) / 2 : 0);
+  const flat = Math.max(fixed.max[2], moving.max[2]) - Math.min(fixed.min[2], moving.min[2]) <= diameter;
+  const height = ([a, b]: Bounds[]) => (a && b ? (flat ? Math.min(a.min[2], b.min[2]) + diameter / 2 : (a.max[2] + b.max[2]) / 2) : 0);
+  return [0, 1, 2].map((i) => (i === k ? expressionOf(across, moves) : i === 2 ? expressionOf(height, moves) : undefined));
+}
+
+/** Per axis, the expression a hinge line was given by across it and in height (from's, else to's); along it the line stays. */
+export function givenFollow(given: Record<string, unknown>, spec: Pick<HingeSpec, 'from' | 'to'>, values: Map<string, number>): Follow {
+  const [from, to] = [given.from, given.to].map((point) => (Array.isArray(point) ? (point as unknown[]) : []));
+  return [0, 1, 2].map((i) => {
+    if (Math.abs((spec.to[i] ?? 0) - (spec.from[i] ?? 0)) > 1e-9) return undefined;
+    const expr = [from?.[i], to?.[i]].find((value): value is string => typeof value === 'string')?.trim();
+    const at = expr === undefined ? undefined : values.get(expr);
+    return expr === undefined || at === undefined ? undefined : { expr, at };
+  });
+}
+
 /** A hinge PartBuddy built into the lid `lid`: the line of its pin, and the steps that make its part in the lid again. */
 export interface BuiltHinge {
   name: string;
   from: Vec3;
   to: Vec3;
   steps: Step[];
+  /** What its line follows, read from its pin's base (unset where it stays). */
+  follow: Follow;
+  /** The side of its joint in the lid, and where on the pin or the bore it is kept. */
+  keep: { side: 'a' | 'b'; circle: Vec3; x: Vec3 };
 }
 
 /** A cylinder's diameter from the radius `timeline.inspect` gives: a number, "X mm" or "(X mm) / 2" as the hinge writes it. */
@@ -885,7 +1048,7 @@ function diameterOf(radius: unknown): number | null {
  * taken back; then a skin of 0.2 mm over the bore). Made again after the lip, the lid's part of the hinge is as the
  * hinge made it. Without webs: they lie below the lip and stay. Empty when the design cannot be read.
  */
-export async function builtHinges(run: Run, lid: string): Promise<BuiltHinge[]> {
+export async function builtHinges(run: Run, lid: string, evaluate: (expressions: string[]) => Promise<Map<string, number>> = () => Promise.resolve(new Map<string, number>())): Promise<BuiltHinge[]> {
   try {
     const [design] = await run([{ command: 'document.inspect', params: { timeline: 'summary' } }]);
     const timeline = (design as { timeline?: unknown } | undefined)?.timeline;
@@ -901,7 +1064,11 @@ export async function builtHinges(run: Run, lid: string): Promise<BuiltHinge[]> 
     const out: BuiltHinge[] = [];
     for (const [n, name] of hingesOf.entries()) {
       const [pin, knuckle, room] = [read[3 * n], read[3 * n + 1], read[3 * n + 2]];
-      const [base, axis, height] = [vec3(pin?.definition?.base), vec3(pin?.definition?.axis), Number.parseFloat(String(pin?.definition?.height))];
+      // A hinge that follows the parameters has expressions in its pin's base: their values place it, and it follows them again.
+      const given = Array.isArray(pin?.definition?.base) ? (pin.definition.base as unknown[]) : [];
+      const values = await evaluate(given.filter((value): value is string => typeof value === 'string'));
+      const follow: Follow = given.map((value) => (typeof value === 'string' && values.has(value) ? { expr: value, at: values.get(value) ?? 0 } : undefined));
+      const [base, axis, height] = [vec3(given.map((value) => (typeof value === 'string' ? values.get(value) : value))), vec3(pin?.definition?.axis), Number.parseFloat(String(pin?.definition?.height))];
       const [owners, others] = [pin?.definition?.participants, room?.definition?.participants];
       const [diameter, wide] = [diameterOf(knuckle?.definition?.radius), diameterOf(room?.definition?.radius)];
       if (!base || !axis || !(height > 0) || diameter === null || wide === null || !Array.isArray(owners) || !Array.isArray(others) || [pin, knuckle, room].some((entry) => entry?.suppressed === true)) continue;
@@ -910,7 +1077,9 @@ export async function builtHinges(run: Run, lid: string): Promise<BuiltHinge[]> 
       const size = Math.hypot(...axis);
       const to = base.map((value, i) => Math.round((value + ((axis[i] ?? 0) / size) * height) * 1e6) / 1e6 + 0) as Vec3;
       const knuckles = named.filter((entry) => entry.name.startsWith(`${name} `) && /^\d+ ·$/.test(entry.name.slice(name.length + 1))).length;
-      const steps = hingeSteps({ fixed, moving, from: base, to, diameter, gap: Math.round(((wide - diameter) / 2) * 1e6) / 1e6, knuckles, name });
+      const built: HingeSpec = { fixed, moving, from: base, to, diameter, gap: Math.round(((wide - diameter) / 2) * 1e6) / 1e6, knuckles, name };
+      const steps = hingeSteps(built);
+      const faces = pinFaces(built);
       // A sketch goes with the extrude that ends it: kept when that goes into the lid.
       const kept: Step[] = [];
       let sketch: Step[] = [];
@@ -922,7 +1091,7 @@ export async function builtHinges(run: Run, lid: string): Promise<BuiltHinge[]> 
         if (Array.isArray(step.params.targets) && step.params.targets.includes(lid)) kept.push(...sketch, step);
         sketch = [];
       }
-      out.push({ name, from: base, to, steps: kept });
+      out.push({ name, from: base, to, steps: follow.some(Boolean) ? followSteps(kept, follow).steps : kept, follow, keep: fixed === lid ? { side: 'a', circle: faces.fixed, x: faces.x } : { side: 'b', circle: faces.moving, x: faces.x } });
     }
     return out.filter((hinge) => hinge.steps.length > 0);
   } catch {
@@ -1545,10 +1714,19 @@ async function buildMechanism(upstream: UpstreamTools, args: Record<string, unkn
     if (reply?.failed || result.isError || !reply) throw new Error(refusal(text));
     return reply.results ?? [];
   };
-  const site: Site = { upstream, run, callId, mark: {}, log };
+  // Places given by expressions are measured at their value now; hinge and closure are built to follow them.
+  const expressions = placeExpressions(args);
+  let values: Map<string, number>;
+  try {
+    values = await valuesOf(upstream, expressions, callId);
+  } catch (cause) {
+    throw new Error(`the place ${expressions.map((expression) => `"${expression}"`).join(', ')} is no length over the design's parameters (${(cause as Error).message})`, { cause });
+  }
+  const site: Site = { upstream, run, callId, mark: {}, log, given: args, values };
   try {
     const unused = unusedSaid(args);
-    return `${await mechanism(site, args, printer, keepFace, overhang)}${unused}`;
+    const stays = expressions.length > 0 && args.kind !== 'hinge' && args.kind !== 'closure' ? ` ${String(args.kind)} places by the numbers its expressions come to now and stays there when the parameters change: call it again after.` : '';
+    return `${await mechanism(site, numericPlaces(args, values), printer, keepFace, overhang)}${unused}${stays}`;
   } catch (cause) {
     const message = (cause as Error).message;
     // Unset: the call was refused before anything was built.
@@ -1622,6 +1800,52 @@ export function pegStock(spec: PegSpec, nozzle = 0.4, layer = 0.2): Stock[] {
   }));
 }
 
+/** A Size that follows `follow` from the value `at`, or the number. */
+const sizeAt = (size: Size): number => (typeof size === 'number' ? size : size.at);
+const sizeOf = (follow: Follow[number], at: number): Size => {
+  const expr = followed(follow, at);
+  return typeof expr === 'string' ? { at, expr } : at;
+};
+
+/**
+ * The closure `spec` made to follow the parameters, or null where it stays: each corner of the room and the rim by the
+ * expression it was given by, else with the side of the lid's box nearest it (of the box's, for a flat lid); with a hinge
+ * only when that hinge follows them too (its pin's base, or hinge_from by expressions), as a lip moved without its hinge
+ * snaps into a rille that is not there.
+ */
+async function closureFollow(site: Site, spec: LipSpec, takes: BuiltHinge | undefined): Promise<LipSpec | null> {
+  const given = site.given ?? {};
+  const values = site.values ?? new Map<string, number>();
+  const exprAt = (key: string, i: number): Follow[number] => {
+    const value = (Array.isArray(given[key]) ? (given[key] as unknown[]) : [])[i];
+    const at = typeof value === 'string' ? values.get(value.trim()) : undefined;
+    return typeof value === 'string' && at !== undefined ? { expr: value.trim(), at } : undefined;
+  };
+  let hinge = spec.hinge;
+  if (hinge) {
+    const across = hinge.along === 'x' ? 1 : 0;
+    const [side, height] = takes ? [takes.follow[across], takes.follow[2]] : [exprAt('hinge_from', across) ?? exprAt('hinge_to', across), exprAt('hinge_from', 2) ?? exprAt('hinge_to', 2)];
+    if (!side && !height) return null;
+    hinge = { along: hinge.along, across: sizeOf(side, sizeAt(hinge.across)), z: sizeOf(height, sizeAt(hinge.z)) };
+  }
+  const body = spec.flat ? spec.fixed : spec.moving;
+  const moves = [0, 1, 2].some((i) => exprAt('from', i) || exprAt('to', i)) ? null : await boundsMoves(site.upstream, site.run, [body], site.callId);
+  // The given coordinate that came to `value`, else the nearest side of the body's box.
+  const corner = (i: number, value: number): Size => {
+    const given = [exprAt('from', i), exprAt('to', i)].find((entry) => entry && Math.abs(entry.at - value) < 1e-6);
+    if (given || !moves) return sizeOf(given, value);
+    const box = moves.base[0] as Bounds;
+    const low = Math.abs(value - (box.min[i] ?? 0)) <= Math.abs((box.max[i] ?? 0) - value);
+    return sizeOf(expressionOf((bounds) => ((low ? bounds[0]?.min[i] : bounds[0]?.max[i]) ?? 0), moves), value);
+  };
+  const sized: LipSpec = { ...spec, min: [corner(0, sizeAt(spec.min[0])), corner(1, sizeAt(spec.min[1]))], max: [corner(0, sizeAt(spec.max[0])), corner(1, sizeAt(spec.max[1]))], rim: corner(2, sizeAt(spec.rim)), ...(hinge ? { hinge } : {}) };
+  return [...sized.min, ...sized.max, sized.rim].some((size) => typeof size !== 'number') || hinge !== spec.hinge ? sized : null;
+}
+
+/** What a closure's answer says of the parameters. */
+const followSaid = (sized: LipSpec | null) =>
+  sized ? ` It follows the parameters, ${([['its room', [...sized.min, ...sized.max]], ['its rim', [sized.rim]], ['the hinge line', sized.hinge ? [sized.hinge.across, sized.hinge.z] : []]] as [string, Size[]][]).flatMap(([what, sizes]) => (sizes.some((size) => typeof size !== 'number') ? [what] : [])).join(', ')} with them; its corners' radius and the walls stay. When they change, leave it be.` : ' It stays where it is when the parameters change.';
+
 async function mechanism(site: Site, args: Record<string, unknown>, printer: ToolPrinter, keepFace: KeepFace, overhang: number): Promise<string> {
   const { upstream, run, callId } = site;
   const { nozzle, layer } = printer;
@@ -1631,6 +1855,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     // #446: without from and to the line goes between the two bodies, where both hold their knuckles; said in the answer.
     let placed = '';
     let asked = args;
+    let follow: Follow | undefined;
     if (args.from === undefined && args.to === undefined && names[0] && names[1]) {
       // The barrel first, on a short level line: it depends on the gap and the printer, not on where the line lies.
       const sized = hingeOf({ ...args, knuckles: undefined, from: [0, 0, 0], to: [20, 0, 0] }, nozzle, layer);
@@ -1642,9 +1867,15 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
       if (typeof line === 'string') throw new Error(line);
       asked = { ...args, from: line.from, to: line.to };
       placed = ` PartBuddy put the line in the middle of the ${String(line.gap)} mm between the two, from ${point(line.from)} to ${point(line.to)}.`;
+      // #446: the line moves as the two bodies' boxes do when the parameters change, so the hinge is built to follow them.
+      const moves = await boundsMoves(upstream, run, names, callId);
+      if (moves) follow = hingeFollow(line, sized.diameter, moves);
     }
     const spec = hingeOf(asked, nozzle, layer);
     if (typeof spec === 'string') throw new Error(spec);
+    if (!placed && site.given && site.values) follow = givenFollow(site.given, spec, site.values);
+    if (!follow?.some(Boolean)) follow = undefined;
+    let follows = follow !== undefined;
     // Where the line given misses a body: the line between the two that holds, or what stands in its way (#446).
     const offer = (bounds: Bounds[] | undefined) => {
       if (!bounds || placed) return '';
@@ -1668,7 +1899,13 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     };
     const warnings = await build(site, spec,
       // With the walls and the bed measured, knuckles that start in the air get their webs.
-      () => hingeSteps(depths?.support ? { ...spec, support: depths.support } : spec),
+      () => {
+        const made = hingeSteps(depths?.support ? { ...spec, support: depths.support } : spec);
+        const moved = follow ? followSteps(made, follow) : null;
+        // Half of a hinge moved is a broken hinge: one profile that cannot follow keeps it all where it is.
+        follows = moved !== null && moved.fixed === 0;
+        return follows && moved ? moved.steps : made;
+      },
       where,
       false,
       async () => {
@@ -1687,14 +1924,16 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
       'revolute',
     );
     // A hinge on the line of an earlier one only narrows what that joint allows: it is run through its limits again.
-    const range = await join(run, spec, 'revolute', site.shares?.limits ?? [-180, 180], 1, site.shares?.name);
+    const range = await join(run, spec, 'revolute', site.shares?.limits ?? [-180, 180], 1, site.shares?.name, follows ? { ...pinFaces(spec), gap: spec.gap } : undefined);
+    const axes = ['x', 'y', 'height'];
+    const following = follows && follow ? ` It follows the parameters, ${follow.flatMap((entry, i) => (entry ? [`its ${axes[i] ?? ''} with ${entry.expr}`] : [])).join(' and ')}, its joint with it; along the line it keeps its length and place. When they change, leave it be.` : follow ? ' It could not be made to follow the parameters (a profile at a slant) and stays where it is when they change.' : placed ? ' It stays where it is when the parameters change.' : ' Its line is numbers and stays where it is when the parameters change; give from and to by expressions over them, and it follows.';
     // Review of PR #366, K1: which print face lays the hinge, said where it is decided.
     const print = `${site.shares ? ` It lies on the line of the hinge "${site.shares.name}" and turns about that hinge's joint, which carries both now.` : ''}${hingePrint(spec, depths, overhang)} ${spec.fixed} and ${spec.moving} print as one piece, as they lie to each other: the print check, the plate view and "send to slicer" lay both on the print face of whichever of them comes first in the design and has one (the exported 3MF keeps them as designed), so give only one of them a print face.`;
     const [min, max] = range;
     return (
       `Built the hinge "${spec.name}" between ${spec.fixed} (stays) and ${spec.moving} (turns): ${String(spec.knuckles)} knuckles, barrel ${String(spec.diameter)} mm, pin ${String(pinDiameter(spec.diameter))} mm, ` +
       `gap ${String(spec.gap)} mm everywhere. It turns from ${String(min)}° to ${String(max)}° before the bodies meet, and those are its limits now; 0° is as designed. ` +
-      `${MOVE} If it should open further, make room where the bodies meet, take the hinge back with undo and call again.${placed}${print}${rooms()}${warnings}`
+      `${MOVE} If it should open further, make room where the bodies meet, take the hinge back with undo and call again.${placed}${following}${print}${rooms()}${warnings}`
     );
   }
   if (args.kind === 'slide') {
@@ -1717,7 +1956,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     // A hinge PartBuddy built into the lid: its line where none is given (a lid built open, lip up), and its part in the
     // lid made again after the lip, which fills the rooms and cuts the knuckles where they reach into the lid's room (#446).
     const lid = typeof args.moving === 'string' ? args.moving.trim() : '';
-    const hinges = lid ? await builtHinges(run, lid) : [];
+    const hinges = lid ? await builtHinges(run, lid, (expressions) => valuesOf(upstream, expressions, callId)) : [];
     const given = args.hinge_from !== undefined || args.hinge_to !== undefined;
     const level = hinges.find((hinge) => Math.abs(hinge.from[2] - hinge.to[2]) < 1e-6 && (Math.abs(hinge.from[0] - hinge.to[0]) < 1e-6) !== (Math.abs(hinge.from[1] - hinge.to[1]) < 1e-6));
     const takes = !given && args.flat !== true && (vec3(args.up)?.[2] ?? 1) > 0 ? level : undefined;
@@ -1730,10 +1969,19 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     const behind = Math.round((RILLE_DEPTH + nozzle * 2 * 1.125) * 100) / 100;
     // Unset: the trial gave no answer, and the answer says what to keep instead.
     let tried: Awaited<ReturnType<typeof closureTrial>> | undefined;
-    const warnings = await build(site, spec, [...lipSteps(spec), ...remade], spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`, false, async () => {
+    // #446: the closure follows the parameters as its points were given, or as the lid's box moves; with a hinge only where that follows too.
+    const sized = await closureFollow(site, spec, takes);
+    const warnings = await build(site, spec, [...lipSteps(sized ?? spec), ...remade], spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`, false, async () => {
       tried = await closureTrial(upstream, spec, nozzle, callId).catch(() => undefined);
       if (tried?.problem) throw new Error(tried.problem);
     });
+    // The lid's part of a hinge that follows was made again, and its joint was kept on a face of it that is gone: kept again on the new one.
+    const again = hinges.filter((hinge) => hinge.follow.some(Boolean));
+    if (again.length > 0) {
+      const [listing] = await run([{ command: 'component.list', params: {} }]);
+      const occurrence = occurrenceOf(listing, lid);
+      if (occurrence) await run(again.map((hinge) => ({ command: 'joint.edit', params: { joint: hinge.name, [hinge.keep.side]: { occurrence, circle: hinge.keep.circle, x: hinge.keep.x } } })));
+    }
     const box = tried
       ? ` PartBuddy tried ${spec.fixed}'s wall where the lid closes: the lip goes in, and the wall with the catch is at least ${String(behind)} mm thick behind the rille.${tried.back.length > 0 ? ` At the lid's ${tried.back.join(', ')} wall${tried.back.length > 1 ? 's' : ''} ${spec.fixed}'s wall stands back from the lid's, so the lip does not centre the lid there.` : ''}`
       : ` PartBuddy could not try ${spec.fixed}'s wall: keep it straight where the lip goes in, and at least ${String(behind)} mm thick behind the rille.`;
@@ -1743,10 +1991,10 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     if (spec.flat) {
       // The lip stands along up: the plate prints on its face the other way.
       const laid = await layOn(run, spec.moving, [0, 0, -spec.up], keepFace);
-      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead ${String(beadHigh(layer))} mm high that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up, lying on the plate's outer face, ${laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`}. It makes no joint.${recut}${steep}${box}${warnings}`;
+      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead ${String(beadHigh(layer))} mm high that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up, lying on the plate's outer face, ${laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`}. It makes no joint.${followSaid(sized)}${recut}${steep}${box}${warnings}`;
     }
     return (
-      `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead ${String(beadHigh(layer))} mm high that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch through the lid's rim to open it. It makes no joint and needs no room outside the box.${about}${unhinged}${recut}${steep}${box}${warnings}`
+      `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead ${String(beadHigh(layer))} mm high that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch through the lid's rim to open it. It makes no joint and needs no room outside the box.${about}${followSaid(sized)}${unhinged}${recut}${steep}${box}${warnings}`
     );
   }
   if (args.kind === 'lid') {
@@ -1944,7 +2192,21 @@ export function withMechanismTool(
     instructions: () => upstream.instructions(),
     listTools: async () => [...(await upstream.listTools()), mechanismTool],
     callTool: async (name, args, callId): Promise<ToolResult> => {
-      if (name !== MECHANISM_TOOL) return upstream.callTool(name, args, callId);
+      if (name !== MECHANISM_TOOL) {
+        const result = await upstream.callTool(name, args, callId);
+        if (result.isError || !changesParameters(name, args)) return result;
+        const again = await hingesAgain(async (commands) => {
+          const reply = jsonOf(await upstream.callTool('batch', { commands }, callId)) as { results?: unknown[]; failed?: { command?: unknown; error?: unknown } };
+          if (reply.failed) throw new Error(refusal(JSON.stringify(reply)));
+          return reply.results ?? [];
+        });
+        if (!again) return result;
+        const parts = [...result.content];
+        const last = parts.findLastIndex((part) => part.type === 'text');
+        if (last >= 0) parts[last] = { ...parts[last], text: `${String((parts[last] as { text?: unknown }).text)}${again}` } as (typeof parts)[number];
+        else parts.push({ type: 'text', text: again.trim() });
+        return { ...result, content: parts };
+      }
       try {
         return { content: [{ type: 'text', text: await buildMechanism(upstream, args, { nozzle: nozzle(), layer: layer(), material: material() }, callId, keepFace, overhang(), log) }] };
       } catch (cause) {
