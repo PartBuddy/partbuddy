@@ -481,6 +481,7 @@
     "contextFull": "Context: {used, number, percent} of {size, number} tokens · start a new chat",
     "usage": {
       "title": "Plan usage",
+      "high": "{window}: {used, number, percent} of the allowance used. A lighter model for building (at the model chip) saves the rest.",
       "window": "{window} {used, number, percent}",
       "windowReset": "{window} {used, number, percent} (resets {reset})",
       "windows": {
