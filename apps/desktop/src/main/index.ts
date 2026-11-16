@@ -73,6 +73,20 @@ import { shareDescription } from './share/description';
 import { freeFolder } from './share/freeFolder';
 import { PrintProfiles, ProfileNote, printNote } from './print/printProfiles';
 import { logoTitle } from '../shared/drawingPlacement';
+import type { FeatureBlock } from '../shared/blocks';
+
+/** The name a block from the interface gives its features in the timeline, in the interface's language (usability U-22). */
+const BLOCK_NAMES: Partial<Record<FeatureBlock['block'], [string, string]>> = {
+  screwHole: ['Schraubenloch', 'Screw hole'],
+  tappedHole: ['Gewindeloch', 'Tapped hole'],
+  insertSeat: ['Gewindeeinsatz', 'Heat-set insert'],
+  nutTrap: ['Muttertasche', 'Nut trap'],
+  slot: ['Langloch', 'Slot'],
+};
+function blockFeatureName(block: FeatureBlock, german: boolean): string | undefined {
+  const names = BLOCK_NAMES[block.block];
+  return names ? `${names[german ? 0 : 1]} ${block.size}` : undefined;
+}
 
 app.setName('PartBuddy');
 // Windows counts a window beside all displays, or behind other windows, as covered and stops painting it: a test
@@ -1387,7 +1401,7 @@ if (!app.requestSingleInstanceLock()) {
       if (limit) throw new Error(limitSaid(limit));
       let built: { rootSharp: true } | null = null;
       await steps.recordUser(blockPhrase(block), async () => {
-        built = await supervisor.applyBlock(block, printer);
+        built = await supervisor.applyBlock(block, printer, blockFeatureName(block, german));
       });
       log(`built the function block ${block.block}`);
       return built;

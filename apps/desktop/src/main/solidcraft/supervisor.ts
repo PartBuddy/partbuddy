@@ -1,5 +1,6 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
+import { named } from '../agents/blockTool';
 import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 
@@ -856,14 +857,16 @@ export class SolidCraftSupervisor {
   }
 
   /** Builds a function block; for a snap fit whose root stays sharp says so, for the form to tell (second review of BC-17). */
-  async applyBlock(given: FeatureBlock, printer?: ToolPrinter): Promise<{ rootSharp: true } | null> {
+  async applyBlock(given: FeatureBlock, printer?: ToolPrinter, name?: string): Promise<{ rootSharp: true } | null> {
     let block = await this.boldBlock(given);
     await this.probing;
     // A logo's sketches get a name no other logo has, so it can be moved on its own later.
     const sketch =
       block.block === 'logo' ? uniqueLogoName(block.name, await this.actions.sketchNames()) : block.block === 'text' ? uniqueLogoName(block.text, await this.actions.sketchNames(), TEXT_PREFIX) : undefined;
     block = await this.centredBlock(block);
-    const { steps } = await this.actions.blockSteps(block, sketch, (line) => this.options.log(line), printer);
+    const { steps: built } = await this.actions.blockSteps(block, sketch, (line) => this.options.log(line), printer);
+    // A block from the interface gets readable feature names, as the assistant's do ("Hole1" otherwise; usability U-22).
+    const steps = named(built, name);
     // A snap fit's root radius, tried first and built as a step of its own: where SolidCraft refuses it or rounds other edges,
     // the hook stays without it (audit MV-10, review of BC-17 S4); the form said so on its trial.
     const root = block.block === 'snapFit' ? await this.actions.rootOf(block, steps) : null;

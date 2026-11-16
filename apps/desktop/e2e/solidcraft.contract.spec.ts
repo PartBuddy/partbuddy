@@ -1621,7 +1621,7 @@ test('versions are saved by name, before requests and at exports, compared with 
     await details.getByTestId('part-filament').press('Tab');
     await details.getByTestId('part-printed-count').getByRole('textbox').fill('1');
     await details.getByTestId('part-printed-count').getByRole('textbox').press('Tab');
-    await expect(page.getByTestId('parts-progress')).toContainText('1/2 printed');
+    await expect(page.getByTestId('parts-progress')).toContainText('1 of 2 printed');
     // Only panels scroll, never the window, also with the details open (audit N-02).
     expect(
       await page.evaluate(() => {
@@ -1631,7 +1631,7 @@ test('versions are saved by name, before requests and at exports, compared with 
     ).toBe(true);
     await expect.poll(() => readFileSync(join(work, 'projects', 'Part First box', 'parts.json'), 'utf8')).toContain('PETG black');
     await body.getByTestId('part-printed').click();
-    await expect(page.getByTestId('parts-progress')).toContainText('2/2 printed');
+    await expect(page.getByTestId('parts-progress')).toContainText('2 of 2 printed');
     await page.getByTestId('home-button').click();
     await expect(page.locator('[data-testid="home-tile"][data-name="Part First box"]').getByTestId('home-tile-progress')).toHaveText('2/2 printed');
   } catch (error) {

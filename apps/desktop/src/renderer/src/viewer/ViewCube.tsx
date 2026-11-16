@@ -132,7 +132,8 @@ export function ViewCube() {
                     }}
                     className={`cursor-pointer border-0 bg-transparent p-0 text-sm font-semibold text-text outline-none hover:bg-accent/35 focus-visible:bg-accent/35 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent forced-colors:hover:bg-[Highlight] ${centre ? 'flex items-center justify-center' : ''}`}
                   >
-                    {centre ? t(`viewer.cube.${face}`) : null}
+                    {/* A size larger, to read at a glance (usability U-21). */}
+                    {centre ? <span className="text-md">{t(`viewer.cube.${face}`)}</span> : null}
                   </button>
                 );
               }),
