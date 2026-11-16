@@ -37,6 +37,7 @@ import { animateCamera, ViewCube, ViewCubeSync } from './ViewCube';
 import { gridStep, lineScaleFor, needsReframe } from './framing';
 import { pickBox, selectionBox, VIEW_DIRECTIONS, type PickArrays } from './camera';
 import { ViewTools } from './ViewTools';
+import { StatsOverlay, StatsProbe } from './ViewportStats';
 import { viewStateOf, type CameraView } from './viewState';
 import { platform } from '../platform';
 import { selectedStatus, useAssistant } from '../assistant/store';
@@ -1030,6 +1031,7 @@ function RecordingTap() {
 function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: string; bodies: BodyModel[]; sketches: MirroredSketch[]; steps: PlayStep[]; layout: PlateLayout }) {
   const { t } = useTranslation();
   const displayMode = useStudio((s) => s.displayMode);
+  const viewportStats = useStudio((s) => s.viewportStats);
   const plane = useSectionPlane(bodies);
   const colors = useTokenColors();
   // The exploded view, the playback and the plate are for looking: picks, notes and dimensions sit on the assembled part.
@@ -1164,6 +1166,7 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
       <ViewReporter />
       <StepPreviews />
       <ViewCubeSync />
+      {viewportStats ? <StatsProbe /> : null}
       {/* The axis triad's helper draws the scene and the triad. */}
       <GizmoHelper alignment="bottom-left" margin={scene.triadMargin} renderPriority={1}>
         <GizmoViewport
@@ -1189,6 +1192,14 @@ export function Viewer() {
   const bed = useStudio((s) => s.print?.printer.bed ?? null);
   const layout = usePlateLayout(bodies, plateOpen, bed);
   const playback = useStudio((s) => s.playback !== null);
+  const viewportStats = useStudio((s) => s.viewportStats);
+  useEffect(() => {
+    void platform()
+      .settings.app()
+      .then((app) => {
+        useStudio.setState({ viewportStats: app.viewportStats });
+      });
+  }, []);
   // Leaving a design of several parts for one of a single part closes what only the first had.
   useEffect(() => {
     if (bodies.length > 1) return;
@@ -1218,6 +1229,7 @@ export function Viewer() {
             <Scene documentId={model.documentId} bodies={model.bodies} sketches={model.sketches} steps={steps} layout={layout} />
           </div>
           <ViewCube />
+          {viewportStats ? <StatsOverlay /> : null}
           {plateOpen ? <PlateBar layout={layout} bed={bed} /> : playback ? <AssemblyPlayer steps={steps} source={source} /> : <SelectionDock bodies={model.bodies} />}
         </>
       ) : null}

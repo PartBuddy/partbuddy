@@ -59,6 +59,7 @@ import { POPOVER_OFFSET, popoverPanelClass } from '../ui/Overlay';
 import { EnginePanel } from './EnginePanel';
 import { searchSettings, settingById, type SettingEntry } from './settingsIndex';
 import { SHORTCUTS, type Shortcut } from './shortcuts';
+import { adapterName, isSoftware, type GraphicsInfo } from '../viewer/graphicsInfo';
 
 const SECTIONS: {
   id: SettingsSection;
@@ -399,7 +400,62 @@ function GeneralSection() {
           <ProjectsFolderField info={info} onChange={setInfo} titled={false} />
         </Setting>
       </Group>
+      <Group id="viewport">
+        <Setting id="graphics" layout="block">
+          <GraphicsBlock />
+        </Setting>
+        <Setting id="viewportStats">
+          <Toggle
+            id="viewportStats"
+            isSelected={app.viewportStats}
+            onChange={(next) => {
+              void platform()
+                .settings.setApp({ key: 'viewportStats', value: next })
+                .then((stored) => {
+                  setApp(stored);
+                  useStudio.setState({ viewportStats: stored.viewportStats });
+                });
+            }}
+            testId="settings-viewport-stats"
+          />
+        </Setting>
+      </Group>
     </>
+  );
+}
+
+/**
+ * What the 3D view draws with (issue #484), read from a context of its own: the GPU process has one
+ * adapter for every context, so this also works on the start page. The context is given back at once.
+ */
+function readGraphics(): GraphicsInfo {
+  const gl = document.createElement('canvas').getContext('webgl2');
+  if (!gl) return { backend: 'none', adapter: null, software: false };
+  const debug = gl.getExtension('WEBGL_debug_renderer_info');
+  const adapter = debug ? String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)) : null;
+  gl.getExtension('WEBGL_lose_context')?.loseContext();
+  return { backend: 'webgl2', adapter, software: isSoftware(adapter) };
+}
+
+function GraphicsBlock() {
+  const { t } = useTranslation();
+  const [info] = useState(readGraphics);
+  const rows: [string, string][] = [
+    [t('settings.graphics.backend'), info.backend === 'webgl2' ? 'WebGL 2' : t('settings.graphics.none')],
+    [t('settings.graphics.adapter'), info.adapter ? adapterName(info.adapter) : t('settings.graphics.unknown')],
+    [t('settings.graphics.mode'), info.backend === 'none' ? t('settings.graphics.none') : info.software ? t('settings.graphics.software') : t('settings.graphics.hardware')],
+  ];
+  return (
+    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm" data-testid="settings-graphics" data-software={info.software || undefined}>
+      {rows.map(([label, value]) => (
+        <div key={label} className="contents">
+          <dt className="text-text-muted">{label}</dt>
+          <dd className="text-text" title={label === t('settings.graphics.adapter') ? (info.adapter ?? undefined) : undefined}>
+            {value}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 

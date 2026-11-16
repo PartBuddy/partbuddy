@@ -112,6 +112,38 @@ test('the view draws only while something changes or moves (issue 484)', async (
   await expect.poll(async () => (await frames()) - before).toBeGreaterThan(3);
 });
 
+test('the settings say what the view draws with, and the frame counters show over the view (issue 484)', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+  await expect(page.getByTestId('viewport-stats')).toHaveCount(0);
+  await page.getByTestId('settings').click();
+  const dialog = page.getByTestId('settings-dialog');
+  // The tests draw with SwiftShader (launch.ts): the CPU, said as such.
+  const graphics = dialog.getByTestId('settings-graphics');
+  await expect(graphics).toContainText('WebGL 2');
+  await expect(graphics).toContainText('CPU (software)');
+  await dialog.getByTestId('settings-viewport-stats').click();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+
+  const stats = page.getByTestId('viewport-stats');
+  await expect(stats).toBeVisible();
+  const box = await page.getByTestId('viewport').boundingBox();
+  if (!box) throw new Error('viewport not visible');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 20; i += 1) {
+    await page.mouse.move(box.x + box.width / 2 + i * 10, box.y + box.height / 2);
+    await page.waitForTimeout(30);
+  }
+  await expect(stats).not.toHaveAttribute('data-fps', '0');
+  await page.mouse.up();
+  await expect(stats).toContainText(/Triangles\s*[1-9]/);
+  // At rest the view draws nothing, and the counter says so.
+  await expect(stats).toHaveAttribute('data-fps', '0', { timeout: 10_000 });
+});
+
 test('the user undoes, redoes and exports without the assistant (ADR 0016)', async () => {
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });
