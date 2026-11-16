@@ -173,6 +173,7 @@ As planned: a level is shown only when its proof exists; higher levels never rep
 | Knowledge panel: rules with IDs behind each recommendation | Explains why the assistant suggests something |
 | Export snapshot as glTF with face IDs | Share a view state |
 | Local-only mode switch that disables every cloud provider | Strong privacy promise |
+| OpenCode as an assistant route over ACP (#489; checked 2026-11-16: `opencode acp` takes PartBuddy's MCP server per session and calls its tools, the shell has to be denied in its config) | Adds GitHub Copilot plans and free models; one ACP route could serve later ACP agents too. Candidate only: a further route to keep working with a fast-changing API (OpenCode 2 since 2026-10-12) |
 
 ## Won't (for now)
 
@@ -181,6 +182,8 @@ As planned: a level is shown only when its proof exists; higher levels never rep
 | Own CAD kernel | SolidCraft is the kernel (ADR 0004) |
 | Bundling SolidCraft, OrcaSlicer or Blender | Keeps the installer small and their updates independent (ADR 0007) |
 | Sign-in with Claude consumer plans | Not allowed by Anthropic for third-party apps |
+| Google Antigravity CLI (`agy`) with personal Google plans (#489) | Google's FAQ says wrapping `agy` in third-party applications is not supported under consumer plans; accounts risk suspension |
+| Gemini CLI (#17) | Since 2026-06-18 it no longer serves Google AI Pro, Ultra or free accounts, only paid API keys |
 | Cloud sync and team features | Not needed for the first market; privacy first |
 | macOS and Linux builds | Windows first; the stack keeps them possible (ADR 0002) |
 
