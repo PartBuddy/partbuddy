@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.4](https://github.com/PartBuddy/partbuddy/compare/v0.3.3...v0.3.4) (2026-11-16)
+
+
+### Features
+
+* a new version shows a notice, and the mac app tells of it too ([#467](https://github.com/PartBuddy/partbuddy/issues/467)) ([e376495](https://github.com/PartBuddy/partbuddy/commit/e376495e19932376d296df8e4b272c844a3aaf4f))
+
 ## [0.3.3](https://github.com/PartBuddy/partbuddy/compare/v0.3.2...v0.3.3) (2026-11-16)
 
 
