@@ -30,12 +30,40 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # A release made here with GITHUB_TOKEN triggers no "release" workflows, so the website
-  # sync is called directly.
-  website:
-    name: Update the website
+  # release-please creates the release as a draft (with its tag, force-tag-creation), so installed
+  # apps never see a release whose latest.yml is still missing.
+  installers:
+    name: Attach the installers
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/installer.yml # zizmor: ignore[self-repository]
+    with:
+      ref: ${{ needs.release-please.outputs.tag_name }}
+      attach: true
+
+  publish:
+    name: Publish the release
+    needs: [release-please, installers]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: gh release edit "$TAG" --draft=false --latest --repo "$GITHUB_REPOSITORY"
+
+  # A release made here with GITHUB_TOKEN triggers no "release" workflows, so the website
+  # sync is called directly, once the release is public.
+  website:
+    name: Update the website
+    needs: [release-please, publish]
     permissions:
       contents: read
     # actionlint 1.7.12 rejects the self-repository form $/…; switch once it supports it.
@@ -45,17 +73,3 @@ jobs:
       tag: ${{ needs.release-please.outputs.tag_name }}
     secrets:
       SITE_REPO_TOKEN: ${{ secrets.SITE_REPO_TOKEN }}
-
-  # The macOS dmg cannot be built on the Windows machine that uploads the installer by hand, so the
-  # installer workflow builds it for the new tag and attaches it to the release.
-  dmg:
-    name: Attach the macOS dmg
-    needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
-    permissions:
-      actions: read
-      contents: write
-    uses: ./.github/workflows/installer.yml # zizmor: ignore[self-repository]
-    with:
-      ref: ${{ needs.release-please.outputs.tag_name }}
-      attach: true
