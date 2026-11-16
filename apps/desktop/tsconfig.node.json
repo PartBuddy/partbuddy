@@ -15,5 +15,5 @@
     "types": ["node"]
   },
   "include": ["src/main", "src/preload", "src/shared", "test", "e2e", "electron.vite.config.ts", "vitest.config.mts", "playwright.config.ts"],
-  "exclude": ["e2e/audit*.ts"]
+  "exclude": ["e2e/audit*.ts", "e2e/usability*.ts"]
 }
