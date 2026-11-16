@@ -17,7 +17,8 @@
       "points": [
         "Questions as cards, with the recommended answer preselected and its reason",
         "Research with sources: data sheets, screw tables, standards",
-        "Draw the sizes on squared paper or start from a photo"
+        "Draw the sizes on squared paper or start from a photo",
+        "A first start in three steps: sign in, pick your printer from a list, describe your first part"
       ],
       "shot": "clarify",
       "alt": "A housing in the 3D view next to questions from the assistant with recommended options"
@@ -25,7 +26,7 @@
     {
       "kicker": "Build",
       "title": "Real CAD, built while you watch.",
-      "text": "SolidCraft builds editable solid geometry step by step in the 3D view. Click a face, pin a note to it and ask for the change in words, or change a size right in the parameter table. Every step, yours or the assistant’s, can be taken back.",
+      "text": "SolidCraft builds editable solid geometry step by step in the 3D view. Click a face, pin a note to it and ask for the change in words, or change a size right in the parameter table; the chat suggests changes from the part’s own sizes. Every step, yours or the assistant’s, can be taken back.",
       "points": [
         "Threads, countersinks, snap fits, inserts and nut traps on the face you pick",
         "Visible edges rounded, bed edges chamfered and sizes snapped to your nozzle, without being asked",
@@ -46,16 +47,17 @@
         "Hinges and guides run through their whole range: where parts meet on the way is found before you print"
       ],
       "shot": "printready",
-      "alt": "The ready-to-print check reporting that lid and case are too tight"
+      "alt": "The print check reporting that lid and case are too tight"
     },
     {
       "kicker": "Print",
       "title": "Straight to the plate.",
-      "text": "Every part on its print face, nested on the bed of your printer. Open it in Bambu Studio or OrcaSlicer with one click, or export 3MF, STEP and STL. Supports and orientation stay with your slicer.",
+      "text": "Every part on its print face, nested on the bed of your printer. Open it in Bambu Studio or OrcaSlicer with one click, or export 3MF, STEP and STL, each explained in plain words, then open the folder right from the message. Supports and orientation stay with your slicer.",
       "points": [
         "One click to Bambu Studio or OrcaSlicer",
         "3MF and STL for printing, STEP for other CAD programs",
-        "Parts that do not fit the bed are marked"
+        "Parts that do not fit the bed are marked",
+        "A green print check leads straight to the 3MF export"
       ],
       "shot": "plate",
       "alt": "An enclosure, its lid and a board laid out on a print bed with its size"
@@ -171,7 +173,7 @@
       "title": "Checked through its range",
       "text": "The print check runs every joint to its limits and points at the place where two parts meet too early.",
       "shot": "motion-check",
-      "alt": "The ready-to-print check reporting that the lid meets the box before the hinge reaches its limit"
+      "alt": "The print check reporting that the lid meets the box before the hinge reaches its limit"
     },
     {
       "title": "Pull it apart",
@@ -200,7 +202,7 @@
     },
     {
       "title": "Pin a note to the face",
-      "text": "Click a face, edge or point and pin a note to it: “this edge R2 instead of R1”. The assistant reads it, the note follows its face through rebuilds, says so if it loses its place, and travels with the design file.",
+      "text": "Click a face, edge or point and pin a note to it: “this edge R2 instead of R1”. The assistant reads it, the note follows its face through rebuilds, says so if it loses its place, and travels with the part’s file.",
       "shot": "notes",
       "alt": "A cable clip with three numbered notes on its faces and edge, listed in the structure tree"
     },
@@ -208,7 +210,7 @@
       "title": "Versions you can compare",
       "text": "Saved before every request. Keep any of them as a milestone, compare it with now or open it as a project of its own.",
       "shot": "versions",
-      "alt": "The versions dialog comparing a named version with the current design"
+      "alt": "The versions dialog comparing a named version with the current part"
     },
     {
       "title": "Measure your printer",
@@ -218,7 +220,7 @@
     },
     {
       "title": "Pick model and effort",
-      "text": "Per chat. With a Claude plan you see how much of it you have used.",
+      "text": "Per chat. With a Claude plan you see how much of it you have used, and when it runs out the chat says when it continues and offers to go on with ChatGPT.",
       "shot": "model",
       "alt": "The assistant menu with Claude Code, ChatGPT, local models, model and effort"
     },
@@ -254,14 +256,17 @@
     "today": [
       "Design with an assistant in real CAD",
       "Sketches, photos and research as input",
-      "Ready-to-print check and slicer hand-off",
+      "Print check and slicer hand-off",
       "English and German, installer with update checks",
       "Dimensions on the part: type them, step them or drag the arrow",
       "Logos and text on the part, holes and blocks placed before they are built",
       "Hinges and guides that move in the view, checked through their range",
       "Runs on the stable SolidCraft releases with the new kernel",
       "Design hints after each build, not only print checks",
-      "An experimental test build for macOS"
+      "An experimental test build for macOS",
+      "A failed answer says why, such as no connection, and offers the next step",
+      "A crashed SolidCraft starts again by itself",
+      "Keyboard throughout: Esc closes every dialog, ? shows the shortcuts"
     ],
     "next": [],
     "later": [
