@@ -9,6 +9,7 @@ Ein Wort je Sache, in jedem Text der App (Usability-Offensive U-23). Englisch in
 | **Körper** (body) | Ein geschlossener Volumenkörper im Teil | Solid |
 | **Netz** (mesh) | Ein Teil aus Dreiecken (STL, 3MF, OBJ), ohne Maße zum Ändern | Mesh |
 | **Assistent** (assistant) | Claude, ChatGPT oder das lokale Modell, mit dem man konstruiert | KI, SolidCraft |
+| **3D-Ansicht** (3D view) | Der Bereich, der das Teil räumlich zeigt | Viewport, Viewer |
 | **Druckprüfung** (print check) | Die Ampel unten und ihr Fenster | – |
 | **Slicer** | Das Programm, das aus dem Export den Druck macht | – |
 
