@@ -27,6 +27,8 @@ export const SETTINGS: readonly SettingEntry[] = [
   { id: 'startPage', section: 'general', group: 'startup', label: 'settings.startPage.title', hint: 'settings.startPage.hint' },
   { id: 'projectsFolder', section: 'general', group: 'files', label: 'settings.projects.title', hint: 'settings.projects.hint', restart: true, keywords: 'settings.keywords.projectsFolder' },
   { id: 'viewportQuality', section: 'general', group: 'viewport', label: 'settings.viewportQuality.title', hint: 'settings.viewportQuality.hint', keywords: 'settings.keywords.viewportQuality' },
+  { id: 'gpuPreference', section: 'general', group: 'viewport', label: 'settings.gpuPreference.title', hint: 'settings.gpuPreference.hint', restart: true, keywords: 'settings.keywords.graphics' },
+  { id: 'softwareRendering', section: 'general', group: 'viewport', label: 'settings.softwareRendering.title', hint: 'settings.softwareRendering.hint', restart: true, keywords: 'settings.keywords.graphics' },
   { id: 'graphics', section: 'general', group: 'viewport', label: 'settings.graphics.title', hint: 'settings.graphics.hint', keywords: 'settings.keywords.graphics' },
   { id: 'viewportStats', section: 'general', group: 'viewport', label: 'settings.viewportStats.title', hint: 'settings.viewportStats.hint', keywords: 'settings.keywords.viewportStats' },
   { id: 'engine', section: 'solidcraft', group: 'program', label: 'engine.program', hint: 'settings.engine.hint', restart: true },

@@ -176,6 +176,27 @@ test('the display quality changes resolution, smoothed edges and shadow of the v
   await expect.poll(look).toEqual({ antialias: true, shadows: true });
 });
 
+test('the graphics card and drawing without it are chosen in the settings and apply after a restart (issue 484)', async () => {
+  launched = await launchApp();
+  const { page } = launched;
+  await page.getByTestId('settings').click();
+  const dialog = page.getByTestId('settings-dialog');
+  const hint = dialog.getByTestId('settings-graphics-restart');
+  await expect(dialog.getByTestId('setting-gpuPreference-restart')).toBeVisible();
+  await expect(hint).toHaveCount(0);
+  await dialog.getByTestId('settings-gpu-preference').getByText('Fast').click();
+  await expect(hint).toBeVisible();
+  // Back to what PartBuddy started with: nothing waits for a restart.
+  await dialog.getByTestId('settings-gpu-preference').getByText('Automatic').click();
+  await expect(hint).toHaveCount(0);
+  await dialog.getByTestId('settings-software-rendering').click();
+  await expect(hint).toBeVisible();
+  await page.keyboard.press('Escape');
+  // Kept: the settings open with it again.
+  await page.getByTestId('settings').click();
+  await expect(dialog.getByTestId('settings-graphics-restart')).toBeVisible();
+});
+
 test('the user undoes, redoes and exports without the assistant (ADR 0016)', async () => {
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });
