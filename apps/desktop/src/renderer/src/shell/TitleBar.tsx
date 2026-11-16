@@ -108,11 +108,14 @@ export function TitleBar() {
         <span className="font-display text-lg font-semibold text-text">{t('app.name')}</span>
       </AriaButton>
       </Tip>
-      <nav aria-label={t('app.design')} className="flex min-w-0 items-center gap-2 text-md">
-        <span className="text-text-subtle">/</span>
-        <ProjectMenu designName={designName} />
-        {model.status === 'ready' && connection.save && !homeOpen ? <SaveState state={connection.save} /> : null}
-      </nav>
+      {/* The start page is no project: its name, save state and actions come with one (usability U-11, audit A-14). */}
+      {homeOpen ? null : (
+        <nav aria-label={t('app.design')} className="flex min-w-0 items-center gap-2 text-md">
+          <span className="text-text-subtle">/</span>
+          <ProjectMenu designName={designName} />
+          {model.status === 'ready' && connection.save ? <SaveState state={connection.save} /> : null}
+        </nav>
+      )}
       {homeOpen ? null : <DesignActions />}
       {/* The bar names SolidCraft's version; the model's revision stays on hover (14 November 2026). */}
       <div

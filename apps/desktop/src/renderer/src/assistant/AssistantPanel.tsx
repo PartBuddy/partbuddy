@@ -91,7 +91,8 @@ function Working({ label }: { label: string }) {
   );
 }
 
-function Setup() {
+/** Sign-in, install or wait notice of the chosen route; nothing once it is ready. Also on the first start (usability U-01). */
+export function AssistantSetup() {
   const { t } = useTranslation();
   const status = selectedStatus(useAssistant((s) => s.state));
   const api = platform().agent;
@@ -561,11 +562,21 @@ export function AssistantPanel() {
   if (request && request.serial !== handled) {
     setHandled(request.serial);
     if (request.what === 'sketch') setSketching(true);
-    else setDraft((current) => current || t('parameters.askDraft'));
+    else if (request.what === 'parameters') setDraft((current) => current || t('parameters.askDraft'));
   }
+  // Once per request, as soon as the composer takes text: a new project's composer opens locked until its design is ready.
+  // The start page gives the focus back to its own button as it closes: only after that.
+  const homeOpen = useStudio((s) => s.homeOpen);
+  // A new project locks the composer once more while it loads, which drops the focus: within a few seconds of the
+  // request the focus comes back each time the composer takes text again.
+  const focusedFor = useRef<{ serial: number; at: number }>({ serial: 0, at: 0 });
   useEffect(() => {
-    if (request?.what === 'parameters') composer.current?.focus();
-  }, [request]);
+    if (!request || (request.what !== 'parameters' && request.what !== 'describe') || !writable || homeOpen) return;
+    const now = Date.now();
+    if (focusedFor.current.serial === request.serial && now - focusedFor.current.at > 8000) return;
+    if (focusedFor.current.serial !== request.serial) focusedFor.current = { serial: request.serial, at: now };
+    composer.current?.focus();
+  }, [request, writable, homeOpen]);
   // Photos of a real object for the next message (F6), up to four; a sketch or a drawing goes alone.
   // Each keeps the file's own name and size for its chip, so two pictures can be told apart (audit C-12).
   const [photos, setPhotos] = useState<{ picture: SketchPicture; name: string }[]>([]);
@@ -759,7 +770,7 @@ export function AssistantPanel() {
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={list} {...handlers} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="chat-list">
       <div ref={content} className="cs-chat-list flex flex-col gap-2 p-3 pb-12">
-        <Setup />
+        <AssistantSetup />
         {items.length === 0 && (status.state === 'ready' || busy) ? (
           // A way in for an empty chat (polish round 1): examples fill the input, they do not send.
           <div className="flex flex-col gap-2 pt-4" data-testid="chat-start">

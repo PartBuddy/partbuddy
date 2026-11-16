@@ -5,6 +5,7 @@ import { Dialog, Heading, Modal, ModalOverlay } from 'react-aria-components';
 
 import type { GeneralSettingsInfo } from '../../../shared/contract';
 import { AssistantChoice } from '../assistant/AgentChip';
+import { AssistantSetup } from '../assistant/AssistantPanel';
 import { PrintProfilesEditor } from '../print/PrintProfilesEditor';
 import { platform } from '../platform';
 import { Button, linkClass } from '../ui/Button';
@@ -108,7 +109,8 @@ export function FirstStart() {
           ) : step === 'assistant' ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-text">{t('firstStart.assistant')}</p>
-              <AssistantChoice />
+              <AssistantChoice setup />
+              <AssistantSetup />
             </div>
           ) : step === 'print' ? (
             <div className="flex flex-col gap-3">

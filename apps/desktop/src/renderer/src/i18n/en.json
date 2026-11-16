@@ -181,7 +181,7 @@
     "preview": "Preview",
     "plan": "Claude subscription",
     "apiKey": "API key, billed separately",
-    "signedIn": "Claude Code {version} · {plan}",
+    "signedIn": "Signed in · Claude Code {version} · {plan}",
     "state": {
       "claude-code": {
         "checking": "Looking for Claude Code",
@@ -1112,7 +1112,7 @@
         "hint": "Saves material and print time: leaves out volume that does nothing (an open bottom, a frame instead of a plate) without hollowing closed bodies, and keeps the build height low. Function and strength come first; infill and speed stay with your slicer."
       }
     },
-    "add": "Add printer",
+    "add": "Printer from the list …",
     "catalog": "Printer catalog",
     "catalogSearch": "Search brand or model",
     "catalogEmpty": "No printer matches. Copy an existing one and enter the values by hand.",
@@ -1362,8 +1362,9 @@
     "searchClear": "Clear search",
     "import": "Import …",
     "list": "{count, plural, one {# project} other {# projects}}",
-    "emptyTitle": "No projects yet",
-    "emptyBody": "Start a new project, open one or import a file (STEP, IGES, STL, 3MF, OBJ or a SolidCraft design), also by dropping it on the window. Every project gets a folder of its own in the projects folder (Settings › General).",
+    "emptyTitle": "Your first part",
+    "emptyBody": "Describe what you need – the assistant builds it step by step. Or start from a template below.",
+    "describe": "Describe a part",
     "noMatch": "No project matches “{query}”.",
     "openNow": "Open now",
     "justNow": "just now",
@@ -1515,8 +1516,9 @@
     },
     "solidcraft": "PartBuddy shows and changes your parts through SolidCraft, a free CAD program that runs in the background. PartBuddy looks for it on its own; if it is not installed, download it and look again.",
     "download": "Download SolidCraft (GitHub)",
+    "models": "Advanced: model per step",
     "assistant": "Choose the assistant you already pay for: Claude through your Claude Code, or ChatGPT with your plan. You can sign in later as well.",
-    "print": "Enter your printer and material once; the assistant designs for them. Save or skip this step.",
+    "print": "Pick your printer from the list – PartBuddy fills in build volume, nozzle and layer height. The assistant designs for it.",
     "projects": "Every project gets a folder of its own here, with the design, the conversation, versions and exports.",
     "skip": "Skip setup",
     "back": "Back",

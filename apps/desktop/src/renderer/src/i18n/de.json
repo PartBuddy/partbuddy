@@ -181,7 +181,7 @@
     "preview": "Vorschau",
     "plan": "Claude-Abo",
     "apiKey": "API-Key, getrennt abgerechnet",
-    "signedIn": "Claude Code {version} · {plan}",
+    "signedIn": "Angemeldet · Claude Code {version} · {plan}",
     "state": {
       "claude-code": {
         "checking": "Claude Code wird gesucht",
@@ -1112,7 +1112,7 @@
         "hint": "Spart Material und Druckzeit: lässt Volumen weg, das nichts trägt (offener Boden, Rahmen statt Platte), ohne geschlossene Körper auszuhöhlen, und hält die Bauhöhe gering. Funktion und Festigkeit gehen vor; Füllung und Geschwindigkeit bleiben Sache deines Slicers."
       }
     },
-    "add": "Drucker hinzufügen",
+    "add": "Drucker aus der Liste …",
     "catalog": "Druckerkatalog",
     "catalogSearch": "Marke oder Modell suchen",
     "catalogEmpty": "Kein Drucker passt. Kopiere einen vorhandenen und trage die Werte von Hand ein.",
@@ -1362,8 +1362,9 @@
     "searchClear": "Suche leeren",
     "import": "Importieren …",
     "list": "{count, plural, one {# Projekt} other {# Projekte}}",
-    "emptyTitle": "Noch keine Projekte",
-    "emptyBody": "Starte ein neues Projekt, öffne eines oder importiere eine Datei (STEP, IGES, STL, 3MF, OBJ oder ein SolidCraft-Design), auch per Ziehen aufs Fenster. Jedes Projekt bekommt einen eigenen Ordner im Projektordner (Einstellungen › Allgemein).",
+    "emptyTitle": "Dein erstes Teil",
+    "emptyBody": "Beschreib, was du brauchst – der Assistent baut es Schritt für Schritt. Oder fang unten mit einer Vorlage an.",
+    "describe": "Teil beschreiben",
     "noMatch": "Kein Projekt passt zu „{query}“.",
     "openNow": "Gerade geöffnet",
     "justNow": "gerade eben",
@@ -1515,8 +1516,9 @@
     },
     "solidcraft": "PartBuddy zeigt und ändert deine Teile über SolidCraft, ein freies CAD-Programm, das im Hintergrund läuft. PartBuddy sucht es selbst; ist es nicht installiert, lade es herunter und such erneut.",
     "download": "SolidCraft herunterladen (GitHub)",
+    "models": "Erweitert: Modell je Arbeitsschritt",
     "assistant": "Wähle den Assistenten, den du schon bezahlst: Claude über dein Claude Code oder ChatGPT mit deinem Abo. Anmelden geht auch später.",
-    "print": "Trag Drucker und Material einmal ein; der Assistent konstruiert passend dazu. Speichern oder diesen Schritt überspringen.",
+    "print": "Wähl deinen Drucker aus der Liste – Bauraum, Düse und Schichthöhe trägt PartBuddy dann selbst ein. Der Assistent konstruiert passend dazu.",
     "projects": "Jedes Projekt bekommt hier einen eigenen Ordner mit Design, Gespräch, Versionen und Exporten.",
     "skip": "Einrichtung überspringen",
     "back": "Zurück",
