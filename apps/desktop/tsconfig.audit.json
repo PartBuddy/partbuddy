@@ -8,7 +8,8 @@
     ]
   },
   "include": [
-    "e2e/audit*.ts"
+    "e2e/audit*.ts",
+    "e2e/usability*.ts"
   ],
   "exclude": []
 }
