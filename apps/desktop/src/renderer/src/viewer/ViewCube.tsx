@@ -130,7 +130,7 @@ export function ViewCube() {
                     onPointerDown={(event) => {
                       event.stopPropagation();
                     }}
-                    className={`cursor-pointer border-0 bg-transparent p-0 text-sm font-semibold text-text outline-none hover:bg-accent/35 focus-visible:bg-accent/35 forced-colors:hover:bg-[Highlight] ${centre ? 'flex items-center justify-center' : ''}`}
+                    className={`cursor-pointer border-0 bg-transparent p-0 text-sm font-semibold text-text outline-none hover:bg-accent/35 focus-visible:bg-accent/35 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent forced-colors:hover:bg-[Highlight] ${centre ? 'flex items-center justify-center' : ''}`}
                   >
                     {centre ? t(`viewer.cube.${face}`) : null}
                   </button>

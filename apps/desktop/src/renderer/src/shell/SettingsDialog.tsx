@@ -744,6 +744,13 @@ export function SettingsDialog() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      // "?" outside a text field lists the shortcuts (usability U-20), as in Gmail, GitHub and Linear.
+      const typing = event.target instanceof HTMLElement && (event.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName));
+      if (event.key === '?' && !typing && !event.ctrlKey && !event.metaKey && !event.altKey && useStudio.getState().settingsSection === null) {
+        event.preventDefault();
+        setSection('shortcuts');
+        return;
+      }
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key !== ',') return;
       event.preventDefault();
       if (useStudio.getState().settingsSection === null) setSection('general');
