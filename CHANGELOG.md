@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.6](https://github.com/PartBuddy/partbuddy/compare/v0.3.5...v0.3.6) (2026-11-16)
+
+
+### Features
+
+* choose one particular graphics card for the 3D view on Windows ([#495](https://github.com/PartBuddy/partbuddy/issues/495)) ([10c67cb](https://github.com/PartBuddy/partbuddy/commit/10c67cb418e2dc30ecad4170ce5719b680cfe8b8))
+* choose the graphics card, or drawing without it, for the 3D view ([#493](https://github.com/PartBuddy/partbuddy/issues/493)) ([eb4df49](https://github.com/PartBuddy/partbuddy/commit/eb4df49061d429afd79e39064936696a71306c23))
+* the settings say what the 3D view draws with, with frame counters over the view ([#491](https://github.com/PartBuddy/partbuddy/issues/491)) ([43b32ac](https://github.com/PartBuddy/partbuddy/commit/43b32ace1a5c7957c6dd80e479ab226d8851efff))
+* three display quality profiles for the 3D view ([#492](https://github.com/PartBuddy/partbuddy/issues/492)) ([d4b7166](https://github.com/PartBuddy/partbuddy/commit/d4b7166770953173667214a9db99477a465396fb))
+
+
+### Bug Fixes
+
+* the open sketch sheet follows a theme switch ([#490](https://github.com/PartBuddy/partbuddy/issues/490)) ([f6ff3bd](https://github.com/PartBuddy/partbuddy/commit/f6ff3bda536de6f9b971a75708982820143b5d23))
+
+
+### Performance
+
+* the 3D view draws only while something changes or moves ([#487](https://github.com/PartBuddy/partbuddy/issues/487)) ([34f8328](https://github.com/PartBuddy/partbuddy/commit/34f8328a704e942b9d564416d6532d757a31c42e))
+
 ## [0.3.5](https://github.com/PartBuddy/partbuddy/compare/v0.3.4...v0.3.5) (2026-11-16)
 
 
