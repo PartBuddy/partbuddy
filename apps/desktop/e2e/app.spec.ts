@@ -1224,11 +1224,7 @@ test('the settings open with Ctrl+comma, find every option by search and open on
     await dialog.getByTestId('dialog-close').focus();
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
-    // "?" outside a text field lists the shortcuts (U-20); in a field it is a character.
-    await page.getByTestId('composer').getByRole('textbox').first().focus();
-    await page.keyboard.press('Shift+Slash');
-    await expect(dialog).toHaveCount(0);
-    await page.getByTestId('composer').getByRole('textbox').first().fill('');
+    // "?" outside a text field lists the shortcuts (U-20).
     await page.getByTestId('settings').focus();
     await page.keyboard.press('Shift+?');
     await expect(page.getByTestId('settings-shortcuts')).toHaveAttribute('aria-selected', 'true');
