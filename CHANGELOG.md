@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.5](https://github.com/PartBuddy/partbuddy/compare/v0.3.4...v0.3.5) (2026-11-16)
+
+
+### Bug Fixes
+
+* a crashed SolidCraft starts again, and nothing waits on it meanwhile ([#477](https://github.com/PartBuddy/partbuddy/issues/477)) ([94fa7a2](https://github.com/PartBuddy/partbuddy/commit/94fa7a283a9c807938c9803f2650b95b4c2cb608))
+* a failed turn names a used-up plan, a lost connection or its reason ([#473](https://github.com/PartBuddy/partbuddy/issues/473)) ([118f618](https://github.com/PartBuddy/partbuddy/commit/118f6180f93125bc1c939f0f6120c561beec68f8))
+* a mesh row reads as its name, with a space between name and kind ([#481](https://github.com/PartBuddy/partbuddy/issues/481)) ([c370ebd](https://github.com/PartBuddy/partbuddy/commit/c370ebdaad36f686494450c0b38cfc480dc36c68))
+* a short model chip, readable names and a dark sketch sheet ([#476](https://github.com/PartBuddy/partbuddy/issues/476)) ([2e38f81](https://github.com/PartBuddy/partbuddy/commit/2e38f81f83c9e121205179b4eebc65959139059c))
+* escape closes a dialog from its close button, view cube focus ring, ? for shortcuts ([#472](https://github.com/PartBuddy/partbuddy/issues/472)) ([6ae0655](https://github.com/PartBuddy/partbuddy/commit/6ae065538268da3a201d3305d0a5aa2afc6f6f98))
+* exports say where they went, a green check leads to the slicer ([#475](https://github.com/PartBuddy/partbuddy/issues/475)) ([d026c48](https://github.com/PartBuddy/partbuddy/commit/d026c48cd502f43a20cf64674864bd1b4615653d))
+* first start offers the sign-in, start page leads to a first part ([#474](https://github.com/PartBuddy/partbuddy/issues/474)) ([8b75970](https://github.com/PartBuddy/partbuddy/commit/8b75970547c2589b3a8f824a584e4711b9f3d267))
+* one check-again in the first start, a mesh row says it is a mesh ([#480](https://github.com/PartBuddy/partbuddy/issues/480)) ([ed28061](https://github.com/PartBuddy/partbuddy/commit/ed280615f1c723cc29a63289af98d7d86712eb4e))
+* one word per thing in the interface, and shorter hints ([#478](https://github.com/PartBuddy/partbuddy/issues/478)) ([beca89f](https://github.com/PartBuddy/partbuddy/commit/beca89fee49b6d876c934e79b952d7aeae3533aa))
+* plain placeholders, parameter names in the chat, a chat start for an open part ([#470](https://github.com/PartBuddy/partbuddy/issues/470)) ([519683d](https://github.com/PartBuddy/partbuddy/commit/519683dcc5fdb11ee625a796fa85cf593189f719))
+* the versions dialog keeps the focus while it saves, a crash soon after a switch restarts ([#479](https://github.com/PartBuddy/partbuddy/issues/479)) ([574ecb9](https://github.com/PartBuddy/partbuddy/commit/574ecb9b37bb8f5ac20805cb6869d4c08b03955f))
+
 ## [0.3.4](https://github.com/PartBuddy/partbuddy/compare/v0.3.3...v0.3.4) (2026-11-16)
 
 
