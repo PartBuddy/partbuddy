@@ -1111,7 +1111,7 @@
       },
       "economy": {
         "label": "Design lean",
-        "hint": "Saves material and print time: leaves out volume that does nothing (an open bottom, a frame instead of a plate) without hollowing closed bodies, and keeps the build height low. Function and strength come first; infill and speed stay with your slicer."
+        "hint": "Saves material and print time: leaves out what carries nothing (an open bottom, a frame instead of a plate) and builds low. Function and strength come first."
       }
     },
     "add": "Printer from the list …",
@@ -1197,15 +1197,15 @@
       },
       "sharpEdge": {
         "label": "Bodies with no rounding at all",
-        "hint": "Says where a body has no rounded or chamfered edge at all and its outer edges are sharp: the design rules round seen edges by 1, 2 or 3 mm, by the size of the part. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
+        "hint": "Says where a body has no rounded or chamfered edge at all. Seen edges are rounded by 1, 2 or 3 mm, by the size of the part. A hint only."
       },
       "edgeRadii": {
         "label": "Too many radii",
-        "hint": "Says where the outer edges of a body are rounded with more than three different radii (radii less than a quarter apart count as one): the design rules use two or three per part. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
+        "hint": "Says where a body has more than three different edge radii; two or three per part look better. A hint only."
       },
       "rootCorner": {
         "label": "Sharp roots of thin arms",
-        "hint": "Says where a slender free arm, hook or thin post (at least three times as long as it is thick) stands on a face with a sharp inner corner: an arm under load breaks there first, a round of half its thickness holds it. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
+        "hint": "Says where a slender arm, hook or post has a sharp inner corner at its root: it breaks there first, a round of half its thickness holds it. A hint only."
       },
       "shallowSlope": {
         "label": "Shallow slopes",
@@ -1213,7 +1213,7 @@
       },
       "shellCorner": {
         "label": "Uneven shell corners",
-        "hint": "Says where a shell is rounded outside and its wall thins in the corner under half, as the inside is not rounded to match: the inside wants the outer radius less the wall. A hint, never a block; off while the design rule “Fillets and chamfers” is off."
+        "hint": "Says where a shell is rounded outside but not inside, so its wall gets too thin in the corner. A hint only."
       }
     }
   },
@@ -1228,7 +1228,7 @@
     },
     "none": "No problems found: the part fits the build volume, the walls are thick enough, nothing leans past the overhang angle.",
     "noneSoFar": "No problems found so far.",
-    "basis": "Checked after every change, each body on its print face, else as designed (standing on its lowest point), with the printer and material of this part. Hidden bodies are not checked. Supports and bridges are up to the slicer.",
+    "basis": "Checked after every change, with the printer and material of this part, each body as it lies on the bed. Hidden bodies do not count; supports are up to the slicer.",
     "measuring": "The check is still running. Overlaps, gaps that are too tight or a blocked joint may still turn up.",
     "unmeasured": "Not measured, or not all of it: {what}. Findings there may be missing.",
     "unchecked": "Not checked for gaps (mesh bodies): {bodies}",
@@ -1648,7 +1648,7 @@
     },
     "hint": {
       "tappedHole": "A modelled thread of this size with {thread, number} mm more on its diameter for printing, its mouth chamfered; not modelled, it is drilled with the tap drill to be tapped after printing.",
-      "screwHole": "Clearance hole from PartBuddy's ISO 273 table (drawn {shrink, number} mm wider, the hole allowance of the part's material, so that it comes out at its size), with room for the head after ISO 4762 or ISO 10642 plus {head, number} mm for printing (on each side of a counterbore, once on a countersink's diameter). A counterbore gets two bridge layers of {layer, number} mm under its floor, so it prints facing the bed.",
+      "screwHole": "Clearance hole after ISO 273, drawn {shrink, number} mm wider so it fits after printing, with room for the head (+{head, number} mm). A counterbore prints facing the bed too, thanks to two bridge layers ({layer, number} mm).",
       "insertSeat": "Typical values for ruthex inserts, one millimetre deeper than the insert. Check your insert's data sheet. Drawn at that size, without the material's hole allowance: the insert melts into it.",
       "boss": "A boss with a seat for a heat-set insert of this size and at least 2 mm of wall.",
       "nutTrap": "A hexagonal pocket after ISO 4032 with {room, number} mm of room (the push fit of the part's material) and 0.4 mm of extra depth, with a clearance hole after ISO 273 below. Older DIN nuts are wider at M10 (17 mm): give flats {din, number} for those.",
