@@ -231,7 +231,9 @@ export function ParametersSection() {
   const model = useStudio((s) => s.model);
   const setGhost = useStudio((s) => s.setParameterGhost);
   const requestAssistant = useStudio((s) => s.requestAssistant);
-  const busy = selectedStatus(useAssistant((s) => s.state)).state === 'busy';
+  // Without SolidCraft a value cannot be set: the rows wait, as they do while the assistant works (usability U-24).
+  const connected = useStudio((s) => s.connection.state === 'connected');
+  const busy = selectedStatus(useAssistant((s) => s.state)).state === 'busy' || !connected;
   // Dimensions without a place in the view are listed here too, so the section is not empty with them.
   const loose = useStudio((s) => s.marks.some((mark) => mark.geometry === null));
   // The list together with the revision it was read at; another revision shows the last list until the new one arrives.

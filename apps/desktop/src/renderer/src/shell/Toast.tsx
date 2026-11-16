@@ -1,5 +1,5 @@
 import { IconAlertCircle, IconCircleCheck, IconInfoCircle, IconX } from '@tabler/icons-react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { platform } from '../platform';
@@ -38,6 +38,16 @@ export function Toast() {
       }),
     [setNotice, t],
   );
+  // Back after SolidCraft ended on its own (it is started again, usability U-24): say so once.
+  const connection = useStudio((s) => s.connection.state);
+  const lost = useRef(false);
+  useEffect(() => {
+    if (connection === 'lost') lost.current = true;
+    if (connection === 'connected' && lost.current) {
+      lost.current = false;
+      setNotice({ tone: 'info', text: t('connection.restarted') });
+    }
+  }, [connection, setNotice, t]);
   useEffect(() => {
     if (notice?.tone !== 'success') return;
     const timer = setTimeout(() => {
