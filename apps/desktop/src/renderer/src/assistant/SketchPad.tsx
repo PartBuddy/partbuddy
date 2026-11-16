@@ -334,12 +334,27 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
   }, [backgroundUrl]);
   const shownBackground = background && background.url === backgroundUrl ? background.image : null;
 
+  // The sheet takes its colours from the theme, so a theme switch while it is open paints it again (U-25).
+  const [theme, setTheme] = useState(0);
+  useEffect(() => {
+    const query = matchMedia('(prefers-color-scheme: dark)');
+    const update = () => {
+      requestAnimationFrame(() => {
+        setTheme((count) => count + 1);
+      });
+    };
+    query.addEventListener('change', update);
+    return () => {
+      query.removeEventListener('change', update);
+    };
+  }, []);
+
   useEffect(() => {
     const element = canvas.current;
     const context = element?.getContext('2d');
     if (!element || !context) return;
     paint(context, items, element.width / SKETCH_SIZE.width, { draft, selected, background: shownBackground, screen: true });
-  }, [items, draft, selected, shownBackground]);
+  }, [items, draft, selected, shownBackground, theme]);
 
   /** Puts a photo under the open sheet, fitted whole onto the paper; undo takes it away again. */
   const placeBackground = async (file: Blob) => {
