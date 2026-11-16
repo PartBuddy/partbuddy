@@ -2,7 +2,8 @@ name: Installer
 
 # Builds the Windows installer and the macOS dmg from a tag or branch on GitHub-hosted runners and
 # keeps them as workflow artifacts. Started by hand it publishes nothing unless "attach" is set; the
-# release workflow calls it to hang the dmg onto a new release. Code signing through the
+# release workflow calls it to hang both installers, with build provenance, onto the new release
+# while that release is still a draft. Code signing through the
 # SignPath Foundation needs exactly this: every job up to the signing request on GitHub-hosted
 # runners, and the unsigned file stored as a workflow artifact first (docs/code-signing-policy.md).
 # The self-hosted runners of ADR 0022 are therefore not used here.
@@ -15,7 +16,7 @@ on:
         type: string
         default: main
       attach:
-        description: Attach the dmg to the release of this tag
+        description: Attach the installers to the release of this tag
         type: boolean
         default: false
   workflow_call:
@@ -135,22 +136,35 @@ jobs:
           kill "$pid"
           tail -n 40 start.log
 
-  # The Windows installer is still built and uploaded on Windows by hand (CONTRIBUTING.md); only
-  # the dmg, which nobody can build locally, goes onto the release from here.
   attach:
-    name: Attach the dmg to the release
-    needs: macos
+    name: Attach the installers to the release
+    needs: [windows, macos]
     if: inputs.attach
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
-      actions: read
       contents: write
+      id-token: write
+      attestations: write
     steps:
-      - name: Upload the dmg to the release
+      - name: Download the installers
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: partbuddy-*
+          merge-multiple: true
+
+      # Lets anyone check with "gh attestation verify" that a download was built here from this tag.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            PartBuddy-Setup-*.exe
+            PartBuddy-*-mac-universal.dmg
+
+      # latest.yml is what installed apps read for updates; it goes up with the files it names.
+      - name: Upload the installers to the release
         env:
           GH_TOKEN: ${{ github.token }}
           REF: ${{ inputs.ref }}
         run: |
-          gh run download "$GITHUB_RUN_ID" --name partbuddy-dmg-macos --repo "$GITHUB_REPOSITORY"
-          gh release upload "$REF" PartBuddy-*-mac-universal.dmg --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$REF" PartBuddy-Setup-*.exe PartBuddy-Setup-*.exe.blockmap latest.yml             PartBuddy-*-mac-universal.dmg --clobber --repo "$GITHUB_REPOSITORY"

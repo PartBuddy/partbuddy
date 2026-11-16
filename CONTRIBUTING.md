@@ -83,13 +83,12 @@ live-view latency test, which builds the synthetic cable clip step by step in an
 `apps/desktop/electron-builder.yml`): per user, with Start menu and desktop shortcuts, unsigned for
 now, so SmartScreen warns until code signing comes before the public release. The installed app
 looks for updates in the GitHub releases (electron-updater) and installs them only on the user's
-word. The CI runners are Linux, so a release is built on Windows: after release-please's release
-exists, run `dist` and upload the installer, its `.blockmap` and `latest.yml` to that release
-(`gh release upload v<version> apps/desktop/dist/PartBuddy-Setup-<version>.exe
-apps/desktop/dist/PartBuddy-Setup-<version>.exe.blockmap apps/desktop/dist/latest.yml`). The macOS
-dmg needs no hand: the release workflow calls `installer.yml` for the new tag, which builds the dmg
-and attaches it to the release. If that job found no runner, rerun it, or start `installer.yml` by
-hand with the tag and "attach".
+word. Nothing is uploaded by hand: release-please creates the release as a draft, the release
+workflow calls `installer.yml` for the new tag, which builds the Windows installer (with its
+`.blockmap` and `latest.yml`) and the macOS dmg on GitHub-hosted runners, attests their build
+provenance (`gh attestation verify <file> --repo PartBuddy/partbuddy`) and attaches them, and only
+then is the release published and the website updated. If a build fails, the release stays a draft:
+rerun the failed jobs of the release run.
 
 ## Licence of contributions
 
