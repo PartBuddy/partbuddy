@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { platform } from '../platform';
 import { useStudio } from '../state/store';
-import { IconButton } from '../ui/Button';
+import { Button, IconButton } from '../ui/Button';
 
 /** How long a success stays (Sonner, Carbon: 3–5 s); an error stays until it is closed or replaced. */
 const SUCCESS_MS = 4000;
@@ -21,7 +21,20 @@ export function Toast() {
   useEffect(
     () =>
       platform().updates.onState((state) => {
-        if (state.state === 'available') setNotice({ tone: 'info', text: t('updates.notice', { version: state.version }) });
+        if (state.state === 'available')
+          setNotice({
+            tone: 'info',
+            text: t('updates.notice', { version: state.version }),
+            // Download at once; the settings show its progress and the install (usability U-16).
+            action: {
+              label: t('updates.download'),
+              testId: 'notice-update',
+              run: () => {
+                void platform().updates.download();
+                useStudio.getState().setSettingsSection('about');
+              },
+            },
+          });
       }),
     [setNotice, t],
   );
@@ -29,7 +42,7 @@ export function Toast() {
     if (notice?.tone !== 'success') return;
     const timer = setTimeout(() => {
       setNotice(null);
-    }, SUCCESS_MS);
+    }, notice.action ? SUCCESS_MS * 2 : SUCCESS_MS);
     return () => {
       clearTimeout(timer);
     };
@@ -52,6 +65,18 @@ export function Toast() {
           <span className="min-w-0 py-0.5" data-testid="notice">
             {notice.text}
           </span>
+          {notice.action ? (
+            <Button
+              size="sm"
+              onPress={() => {
+                notice.action?.run();
+                setNotice(null);
+              }}
+              data-testid={notice.action.testId ?? 'notice-action'}
+            >
+              {notice.action.label}
+            </Button>
+          ) : null}
           <IconButton label={t('dialog.close')} onPress={() => setNotice(null)} data-testid="notice-close">
             <IconX className="size-icon-sm" aria-hidden />
           </IconButton>

@@ -53,12 +53,15 @@ export function DesignActions() {
   const hasBodies = model.status === 'ready' && model.bodies.length > 0;
 
   const run = useCallback(
-    async (action: () => Promise<string | null>) => {
+    async (action: () => Promise<string | null | { text: string; reveal: true }>) => {
       if (working.current) return;
       working.current = true;
       try {
         const done = await action();
-        if (done) setNotice({ tone: 'success', text: done });
+        // An exported file says where it went, with a way to it (usability U-07).
+        if (typeof done === 'object' && done !== null)
+          setNotice({ tone: 'success', text: done.text, action: { label: t('actions.showInFolder'), testId: 'notice-reveal', run: () => void platform().design.revealExport() } });
+        else if (done) setNotice({ tone: 'success', text: done });
       } catch (error) {
         setNotice({ tone: 'danger', text: t('actions.failed', { detail: (error as Error).message.slice(0, 200) }) });
       } finally {
@@ -142,7 +145,7 @@ export function DesignActions() {
       }
       const result = await platform().design.export(target as ExportFormat);
       if (!result) return null;
-      return `${t('actions.exported', { file: result.file })}${unchecked(result.unverified)}${hidden()}`;
+      return { text: `${t('actions.exported', { file: result.file })}${unchecked(result.unverified)}${hidden()}`, reveal: true as const };
     });
   };
 

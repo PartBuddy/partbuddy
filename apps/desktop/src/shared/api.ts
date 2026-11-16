@@ -198,6 +198,8 @@ export interface PartBuddyApi {
     redo(): Promise<void>;
     /** Asks where to save, then exports all bodies; null when the user cancelled. */
     export(format: ExportFormat): Promise<ExportResult>;
+    /** Shows the file of the last export in Explorer (usability U-07). */
+    revealExport(): Promise<void>;
     /** Asks where to save a recording of the view, then writes it; null when the user cancelled. */
     saveVideo(video: VideoSave): Promise<ExportResult>;
     /** The sharing package (F5): 3MF, STEP, pictures and a description in a folder of the project's exports. */

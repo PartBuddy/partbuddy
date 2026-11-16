@@ -249,7 +249,8 @@ export const projectRenameResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(false), reason: z.enum(['empty', 'exists', 'noProject', 'busy']) }).strict(),
 ]);
 /** Opening asks for a folder or a design file; `imported`: a design from elsewhere was copied into a new project. */
-export const projectOpenResultSchema = z.object({ opened: z.boolean(), imported: z.boolean() }).strict();
+/** `mesh`: the import was an STL, 3MF or OBJ, which has no features to change (usability U-14). */
+export const projectOpenResultSchema = z.object({ opened: z.boolean(), imported: z.boolean(), mesh: z.literal(true).optional() }).strict();
 /**
  * Import (B4): a file the user dropped onto the window, or none to ask with the open dialog. The
  * main process checks the path (absolute, an existing file of a known kind, not too large).
@@ -1367,6 +1368,7 @@ export const invokeContract = {
   [invokeChannels.designUndo]: { request: none, response: none },
   [invokeChannels.designRedo]: { request: none, response: none },
   [invokeChannels.designExport]: { request: exportRequestSchema, response: exportResultSchema },
+  [invokeChannels.designRevealExport]: { request: none, response: none },
   [invokeChannels.designSaveVideo]: { request: videoSaveSchema, response: exportResultSchema },
   [invokeChannels.designShare]: { request: none, response: shareResultSchema },
   [invokeChannels.designOpenInSolidCraft]: { request: none, response: none },
