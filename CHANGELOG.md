@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/PartBuddy/partbuddy/compare/v0.3.2...v0.3.3) (2026-11-16)
+
+
+### Bug Fixes
+
+* a new project gets no summary of the previous project's chat ([#446](https://github.com/PartBuddy/partbuddy/issues/446)) ([#465](https://github.com/PartBuddy/partbuddy/issues/465)) ([8b606ac](https://github.com/PartBuddy/partbuddy/commit/8b606ace428d3091b6dfe1d6d23d574adf339b06))
+
 ## [0.3.2](https://github.com/PartBuddy/partbuddy/compare/v0.3.1...v0.3.2) (2026-11-15)
 
 
