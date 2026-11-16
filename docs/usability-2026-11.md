@@ -94,5 +94,5 @@ Neu als **Feinschliff** (am 16.11. freigegeben):
 | ID | Bereich | Problem | Beleg | Aufwand | Stand |
 |---|---|---|---|---|---|
 | U-26 | Chat | axe color-contrast: „1 Abfrage an SolidCraft · läuft“ und ältere, abgeblendete Antworten unter 4,5:1 | en-wide/28, recheck/07 | S | widerlegt: Messung mitten im Einblenden; die Farben haben 6:1, der Durchlauf misst jetzt in Ruhe (reduzierte Bewegung) |
-| U-27 | Struktur | axe label-content-name-mismatch: Netz-Körper „Ca… Netz“ trägt einen anderen Namen als sein sichtbarer Text | projects/05 | S | teilweise: der Name enthält jetzt die Art („CableClip Netz“); axe meldet weiter, weil die Zeile Knöpfe enthält (deren Namen zählt es als Text) – dafür müssten die Knöpfe aus der Baumzeile, eigener Umbau |
+| U-27 | Struktur | axe label-content-name-mismatch: Netz-Körper „Ca… Netz“ trägt einen anderen Namen als sein sichtbarer Text | projects/05 | S | behoben: der Name enthält die Art („CableClip Netz“), und zwischen Name und Art steht ein Leerzeichen, so liest axe die Zeile wie ihren Namen ([#480](https://github.com/PartBuddy/partbuddy/pull/480) und Folge-PR) |
 | U-28 | Einrichtung › Assistent | „Erneut prüfen“ steht zweimal (Link und Knopf in der Anmeldekarte) | missing/03 | S | behoben |

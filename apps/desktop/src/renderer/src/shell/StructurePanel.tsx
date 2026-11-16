@@ -234,6 +234,8 @@ export function StructurePanel() {
                 <span className="min-w-0 flex-1 truncate">{body.name}</span>
                 {/* A body's own colour (a colour of a logo for a multi-colour print), as the slicer gets its filament. */}
                 {body.colour ? <span className="size-3 shrink-0 rounded-full border border-border-strong" style={{ background: body.colour }} title={body.colour} data-testid="structure-body-colour" /> : null}
+                {/* A space between name and kind, so the row's text reads as its name does ("CableClip mesh", U-27); a flex row shows none. */}
+                {standard || kind === 'mesh' ? ' ' : null}
                 {standard ? <span className="shrink-0 text-xs text-accent-text">{t('structure.standardPart')}</span> : kind === 'mesh' ? <span className="shrink-0 text-xs text-accent-text">{t('structure.mesh')}</span> : null}
                 {kind === 'mesh' && !standard ? <ConvertButton body={body.name} /> : null}
                 {standard ? null : <PrintedToggle body={body.name} note={note} onChange={keep} />}
