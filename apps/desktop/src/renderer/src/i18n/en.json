@@ -1034,7 +1034,7 @@
     },
     "gpuPreference": {
       "title": "Graphics card",
-      "hint": "On a computer with two graphics cards: Fast asks for the dedicated card, Frugal for the integrated one, which saves battery. On Windows PartBuddy sets this in Windows' graphics settings for itself; Automatic leaves the choice to Windows again. “Graphics card” below shows which one draws.",
+      "hint": "On a computer with two graphics cards: Fast asks for the dedicated card, Frugal for the integrated one, which saves battery. On Windows PartBuddy sets this in Windows' graphics settings for itself; Automatic leaves the choice to Windows again. On Windows one particular card can be chosen from the list as well; Windows cannot tell two identical cards apart. “Graphics card” below shows which one draws.",
       "auto": "Automatic",
       "high": "Fast",
       "low": "Frugal"

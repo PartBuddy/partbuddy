@@ -51,7 +51,7 @@ import { PrintProfilesEditor } from '../print/PrintProfilesEditor';
 import { platform } from '../platform';
 import { useStudio, type SettingsSection } from '../state/store';
 import { Button, iconButtonClass, linkClass } from '../ui/Button';
-import { SwitchMark, segmentClass, segmentGroupClass } from '../ui/Choice';
+import { SelectField, SwitchMark, segmentClass, segmentGroupClass } from '../ui/Choice';
 import { DialogClose, dialogTitleClass, modalClass, overlayClass } from '../ui/Dialog';
 import { inputClass } from '../ui/Field';
 import { tabClass, tabListClass } from '../ui/Navigation';
@@ -418,13 +418,17 @@ function GeneralSection() {
           />
         </Setting>
         <Setting id="gpuPreference">
-          <Segmented
-            id="gpuPreference"
+          <SelectField
+            aria-label={t('settings.gpuPreference.title')}
             value={app.gpuPreference}
-            options={(['auto', 'high', 'low'] as const).map((id) => ({ id, label: t(`settings.gpuPreference.${id}`) }))}
+            items={[
+              ...(['auto', 'high', 'low'] as const).map((id) => ({ id, label: t(`settings.gpuPreference.${id}`) })),
+              ...app.gpuAdapters.map(({ id, name }) => ({ id, label: name })),
+            ]}
             onChange={(next) => {
               void platform().settings.setApp({ key: 'gpuPreference', value: next }).then(setApp);
             }}
+            className="w-64"
             testId="settings-gpu-preference"
           />
         </Setting>

@@ -184,10 +184,13 @@ test('the graphics card and drawing without it are chosen in the settings and ap
   const hint = dialog.getByTestId('settings-graphics-restart');
   await expect(dialog.getByTestId('setting-gpuPreference-restart')).toBeVisible();
   await expect(hint).toHaveCount(0);
-  await dialog.getByTestId('settings-gpu-preference').getByText('Fast').click();
+  const gpu = dialog.getByTestId('settings-gpu-preference');
+  await gpu.getByRole('button').click();
+  await page.getByRole('option', { name: 'Fast' }).click();
   await expect(hint).toBeVisible();
   // Back to what PartBuddy started with: nothing waits for a restart.
-  await dialog.getByTestId('settings-gpu-preference').getByText('Automatic').click();
+  await gpu.getByRole('button').click();
+  await page.getByRole('option', { name: 'Automatic' }).click();
   await expect(hint).toHaveCount(0);
   await dialog.getByTestId('settings-software-rendering').click();
   await expect(hint).toBeVisible();
