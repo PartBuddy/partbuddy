@@ -316,7 +316,8 @@ export class AgentService implements AgentBackend {
           if (done.durationMs !== null) done.durationMs += this.reviewMs;
           this.reviewMs = 0;
           if (reason) this.options.log(`Claude Code ended the turn with: ${reason}`);
-          this.listeners.event(done);
+          // The reason goes along: the chat's card names it and copies it for a bug report (usability U-13).
+          this.listeners.event(reason ? { ...done, reason } : done);
           // The chat says to sign in again; the chip and the panel show it as well.
           this.setStatus({ ...this.current, state: done.detail === 'signedOut' ? 'signedOut' : 'ready' });
           // The answer's words are not the last say: `auth status` decides, so a sign-in that still holds

@@ -500,11 +500,16 @@
         "error_max_turns": "Der Assistent hat zu viele Schritte gebraucht und aufgehört.",
         "rounds": "Der Assistent hat alle Werkzeugrunden dieser Antwort verbraucht und aufgehört; das Teil ist vielleicht unfertig. „Weiter“ macht dort weiter, wo er aufgehört hat.",
         "signedOut": "Die Anmeldung bei Claude Code ist abgelaufen. Melde dich neu an, dann sende die Nachricht erneut.",
-        "other": "Der Assistent hat aufgehört, bevor er fertig war."
+        "other": "Der Assistent hat aufgehört, bevor er fertig war.",
+        "limit": "Dein Kontingent bei Claude ist aufgebraucht – um {time} geht es weiter.",
+        "limitLater": "Dein Kontingent bei Claude ist aufgebraucht. Versuch es später erneut.",
+        "offline": "Keine Verbindung zum Assistenten – prüfe die Internetverbindung, dann sende erneut."
       },
       "retry": "Erneut senden",
       "continue": "Weiter",
-      "openLog": "Logdatei zeigen"
+      "openLog": "Logdatei zeigen",
+      "useChatgpt": "Mit ChatGPT weitermachen",
+      "copy": "Details kopieren"
     },
     "examples": {
       "holder": "Ein Wandhalter für einen Akkuschrauber: eine Platte mit zwei Senkkopfschrauben und ein Haken für einen 35 mm breiten Griff",

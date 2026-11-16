@@ -500,11 +500,16 @@
         "error_max_turns": "The assistant took too many steps and stopped.",
         "rounds": "The assistant used all tool rounds of this answer and stopped; the part may be unfinished. Continue picks up where it stopped.",
         "signedOut": "Your Claude Code sign-in has expired. Sign in again, then send the message again.",
-        "other": "The assistant stopped before it finished."
+        "other": "The assistant stopped before it finished.",
+        "limit": "Your Claude plan is used up – it continues at {time}.",
+        "limitLater": "Your Claude plan is used up. Try again later.",
+        "offline": "No connection to the assistant – check the internet connection, then send again."
       },
       "retry": "Send again",
       "continue": "Continue",
-      "openLog": "Show log file"
+      "openLog": "Show log file",
+      "useChatgpt": "Continue with ChatGPT",
+      "copy": "Copy details"
     },
     "examples": {
       "holder": "A wall holder for a cordless drill: a plate with two countersunk screws and a hook for a 35 mm wide grip",

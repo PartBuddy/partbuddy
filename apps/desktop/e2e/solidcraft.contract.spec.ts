@@ -1227,6 +1227,50 @@ test('a part becomes a project folder that is renamed, duplicated, opened, start
   }
 });
 
+test('a failed turn says why: the plan used up until a time, no connection, or the words to copy (usability U-04, U-05, U-13)', async () => {
+  test.setTimeout(180_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-failed-'));
+  const launched = await launchApp({
+    isolated: false,
+    work,
+    env: {
+      SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+      PARTBUDDY_SOLIDCRAFT_PORT: '7903',
+      PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+      PARTBUDDY_START_PAGE: '1',
+      PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+      PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+    },
+  });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByTestId('home-new').click();
+    await expect(page.getByTestId('home-page')).toHaveCount(0);
+    const composer = page.getByRole('textbox', { name: 'Message to the assistant' });
+    const card = page.getByTestId('turn-failed').last();
+    await composer.fill('Hit my limit');
+    await composer.press('Enter');
+    await expect(card).toHaveAttribute('data-detail', 'limit', { timeout: 30_000 });
+    await expect(card).toContainText(/plan is used up – it continues at \d/);
+    // Sending again before that time fails the same way.
+    await expect(card.getByTestId('turn-retry')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('limit.png') });
+    await composer.fill('Go offline');
+    await composer.press('Enter');
+    await expect(card).toHaveAttribute('data-detail', 'offline', { timeout: 30_000 });
+    await expect(card).toContainText('No connection to the assistant');
+    await expect(card.getByTestId('turn-retry')).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('offline.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('PartBuddy starts on the start page with no project open; a saved part gets a preview, and tiles open and import projects (B3)', async () => {
   test.setTimeout(240_000);
   const { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } = await import('node:fs');
