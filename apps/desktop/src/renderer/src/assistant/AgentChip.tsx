@@ -298,14 +298,17 @@ export function AssistantChoice({ setup = false }: { setup?: boolean }) {
           </span>
         ) : null}
         <div className="flex flex-wrap items-center gap-3">
-          <AriaButton
-            className={linkButton}
-            onPress={() => {
-              void api.refresh();
-            }}
-          >
-            {t('assistant.refresh')}
-          </AriaButton>
+          {/* On the first start the sign-in card below has its own "Check again" (usability U-28). */}
+          {setup ? null : (
+            <AriaButton
+              className={linkButton}
+              onPress={() => {
+                void api.refresh();
+              }}
+            >
+              {t('assistant.refresh')}
+            </AriaButton>
+          )}
           {status.agent === 'claude-code' && status.apiBillingAllowed ? (
             <AriaButton
               className={linkButton}

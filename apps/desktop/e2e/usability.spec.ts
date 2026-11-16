@@ -94,6 +94,8 @@ function walker(app: ElectronApplication, page: Page, dir: string, steps: Step[]
     await capture(app, join(dir, `${file}.png`)).catch(() => undefined);
     step.shown = await shown(page).catch(() => []);
     step.clipped = await clipped(page).catch(() => []);
+    // Measured at rest, as the audit did: fade-ins off, else axe reads a half-faded text as low contrast (usability U-26).
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     const axe = await new AxeBuilder({ page }).setLegacyMode(true).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).exclude('canvas').analyze().catch(() => null);
     for (const violation of axe?.violations ?? []) {
       for (const node of violation.nodes.slice(0, 3)) step.axe.push(`${violation.id} ${node.target.join(' ')} ${node.html.slice(0, 120)}`);
