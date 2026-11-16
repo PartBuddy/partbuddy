@@ -281,6 +281,10 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
       // "Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh" (2026-11-08).
       const busyRefreshing = reason !== null && /another Claude Code process is refreshing|mid-refresh/i.test(reason);
       const signedOut = reason !== null && !busyRefreshing && /authenticat|oauth|\/login|not logged in/i.test(reason);
+      // The plan's limit ("5-hour limit reached ∙ resets 3pm", 2.1) and a lost connection ("API Error: Connection error.")
+      // say so in the chat (usability U-04, U-05).
+      const limited = reason !== null && !signedOut && /limit reached|usage limit|rate.?limit/i.test(reason);
+      const offline = reason !== null && !signedOut && /connection error|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|fetch failed|getaddrinfo/i.test(reason);
       const tokens = resultTokens(message);
       return [
         ...(sizes.length > 0 ? [{ type: 'context' as const, size: Math.max(...sizes) }] : []),
@@ -288,7 +292,7 @@ export function parseStreamLine(line: string): ClaudeEvent[] {
           type: 'done',
           ok: message.subtype === 'success' && message.is_error !== true,
           durationMs: typeof message.duration_ms === 'number' ? message.duration_ms : null,
-          detail: signedOut ? 'signedOut' : message.subtype === 'success' ? (message.is_error === true ? 'failed' : null) : typeof message.subtype === 'string' ? message.subtype : 'failed',
+          detail: signedOut ? 'signedOut' : limited ? 'limit' : offline ? 'offline' : message.subtype === 'success' ? (message.is_error === true ? 'failed' : null) : typeof message.subtype === 'string' ? message.subtype : 'failed',
           ...(reason ? { reason } : {}),
           ...(tokens ? { tokens } : {}),
         },

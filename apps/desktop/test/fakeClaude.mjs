@@ -183,7 +183,7 @@ if (args[0] === '--version') {
     }
     // "Hit my limit" / "Go offline": the wording Claude Code 2.1 ends a turn with at the plan's limit and without network.
     if (content.includes('Hit my limit')) {
-      out({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', unifiedWindows: { five_hour: { utilization: 1, resetsAt: 1794117600 } } } });
+      out({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', unifiedWindows: { five_hour: { utilization: 1, resetsAt: Math.floor(Date.now() / 1000) + 3600 } } } });
       out({ type: 'assistant', message: { content: [{ type: 'text', text: "5-hour limit reached ∙ resets 3pm" }] }, error: 'rate_limit', isApiErrorMessage: true });
       out({ type: 'result', subtype: 'success', is_error: true, result: '5-hour limit reached ∙ resets 3pm', duration_ms: 12 });
       continue;

@@ -1,6 +1,7 @@
 import {
   IconAlertTriangle,
   IconClockHour4,
+  IconCopy,
   IconFileText,
   IconArrowDown,
   IconArrowUp,
@@ -215,7 +216,7 @@ function selectionSummary(t: TFunction, selected: { faces: number; edges: number
 }
 
 /** How a turn can end without an answer, as Claude Code and PartBuddy's own loop report it. */
-const FAILURE_REASONS = new Set(['failed', 'error_during_execution', 'error_max_turns', ROUNDS, 'signedOut']);
+const FAILURE_REASONS = new Set(['failed', 'error_during_execution', 'error_max_turns', ROUNDS, 'signedOut', 'offline']);
 
 /** Requests an empty chat offers as a start: a holder, a housing, a part after a photo. */
 const EXAMPLES = ['holder', 'housing', 'photo'] as const;
@@ -321,49 +322,7 @@ function Item({
           </p>
         );
       }
-      return (
-        <div role="alert" className={`${card} items-start gap-1 border-danger px-3 py-2`} data-testid="turn-failed">
-          <p className="flex items-center gap-2 text-sm font-medium text-danger">
-            <IconAlertTriangle className="size-icon-sm shrink-0" aria-hidden />
-            {t('assistant.failed.title')}
-          </p>
-          <p className="text-sm text-text-muted">
-            {t(`assistant.failed.reason.${FAILURE_REASONS.has(item.detail) ? item.detail : 'other'}`)}
-          </p>
-          {/* Signed out mid-chat: the way back sits in the card; the sign-in notice is far up the chat. */}
-          {item.detail === 'signedOut' ? (
-            <Button
-              variant="primary"
-              onPress={() => {
-                void platform().agent.signIn();
-              }}
-              data-testid="turn-sign-in"
-            >
-              <IconLogin className="size-icon-sm" aria-hidden />
-              {t('assistant.signIn')}
-            </Button>
-          ) : null}
-          <div className="flex flex-wrap gap-2">
-            {retry ? (
-              <Button onPress={retry} data-testid="turn-retry">
-                <IconRefresh className="size-icon-sm" aria-hidden />
-                {t(item.detail === ROUNDS ? 'assistant.failed.continue' : 'assistant.failed.retry')}
-              </Button>
-            ) : null}
-            {/* The details are one click away, not a path to look up (audit C-04). */}
-            <Button
-              variant="quiet"
-              onPress={() => {
-                void platform().settings.revealLog();
-              }}
-              data-testid="turn-log"
-            >
-              <IconFileText className="size-icon-sm" aria-hidden />
-              {t('assistant.failed.openLog')}
-            </Button>
-          </div>
-        </div>
-      );
+      return <FailureCard item={item} retry={retry} />;
     case 'session':
       return (
         <div className="flex items-center gap-2 py-1 text-xs text-text-subtle" role="separator" data-testid="earlier-session">
@@ -411,6 +370,110 @@ const QueriesRow = memo(Queries, (a, b) => sameList(a.tools, b.tools));
 const WorkRow = memo(WorkGroup, (a, b) => a.live === b.live && a.disabled === b.disabled && sameEntries(a.entries, b.entries));
 const QuestionRow = memo(QuestionCard);
 const ItemRow = memo(Item);
+
+/** When the plan's fullest window is free again, as the route last reported it (usability U-04). */
+function limitResetsAt(status: ReturnType<typeof selectedStatus>): number | null {
+  const times = (status.usage ?? []).filter((entry) => entry.used >= 0.99 && entry.resetsAt !== null).map((entry) => (entry.resetsAt ?? 0) * 1000);
+  return times.length > 0 ? Math.max(...times) : null;
+}
+
+/** A turn that failed: why, in words, and the way on (polish round 1, usability U-04, U-05, U-13). */
+function FailureCard({ item, retry }: { item: Extract<ConversationItem, { kind: 'stopped' }>; retry: (() => void) | null }) {
+  const { t, i18n } = useTranslation();
+  const state = useAssistant((s) => s.state);
+  const status = selectedStatus(state);
+  const [copied, setCopied] = useState(false);
+  const detail = item.detail ?? 'other';
+  const resetsAt = detail === 'limit' ? limitResetsAt(status) : null;
+  // Sending again before the limit is free fails the same way; "Send again" comes back at the time.
+  const [free, setFree] = useState(() => resetsAt === null || resetsAt <= Date.now());
+  useEffect(() => {
+    if (free || resetsAt === null) return;
+    const timer = setTimeout(() => setFree(true), Math.min(Math.max(0, resetsAt - Date.now()), 2_147_000_000));
+    return () => clearTimeout(timer);
+  }, [free, resetsAt]);
+  const waiting = !free;
+  const chatgpt = state.agents.find((agent) => agent.agent === 'chatgpt');
+  const otherRoute = detail === 'limit' && state.selected !== 'chatgpt' && (chatgpt?.state === 'ready' || chatgpt?.state === 'busy');
+  const time = resetsAt === null ? null : new Intl.DateTimeFormat(i18n.language, { hour: '2-digit', minute: '2-digit' }).format(new Date(resetsAt));
+  const reasonText =
+    detail === 'limit'
+      ? t(time ? 'assistant.failed.reason.limit' : 'assistant.failed.reason.limitLater', { time })
+      : t(`assistant.failed.reason.${FAILURE_REASONS.has(detail) ? detail : 'other'}`);
+  // The words of the program itself, for what has no plain text of its own.
+  const raw = item.reason && !['signedOut', 'limit', 'offline', ROUNDS].includes(detail) ? item.reason : null;
+  return (
+    <div role="alert" className={`${card} items-start gap-1 border-danger px-3 py-2`} data-testid="turn-failed" data-detail={detail}>
+      <p className="flex items-center gap-2 text-sm font-medium text-danger">
+        <IconAlertTriangle className="size-icon-sm shrink-0" aria-hidden />
+        {t('assistant.failed.title')}
+      </p>
+      <p className="text-sm text-text-muted">{reasonText}</p>
+      {raw ? (
+        <p className="max-h-16 overflow-hidden text-xs break-words text-text-subtle" data-testid="turn-reason">
+          {raw}
+        </p>
+      ) : null}
+      {/* Signed out mid-chat: the way back sits in the card; the sign-in notice is far up the chat. */}
+      {item.detail === 'signedOut' ? (
+        <Button
+          variant="primary"
+          onPress={() => {
+            void platform().agent.signIn();
+          }}
+          data-testid="turn-sign-in"
+        >
+          <IconLogin className="size-icon-sm" aria-hidden />
+          {t('assistant.signIn')}
+        </Button>
+      ) : null}
+      {otherRoute ? (
+        <Button
+          variant="primary"
+          onPress={() => {
+            void platform().agent.select('chatgpt');
+          }}
+          data-testid="turn-other-route"
+        >
+          {t('assistant.failed.useChatgpt')}
+        </Button>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        {retry && !waiting ? (
+          <Button onPress={retry} data-testid="turn-retry">
+            <IconRefresh className="size-icon-sm" aria-hidden />
+            {t(item.detail === ROUNDS ? 'assistant.failed.continue' : 'assistant.failed.retry')}
+          </Button>
+        ) : null}
+        {raw ? (
+          <Button
+            variant="quiet"
+            onPress={() => {
+              void navigator.clipboard.writeText(raw).then(() => {
+                setCopied(true);
+              });
+            }}
+            data-testid="turn-copy"
+          >
+            <IconCopy className="size-icon-sm" aria-hidden />
+            {t(copied ? 'assistant.message.copied' : 'assistant.failed.copy')}
+          </Button>
+        ) : null}
+        {/* The details are one click away, not a path to look up (audit C-04). */}
+        <Button
+          variant="quiet"
+          onPress={() => {
+            void platform().settings.revealLog();
+          }}
+          data-testid="turn-log"
+        >
+          <IconFileText className="size-icon-sm" aria-hidden />
+          {t('assistant.failed.openLog')}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 /** What goes along with the next message, as chips in the composer. */
 const chip = 'inline-flex max-w-full min-w-0 items-center gap-2 rounded-md border border-border bg-surface text-xs text-text tabular-nums';

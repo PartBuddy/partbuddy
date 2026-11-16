@@ -65,7 +65,7 @@ export type ConversationItem =
       answered: boolean;
       choice: string | null;
     }
-  | { kind: 'stopped'; key: number; detail: string | null }
+  | { kind: 'stopped'; key: number; detail: string | null; reason?: string }
   /** The review before "done" ran with its pictures, sent the assistant back, or the turn ended without it. Not kept in the archive. */
   | ({ kind: 'review'; key: number } & Omit<Extract<AgentEvent, { type: 'review' }>, 'type'>)
   /** Where the conversation of an earlier session ends (restored with the design). */
@@ -144,7 +144,7 @@ export function reduce(items: ConversationItem[], event: AgentEvent): Conversati
     }
     case 'done': {
       const closed = items.map((item) => (item.kind === 'assistant' && item.open ? { ...item, open: false } : item));
-      return event.ok ? closed : [...closed, { kind: 'stopped', key, detail: event.detail }];
+      return event.ok ? closed : [...closed, { kind: 'stopped', key, detail: event.detail, ...(event.reason ? { reason: event.reason } : {}) }];
     }
     case 'error':
       return [...items, { kind: 'error', key, message: event.message }];

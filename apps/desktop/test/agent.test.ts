@@ -354,6 +354,13 @@ describe('Claude Code adapter', () => {
     expect(parseStreamLine(JSON.stringify({ type: 'result', subtype: 'success', is_error: true, result: refreshing }))).toEqual([
       { type: 'done', ok: false, durationMs: null, detail: 'failed', reason: refreshing },
     ]);
+    // The plan's limit and a lost connection get words of their own in the chat (usability U-04, U-05).
+    expect(parseStreamLine(JSON.stringify({ type: 'result', subtype: 'success', is_error: true, result: '5-hour limit reached ∙ resets 3pm' }))).toEqual([
+      { type: 'done', ok: false, durationMs: null, detail: 'limit', reason: '5-hour limit reached ∙ resets 3pm' },
+    ]);
+    expect(parseStreamLine(JSON.stringify({ type: 'result', subtype: 'success', is_error: true, result: 'API Error: Connection error.' }))).toEqual([
+      { type: 'done', ok: false, durationMs: null, detail: 'offline', reason: 'API Error: Connection error.' },
+    ]);
     expect(parseStreamLine('{"type":"result","subtype":"success","is_error":true,"result":"API Error: 500"}')).toEqual([
       { type: 'done', ok: false, durationMs: null, detail: 'failed', reason: 'API Error: 500' },
     ]);

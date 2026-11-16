@@ -662,7 +662,7 @@ export const agentEventSchema = z.discriminatedUnion('type', [
       ok: z.boolean().optional(),
     })
     .strict(),
-  z.object({ type: z.literal('done'), ok: z.boolean(), durationMs: z.number().nullable(), detail: z.string().nullable() }).strict(),
+  z.object({ type: z.literal('done'), ok: z.boolean(), durationMs: z.number().nullable(), detail: z.string().nullable(), reason: z.string().max(500).optional() }).strict(),
   z.object({ type: z.literal('error'), message: z.string().max(500) }).strict(),
   z.object({ type: z.literal('source'), source: researchSourceSchema }).strict(),
   z.object({ type: z.literal('step'), step: workStepSchema }).strict(),
