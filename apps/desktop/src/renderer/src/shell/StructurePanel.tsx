@@ -157,8 +157,8 @@ export function StructurePanel() {
         count={bodies.length}
         meta={
           printable.length > 0 ? (
-            <span className="shrink-0 text-xs font-normal text-text-subtle tabular-nums" data-testid="parts-progress" title={t('parts.progress', progress)}>
-              {t('parts.tile', progress)}
+            <span className="shrink-0 text-xs font-normal text-text-subtle tabular-nums" data-testid="parts-progress">
+              {t('parts.progress', progress)}
             </span>
           ) : null
         }
@@ -256,6 +256,8 @@ export function StructurePanel() {
         title={t('structure.sketchesTitle')}
         label={t('structure.sketches', { count: sketches.length })}
         count={sketches.length}
+        // A template's many hidden helper sketches start folded: a newcomer never needs them (usability U-22).
+        empty={sketches.length === 0 || (sketches.length > 5 && sketches.every((sketch) => !sketch.visible))}
       >
         {sketches.length === 0 ? (
           <TreeEmpty

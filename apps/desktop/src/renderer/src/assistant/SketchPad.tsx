@@ -54,10 +54,14 @@ export { emptySketch, SKETCH_SIZE, type SketchItem, type SketchState } from './s
 const PEN = 2.5;
 const FONT_SIZE = 14;
 
-/** Ink on paper in both themes (brand tokens): the assistant reads the picture as it was drawn. */
-function sketchColors(): { paper: string; grid: string; ink: string; selected: string; font: string } {
+/**
+ * Ink on paper (brand tokens) for the picture the assistant reads. On the screen the sheet follows the theme, so a dark
+ * window gets dark paper that does not glare (usability U-25, audit C-19).
+ */
+function sketchColors(screen = false): { paper: string; grid: string; ink: string; selected: string; font: string } {
   const style = getComputedStyle(document.documentElement);
   const token = (name: string) => style.getPropertyValue(name).trim();
+  if (screen) return { paper: token('--cs-color-surface'), grid: token('--cs-color-border'), ink: token('--cs-color-text'), selected: token('--cs-color-accent'), font: token('--cs-font-sans') || 'sans-serif' };
   return { paper: token('--cs-brand-paper'), grid: token('--cs-sketch-grid'), ink: token('--cs-brand-ink'), selected: token('--cs-color-accent'), font: token('--cs-font-sans') || 'sans-serif' };
 }
 
@@ -143,10 +147,10 @@ export function paint(
   context: CanvasRenderingContext2D,
   items: readonly SketchItem[],
   scale: number,
-  extra: { draft?: SketchItem | null; selected?: number | null; background?: CanvasImageSource | null } = {},
+  extra: { draft?: SketchItem | null; selected?: number | null; background?: CanvasImageSource | null; screen?: boolean } = {},
 ): void {
   const { width, height } = SKETCH_SIZE;
-  const colors = sketchColors();
+  const colors = sketchColors(extra.screen === true);
   context.setTransform(scale, 0, 0, scale, 0, 0);
   context.fillStyle = colors.paper;
   context.fillRect(0, 0, width, height);
@@ -334,7 +338,7 @@ export function SketchPad({ initial, onClose, onAttach }: { initial: SketchState
     const element = canvas.current;
     const context = element?.getContext('2d');
     if (!element || !context) return;
-    paint(context, items, element.width / SKETCH_SIZE.width, { draft, selected, background: shownBackground });
+    paint(context, items, element.width / SKETCH_SIZE.width, { draft, selected, background: shownBackground, screen: true });
   }, [items, draft, selected, shownBackground]);
 
   /** Puts a photo under the open sheet, fitted whole onto the paper; undo takes it away again. */

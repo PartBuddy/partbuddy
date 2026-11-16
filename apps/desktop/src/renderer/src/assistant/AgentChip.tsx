@@ -355,10 +355,16 @@ export function AgentChip() {
         {/* When the chat is narrow the route gives way first, the model last (audit C-07). */}
         <span className="flex min-w-0 whitespace-nowrap" title={label}>
           {label.includes(' · ') ? (
+            // Below 1100 px only the model shows; route and effort stay in the tooltip (usability U-17).
             <>
-              <span className="min-w-6 shrink-[8] truncate">{label.slice(0, label.indexOf(' · '))}</span>
-              <span className="shrink-0">{' · '}</span>
-              <span className="min-w-0 truncate">{label.slice(label.indexOf(' · ') + 3)}</span>
+              <span className="min-w-6 shrink-[8] truncate max-[1100px]:hidden">{label.slice(0, label.indexOf(' · '))}</span>
+              <span className="shrink-0 max-[1100px]:hidden">{' · '}</span>
+              <span className="min-w-0 truncate">
+                {label.slice(label.indexOf(' · ') + 3).split(' · ')[0]}
+                {label.slice(label.indexOf(' · ') + 3).includes(' · ') ? (
+                  <span className="max-[1100px]:hidden">{' · ' + label.slice(label.indexOf(' · ') + 3).split(' · ').slice(1).join(' · ')}</span>
+                ) : null}
+              </span>
             </>
           ) : (
             <span className="min-w-0 truncate">{label}</span>

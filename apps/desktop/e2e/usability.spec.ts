@@ -688,6 +688,17 @@ test('walkthrough: switch, import, export (de-narrow)', async () => {
       await page.waitForTimeout(8000);
     });
     await step('p6-imported-view', () => page.waitForTimeout(3000));
+    await step('p7-hinged-box', async () => {
+      await page.getByTestId('home-button').click();
+      await page.getByTestId('home-page').locator('[data-template="hingedBox"]').click();
+      await expect(page.getByTestId('home-page')).toHaveCount(0, { timeout: 120_000 });
+      await page.waitForTimeout(2500);
+    });
+    await step('p8-sketch-dark', async () => {
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await page.getByTestId('composer-sketch-open').click();
+      await page.waitForTimeout(600);
+    });
   } finally {
     await launched?.close().catch(() => undefined);
     writeFileSync(join(dir, 'steps.json'), JSON.stringify(steps, null, 2));

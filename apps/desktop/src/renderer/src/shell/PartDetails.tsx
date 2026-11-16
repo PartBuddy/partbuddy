@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button as AriaButton, Group, Input, Label, NumberField, TextField, ToggleButton } from 'react-aria-components';
 
 import { iconButtonClass, pressable } from '../ui/Button';
+import { Tip } from '../ui/Tooltip';
 
 import type { PartNote, PartsState } from '../../../shared/contract';
 import { platform } from '../platform';
@@ -54,7 +55,9 @@ export function useParts(documentId: string | null, printable: string[]): { part
 export function PrintedToggle({ body, note, onChange }: { body: string; note: PartNote; onChange: (note: PartNote) => void }) {
   const { t } = useTranslation();
   const done = note.printed >= note.quantity;
+  // The circle says what it is for on hover (usability U-19).
   return (
+    <Tip label={t(done ? 'parts.markOpen' : 'parts.markPrinted', { name: body })}>
     <ToggleButton
       isSelected={done}
       onChange={(next) => onChange({ ...note, printed: next ? note.quantity : 0 })}
@@ -65,6 +68,7 @@ export function PrintedToggle({ body, note, onChange }: { body: string; note: Pa
     >
       {done ? <IconCircleCheckFilled className="size-icon-sm" aria-hidden /> : <IconCircleDashed className="size-icon-sm" aria-hidden />}
     </ToggleButton>
+    </Tip>
   );
 }
 
