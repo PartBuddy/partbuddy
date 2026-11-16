@@ -549,7 +549,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     if (updates.enabled && settingsStore.get('checkUpdates')) setTimeout(() => void updates.check(), 10_000);
     // Interface size, start behaviour and update check (2026-11-07): the size applies at once, the rest at the next start.
-    const appSettings = () => ({ zoom: settingsStore.get('zoom'), startPage: settingsStore.get('startPage'), checkUpdates: settingsStore.get('checkUpdates') });
+    const appSettings = () => ({ zoom: settingsStore.get('zoom'), startPage: settingsStore.get('startPage'), checkUpdates: settingsStore.get('checkUpdates'), viewportStats: settingsStore.get('viewportStats') });
     const applyZoom = () => {
       const zoom = settingsStore.get('zoom');
       mainWindow?.webContents.setZoomFactor(zoom);

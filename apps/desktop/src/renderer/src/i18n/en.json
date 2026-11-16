@@ -75,6 +75,12 @@
     "errorTitle": "The model could not be read",
     "errorBody": "The mirrored file is damaged or has an unknown format ({message}).",
     "hint": "Click a face, edge or vertex to select it. Drag to orbit, right-drag to pan, scroll to zoom.",
+    "stats": {
+      "fps": "Frames/s",
+      "frame": "Frame time",
+      "calls": "Draw calls",
+      "triangles": "Triangles"
+    },
     "cube": {
       "right": "Right",
       "left": "Left",
@@ -961,6 +967,7 @@
       "help": "Help with problems",
       "rules": "Design rules",
       "startup": "Start",
+      "viewport": "3D view",
       "keys": {
         "app": "General",
         "design": "Design",
@@ -1013,6 +1020,21 @@
       "home": "Start page",
       "last": "Last project"
     },
+    "graphics": {
+      "title": "Graphics",
+      "hint": "What the 3D view draws with. Drawn by the CPU (software) is slower; that happens when the graphics driver is blocked or hardware acceleration is off.",
+      "backend": "Backend",
+      "adapter": "Graphics card",
+      "mode": "Drawn by",
+      "hardware": "Graphics card (hardware)",
+      "software": "CPU (software)",
+      "unknown": "Not reported by the driver",
+      "none": "No WebGL 2"
+    },
+    "viewportStats": {
+      "title": "Show frame rate in the 3D view",
+      "hint": "Frames per second, frame time, draw calls and triangles in the corner of the view. The view only draws while something moves, so it reads 0 at rest."
+    },
     "checkUpdates": {
       "title": "Check for updates automatically",
       "hint": "The installed app asks GitHub once after the start whether there is a new version. Otherwise it only asks when you choose “Check for updates”. Applies at the next start."
@@ -1041,7 +1063,9 @@
     "keywords": {
       "theme": "colour color design theme light dark mode",
       "zoom": "font text size zoom larger smaller",
-      "projectsFolder": "location folder path documents"
+      "projectsFolder": "location folder path documents",
+      "graphics": "gpu graphics card adapter webgl renderer software hardware acceleration driver",
+      "viewportStats": "fps frame rate performance triangles draw calls overlay"
     }
   },
   "print": {

@@ -26,6 +26,8 @@ export const SETTINGS: readonly SettingEntry[] = [
   { id: 'zoom', section: 'general', group: 'appearance', label: 'settings.zoom.title', hint: 'settings.zoom.hint', keywords: 'settings.keywords.zoom' },
   { id: 'startPage', section: 'general', group: 'startup', label: 'settings.startPage.title', hint: 'settings.startPage.hint' },
   { id: 'projectsFolder', section: 'general', group: 'files', label: 'settings.projects.title', hint: 'settings.projects.hint', restart: true, keywords: 'settings.keywords.projectsFolder' },
+  { id: 'graphics', section: 'general', group: 'viewport', label: 'settings.graphics.title', hint: 'settings.graphics.hint', keywords: 'settings.keywords.graphics' },
+  { id: 'viewportStats', section: 'general', group: 'viewport', label: 'settings.viewportStats.title', hint: 'settings.viewportStats.hint', keywords: 'settings.keywords.viewportStats' },
   { id: 'engine', section: 'solidcraft', group: 'program', label: 'engine.program', hint: 'settings.engine.hint', restart: true },
   { id: 'assistant', section: 'assistant', group: 'route', label: 'settings.route.title', hint: 'settings.route.hint' },
   { id: 'research', section: 'assistant', group: 'work', label: 'settings.research.label', hint: 'settings.research.hint' },

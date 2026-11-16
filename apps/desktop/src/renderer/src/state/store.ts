@@ -196,6 +196,8 @@ interface StudioState {
   /** The option the settings were opened at (a `SETTINGS` id); it is scrolled to and highlighted once. */
   settingsOption: string | null;
   setSettingsSection: (section: SettingsSection | null, option?: string | null) => void;
+  /** The frame counters over the 3D view (issue #484), mirrored from the app settings. */
+  viewportStats: boolean;
   /** Which tab of the printer and material profiles shows. */
   profilesTab: ProfilesTab;
   setProfilesTab: (tab: ProfilesTab) => void;
@@ -356,6 +358,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
   settingsSection: null,
   settingsOption: null,
+  viewportStats: false,
   setSettingsSection: (settingsSection, settingsOption = null) => {
     set({ settingsSection, settingsOption });
   },
