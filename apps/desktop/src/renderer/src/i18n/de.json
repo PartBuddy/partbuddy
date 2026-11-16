@@ -1034,7 +1034,7 @@
     },
     "gpuPreference": {
       "title": "Grafikkarte",
-      "hint": "Auf einem Rechner mit zwei Grafikkarten: Schnell wünscht die eigene Grafikkarte, Sparsam die im Prozessor, die Akku spart. Unter Windows stellt PartBuddy das in den Grafikeinstellungen von Windows für sich ein; Automatisch überlässt die Wahl wieder Windows. „Grafikkarte“ unten zeigt, welche zeichnet.",
+      "hint": "Auf einem Rechner mit zwei Grafikkarten: Schnell wünscht die eigene Grafikkarte, Sparsam die im Prozessor, die Akku spart. Unter Windows stellt PartBuddy das in den Grafikeinstellungen von Windows für sich ein; Automatisch überlässt die Wahl wieder Windows. Unter Windows lässt sich auch genau eine Karte aus der Liste wählen; zwei baugleiche Karten unterscheidet Windows nicht. „Grafikkarte“ unten zeigt, welche zeichnet.",
       "auto": "Automatisch",
       "high": "Schnell",
       "low": "Sparsam"

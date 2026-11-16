@@ -375,8 +375,13 @@ export const startPageSchema = z.enum(['home', 'last']);
 /** How the 3D view trades picture for speed (issue #484); balanced is how it drew before. */
 export const viewportQualitySchema = z.enum(['performance', 'balanced', 'quality']);
 export type ViewportQuality = z.infer<typeof viewportQualitySchema>;
-/** Which graphics card PartBuddy asks for (issue #484): Windows' or Chromium's choice, the fast one or the frugal one. */
-export const gpuPreferenceSchema = z.enum(['auto', 'high', 'low']);
+/** One graphics card as Windows' graphics settings name it: vendor, device and subsystem in hex. */
+export const gpuAdapterIdSchema = z.string().regex(/^[0-9A-F]{4}&[0-9A-F]{4}&[0-9A-F]{8}$/);
+/**
+ * Which graphics card PartBuddy asks for (issue #484): Windows' or Chromium's choice, the fast one, the
+ * frugal one, or one particular card (Windows only).
+ */
+export const gpuPreferenceSchema = z.union([z.enum(['auto', 'high', 'low']), gpuAdapterIdSchema]);
 export type GpuPreference = z.infer<typeof gpuPreferenceSchema>;
 /** The app-wide settings without a channel of their own, read and changed together. */
 export const appSettingsSchema = z
@@ -388,6 +393,8 @@ export const appSettingsSchema = z
     viewportQuality: viewportQualitySchema,
     gpuPreference: gpuPreferenceSchema,
     softwareRendering: z.boolean(),
+    /** The graphics cards of this computer to choose one by one (Windows, empty elsewhere). */
+    gpuAdapters: z.array(z.object({ id: gpuAdapterIdSchema, name: z.string() }).strict()),
     /** The graphics settings differ from those PartBuddy started with: they apply after a restart. */
     graphicsRestart: z.boolean(),
   })

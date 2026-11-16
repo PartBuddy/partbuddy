@@ -18,7 +18,7 @@ import { GeneralSettings } from './generalSettings';
 import { SettingsStore } from './settingsStore';
 import { RESET_KEYS } from '../shared/settings';
 import { Updates } from './updates';
-import { applyWindowsGpuPreference, macGpuSwitch } from './gpuPreference';
+import { applyWindowsGpuPreference, gpuAdapters, macGpuSwitch, type GpuDevice } from './gpuPreference';
 import { Assistant } from './agents/assistant';
 import { commonSignatures, withSignatures } from './agents/signatures';
 import { SolidCraftTools } from './agents/solidcraftTools';
@@ -561,7 +561,18 @@ if (!app.requestSingleInstanceLock()) {
     });
     if (updates.enabled && settingsStore.get('checkUpdates')) setTimeout(() => void updates.check(), 10_000);
     // Interface size, start behaviour and update check (2026-11-07): the size applies at once, the rest at the next start.
-    const appSettings = () => ({
+    // The cards to choose one by one; only Windows takes a particular card.
+    const gpuCards =
+      process.platform === 'win32'
+        ? app
+            .getGPUInfo('complete')
+            .then((info) => gpuAdapters((info as { gpuDevice?: GpuDevice[] }).gpuDevice ?? []))
+            .catch((error: unknown) => {
+              log(`warning: the graphics cards could not be listed (${String(error)})`);
+              return [];
+            })
+        : Promise.resolve([]);
+    const appSettings = async () => ({
       zoom: settingsStore.get('zoom'),
       startPage: settingsStore.get('startPage'),
       checkUpdates: settingsStore.get('checkUpdates'),
@@ -569,6 +580,7 @@ if (!app.requestSingleInstanceLock()) {
       viewportQuality: settingsStore.get('viewportQuality'),
       gpuPreference: settingsStore.get('gpuPreference'),
       softwareRendering: settingsStore.get('softwareRendering'),
+      gpuAdapters: await gpuCards,
       graphicsRestart: settingsStore.get('gpuPreference') !== startGraphics.gpu || settingsStore.get('softwareRendering') !== startGraphics.software,
     });
     const applyZoom = () => {
