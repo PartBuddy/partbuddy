@@ -84,6 +84,34 @@ test('the mirrored model appears and follows design changes', async () => {
   expect({ linked: after.linked - before.linked, lost: after.lost - before.lost }).toEqual({ linked: 0, lost: 0 });
 });
 
+test('the view draws only while something changes or moves (issue 484)', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+  await cameraSettled(page, 15_000);
+  // three counts every render of the view's renderer, the cube's and triad's small scenes included.
+  const frames = () =>
+    page.evaluate(() => {
+      const canvas = (globalThis as unknown as { document: { querySelector(s: string): { __r3f?: () => { gl: { info: { render: { frame: number } } } } } | null } }).document.querySelector('[data-testid="viewport"] canvas');
+      return canvas?.__r3f?.().gl.info.render.frame ?? -1;
+    });
+  // The start page picture and the soft light come a moment after the part; then the view rests.
+  await expect.poll(async () => {
+    const before = await frames();
+    await page.waitForTimeout(1000);
+    return (await frames()) - before;
+  }, { timeout: 30_000 }).toBe(0);
+
+  const box = await page.getByTestId('viewport').boundingBox();
+  if (!box) throw new Error('viewport not visible');
+  const before = await frames();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i += 1) await page.mouse.move(box.x + box.width / 2 + i * 15, box.y + box.height / 2);
+  await page.mouse.up();
+  await expect.poll(async () => (await frames()) - before).toBeGreaterThan(3);
+});
+
 test('the user undoes, redoes and exports without the assistant (ADR 0016)', async () => {
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });

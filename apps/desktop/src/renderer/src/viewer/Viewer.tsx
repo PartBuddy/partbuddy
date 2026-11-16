@@ -1061,6 +1061,8 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
 
   return (
     <Canvas
+      // Draws only when something changes or moves (each change calls invalidate): an idle view costs no GPU (#484).
+      frameloop="demand"
       dpr={[1, 2]}
       // While the camera moves, a large part may draw at a lower resolution for a moment (AdaptiveDpr).
       performance={{ min: 0.5 }}

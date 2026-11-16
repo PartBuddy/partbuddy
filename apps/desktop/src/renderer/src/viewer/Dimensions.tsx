@@ -259,6 +259,15 @@ const newLayout = (): Layout => ({
   anchor: new Vector3(),
 });
 
+/** The view's bars and panels (tools, chips, the selection dock), in canvas pixels: no label covers them. */
+function overlayRects(canvas: HTMLCanvasElement): { left: number; top: number; right: number; bottom: number }[] {
+  const origin = canvas.getBoundingClientRect();
+  return [...(canvas.closest('main')?.querySelectorAll<HTMLElement>('[data-view-overlay]') ?? [])].map((element) => {
+    const r = element.getBoundingClientRect();
+    return { left: r.left - origin.left, top: r.top - origin.top, right: r.right - origin.left, bottom: r.bottom - origin.top };
+  });
+}
+
 /**
  * Keeps the labels readable (UI upgrade step 10): a label whose anchor the part hides is left out
  * with its lines, labels that would cover each other move apart or, without room, are left out;
@@ -269,6 +278,7 @@ function useLabelLayout(marks: readonly DimensionMark[], meshes: MeshList, plane
   const camera = useThree((state) => state.camera);
   const size = useThree((state) => state.size);
   const canvas = useThree((state) => state.gl.domElement);
+  const invalidate = useThree((state) => state.invalidate);
   const layout = useRef<Layout>(newLayout());
 
   useEffect(() => {
@@ -276,16 +286,29 @@ function useLabelLayout(marks: readonly DimensionMark[], meshes: MeshList, plane
     const { slots } = layout.current;
     for (const id of slots.keys()) if (!marks.some((mark) => mark.id === id)) slots.delete(id);
     layout.current.dirty = true;
-  }, [marks, openMark]);
+    invalidate();
+  }, [marks, openMark, invalidate]);
+
+  useEffect(() => {
+    if (marks.length === 0) return;
+    // The view draws on demand: a panel that opens or slides over a label asks for a frame of its own.
+    let seen = '';
+    let frame = requestAnimationFrame(function watch() {
+      const now = JSON.stringify(overlayRects(canvas));
+      if (now !== seen) {
+        seen = now;
+        invalidate();
+      }
+      frame = requestAnimationFrame(watch);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [marks.length, canvas, invalidate]);
 
   useFrame(() => {
     const state = layout.current;
-    // The view's bars and panels (tools, chips, the selection dock), in canvas pixels: no label covers them.
-    const origin = canvas.getBoundingClientRect();
-    const blocked = [...(canvas.closest('main')?.querySelectorAll<HTMLElement>('[data-view-overlay]') ?? [])].map((element) => {
-      const r = element.getBoundingClientRect();
-      return { left: r.left - origin.left, top: r.top - origin.top, right: r.right - origin.left, bottom: r.bottom - origin.top };
-    });
+    const blocked = overlayRects(canvas);
     // Skip frames in which nothing that moves a label changed.
     const key = [...camera.matrixWorld.elements, ...camera.projectionMatrix.elements, size.width, size.height, ...blocked.flatMap((r) => [r.left, r.top, r.right, r.bottom])].join(',');
     if (!state.dirty && key === state.last) return;
