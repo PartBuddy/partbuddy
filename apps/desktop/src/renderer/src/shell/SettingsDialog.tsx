@@ -417,8 +417,37 @@ function GeneralSection() {
             testId="settings-viewport-quality"
           />
         </Setting>
+        <Setting id="gpuPreference">
+          <Segmented
+            id="gpuPreference"
+            value={app.gpuPreference}
+            options={(['auto', 'high', 'low'] as const).map((id) => ({ id, label: t(`settings.gpuPreference.${id}`) }))}
+            onChange={(next) => {
+              void platform().settings.setApp({ key: 'gpuPreference', value: next }).then(setApp);
+            }}
+            testId="settings-gpu-preference"
+          />
+        </Setting>
+        <Setting id="softwareRendering">
+          <Toggle
+            id="softwareRendering"
+            isSelected={app.softwareRendering}
+            onChange={(next) => {
+              void platform().settings.setApp({ key: 'softwareRendering', value: next }).then(setApp);
+            }}
+            testId="settings-software-rendering"
+          />
+        </Setting>
         <Setting id="graphics" layout="block">
           <GraphicsBlock />
+          {app.graphicsRestart ? (
+            <div role="status" className="flex flex-wrap items-center gap-2 rounded-md bg-warning-subtle px-3 py-2 text-sm text-text" data-testid="settings-graphics-restart">
+              <span className="flex-1">{t('settings.graphics.restartHint')}</span>
+              <Button variant="primary" onPress={() => void platform().relaunch()} data-testid="settings-graphics-restart-button">
+                {t('engine.restart')}
+              </Button>
+            </div>
+          ) : null}
         </Setting>
         <Setting id="viewportStats">
           <Toggle

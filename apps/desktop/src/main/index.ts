@@ -18,6 +18,7 @@ import { GeneralSettings } from './generalSettings';
 import { SettingsStore } from './settingsStore';
 import { RESET_KEYS } from '../shared/settings';
 import { Updates } from './updates';
+import { applyWindowsGpuPreference, macGpuSwitch } from './gpuPreference';
 import { Assistant } from './agents/assistant';
 import { commonSignatures, withSignatures } from './agents/signatures';
 import { SolidCraftTools } from './agents/solidcraftTools';
@@ -247,6 +248,17 @@ const chosenLanguage = general.language();
 if (chosenLanguage !== 'system' && !process.argv.some((arg) => arg.startsWith('--lang'))) {
   app.commandLine.appendSwitch('lang', chosenLanguage === 'de' ? 'de-DE' : 'en-US');
 }
+
+// The graphics (issue #484) are fixed when the GPU process starts, so a change applies at the next start.
+const startGraphics = { gpu: settingsStore.get('gpuPreference'), software: settingsStore.get('softwareRendering') };
+if (startGraphics.software) app.disableHardwareAcceleration();
+const macSwitch = process.platform === 'darwin' ? macGpuSwitch(startGraphics.gpu) : null;
+if (macSwitch) app.commandLine.appendSwitch(macSwitch);
+// On Windows the preference is Windows' own entry for the program; only the installed app writes it (not
+// a development build, whose program is electron.exe, nor a test run). Written again at the start, for an
+// update that moved the program.
+const ownsGpuEntry = process.platform === 'win32' && app.isPackaged && !testRun;
+if (ownsGpuEntry && startGraphics.gpu !== 'auto') void applyWindowsGpuPreference(process.execPath, startGraphics.gpu, log);
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -549,16 +561,26 @@ if (!app.requestSingleInstanceLock()) {
     });
     if (updates.enabled && settingsStore.get('checkUpdates')) setTimeout(() => void updates.check(), 10_000);
     // Interface size, start behaviour and update check (2026-11-07): the size applies at once, the rest at the next start.
-    const appSettings = () => ({ zoom: settingsStore.get('zoom'), startPage: settingsStore.get('startPage'), checkUpdates: settingsStore.get('checkUpdates'), viewportStats: settingsStore.get('viewportStats'), viewportQuality: settingsStore.get('viewportQuality') });
+    const appSettings = () => ({
+      zoom: settingsStore.get('zoom'),
+      startPage: settingsStore.get('startPage'),
+      checkUpdates: settingsStore.get('checkUpdates'),
+      viewportStats: settingsStore.get('viewportStats'),
+      viewportQuality: settingsStore.get('viewportQuality'),
+      gpuPreference: settingsStore.get('gpuPreference'),
+      softwareRendering: settingsStore.get('softwareRendering'),
+      graphicsRestart: settingsStore.get('gpuPreference') !== startGraphics.gpu || settingsStore.get('softwareRendering') !== startGraphics.software,
+    });
     const applyZoom = () => {
       const zoom = settingsStore.get('zoom');
       mainWindow?.webContents.setZoomFactor(zoom);
       if (process.platform !== 'darwin') mainWindow?.setTitleBarOverlay({ height: titleBarHeight(zoom) });
     };
     bridge.handle(invokeChannels.settingsApp, appSettings);
-    bridge.handle(invokeChannels.settingsSetApp, ({ key, value }) => {
+    bridge.handle(invokeChannels.settingsSetApp, async ({ key, value }) => {
       settingsStore.set(key, value);
       if (key === 'zoom') applyZoom();
+      if (key === 'gpuPreference' && ownsGpuEntry) await applyWindowsGpuPreference(process.execPath, value, log);
       log(`setting ${key} is now ${String(value)}`);
       return appSettings();
     });

@@ -375,14 +375,31 @@ export const startPageSchema = z.enum(['home', 'last']);
 /** How the 3D view trades picture for speed (issue #484); balanced is how it drew before. */
 export const viewportQualitySchema = z.enum(['performance', 'balanced', 'quality']);
 export type ViewportQuality = z.infer<typeof viewportQualitySchema>;
+/** Which graphics card PartBuddy asks for (issue #484): Windows' or Chromium's choice, the fast one or the frugal one. */
+export const gpuPreferenceSchema = z.enum(['auto', 'high', 'low']);
+export type GpuPreference = z.infer<typeof gpuPreferenceSchema>;
 /** The app-wide settings without a channel of their own, read and changed together. */
-export const appSettingsSchema = z.object({ zoom: zoomSchema, startPage: startPageSchema, checkUpdates: z.boolean(), viewportStats: z.boolean(), viewportQuality: viewportQualitySchema }).strict();
+export const appSettingsSchema = z
+  .object({
+    zoom: zoomSchema,
+    startPage: startPageSchema,
+    checkUpdates: z.boolean(),
+    viewportStats: z.boolean(),
+    viewportQuality: viewportQualitySchema,
+    gpuPreference: gpuPreferenceSchema,
+    softwareRendering: z.boolean(),
+    /** The graphics settings differ from those PartBuddy started with: they apply after a restart. */
+    graphicsRestart: z.boolean(),
+  })
+  .strict();
 export const appSettingRequestSchema = z.discriminatedUnion('key', [
   z.object({ key: z.literal('zoom'), value: zoomSchema }).strict(),
   z.object({ key: z.literal('startPage'), value: startPageSchema }).strict(),
   z.object({ key: z.literal('checkUpdates'), value: z.boolean() }).strict(),
   z.object({ key: z.literal('viewportStats'), value: z.boolean() }).strict(),
   z.object({ key: z.literal('viewportQuality'), value: viewportQualitySchema }).strict(),
+  z.object({ key: z.literal('gpuPreference'), value: gpuPreferenceSchema }).strict(),
+  z.object({ key: z.literal('softwareRendering'), value: z.boolean() }).strict(),
 ]);
 /** A section of the settings to put back to its defaults, or all of them. */
 export const settingsResetSchema = z.enum(['general', 'solidcraft', 'assistant', 'print', 'all']);

@@ -1029,7 +1029,19 @@
       "hardware": "Grafikkarte (Hardware)",
       "software": "Prozessor (Software)",
       "unknown": "Vom Treiber nicht genannt",
-      "none": "Kein WebGL 2"
+      "none": "Kein WebGL 2",
+      "restartHint": "Die neuen Grafikeinstellungen gelten nach einem Neustart von PartBuddy."
+    },
+    "gpuPreference": {
+      "title": "Grafikkarte",
+      "hint": "Auf einem Rechner mit zwei Grafikkarten: Schnell wünscht die eigene Grafikkarte, Sparsam die im Prozessor, die Akku spart. Unter Windows stellt PartBuddy das in den Grafikeinstellungen von Windows für sich ein; Automatisch überlässt die Wahl wieder Windows. „Grafikkarte“ unten zeigt, welche zeichnet.",
+      "auto": "Automatisch",
+      "high": "Schnell",
+      "low": "Sparsam"
+    },
+    "softwareRendering": {
+      "title": "Ohne Grafikkarte zeichnen",
+      "hint": "Der Prozessor zeichnet die 3D-Ansicht statt der Grafikkarte. Deutlich langsamer; für einen Grafiktreiber, mit dem die Ansicht schwarz bleibt, flackert oder abstürzt."
     },
     "viewportQuality": {
       "title": "Darstellungsqualität",

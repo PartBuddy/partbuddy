@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { agentKindSchema, languageSchema, modelChoiceSchema, phaseChoicesSchema, startPageSchema, themeSchema, viewportQualitySchema, zoomSchema, type SettingsReset } from './contract';
+import { agentKindSchema, gpuPreferenceSchema,languageSchema, modelChoiceSchema, phaseChoicesSchema, startPageSchema, themeSchema, viewportQualitySchema, zoomSchema, type SettingsReset } from './contract';
 
 /**
  * Every stored setting of the installation with its type, default and validation, in one place.
@@ -22,6 +22,10 @@ export const settingsSchema = z.object({
   viewportStats: z.boolean().catch(false),
   /** Resolution, anti-aliasing and shadows of the 3D view (issue #484). */
   viewportQuality: viewportQualitySchema.catch('balanced'),
+  /** The graphics card PartBuddy asks for; applies at the next start (issue #484). */
+  gpuPreference: gpuPreferenceSchema.catch('auto'),
+  /** Draws with the CPU instead of the graphics card, for drivers that fail; applies at the next start. */
+  softwareRendering: z.boolean().catch(false),
   /** The first-start setup (B9) was finished or skipped. */
   setupDone: z.boolean().catch(false),
   /** The assistant may search the web and read pages (B7). */
@@ -61,7 +65,7 @@ export type SettingKey = keyof Settings;
 
 /** What "reset" puts back per section of the settings dialog; the first-start flag is never reset. */
 export const RESET_KEYS: Record<Exclude<SettingsReset, 'solidcraft' | 'print' | 'all'>, readonly SettingKey[]> = {
-  general: ['language', 'theme', 'projectsFolder', 'zoom', 'startPage', 'checkUpdates', 'viewportStats', 'viewportQuality'],
+  general: ['language', 'theme', 'projectsFolder', 'zoom', 'startPage', 'checkUpdates', 'viewportStats', 'viewportQuality', 'gpuPreference', 'softwareRendering'],
   assistant: ['webResearch', 'claudeApiBilling', 'models', 'phaseModels'],
 };
 
