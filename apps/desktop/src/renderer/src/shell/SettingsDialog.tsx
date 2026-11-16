@@ -401,6 +401,22 @@ function GeneralSection() {
         </Setting>
       </Group>
       <Group id="viewport">
+        <Setting id="viewportQuality">
+          <Segmented
+            id="viewportQuality"
+            value={app.viewportQuality}
+            options={(['performance', 'balanced', 'quality'] as const).map((id) => ({ id, label: t(`settings.viewportQuality.${id}`) }))}
+            onChange={(next) => {
+              void platform()
+                .settings.setApp({ key: 'viewportQuality', value: next })
+                .then((stored) => {
+                  setApp(stored);
+                  useStudio.setState({ viewportQuality: stored.viewportQuality });
+                });
+            }}
+            testId="settings-viewport-quality"
+          />
+        </Setting>
         <Setting id="graphics" layout="block">
           <GraphicsBlock />
         </Setting>

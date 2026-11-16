@@ -54,7 +54,8 @@ const OVERHEAD = new Vector3(0.12, -0.08, 1).normalize();
  * shadow on the floor right under it and shades deep pockets a little. 1024 texels are plenty for
  * a soft shadow (the earlier side shadow needed 2048 and cost most of a frame in software WebGL).
  */
-export function ContactLight({ bodies, intensity }: { bodies: BodyModel[]; intensity: number }) {
+/** `mapSize` comes from the quality profile; 0 throws no shadow. */
+export function ContactLight({ bodies, intensity, mapSize }: { bodies: BodyModel[]; intensity: number; mapSize: number }) {
   const light = useRef<DirectionalLight>(null);
   const invalidate = useThree((state) => state.invalidate);
   const gl = useThree((state) => state.gl);
@@ -85,9 +86,9 @@ export function ContactLight({ bodies, intensity }: { bodies: BodyModel[]; inten
       ref={light}
       position={position}
       intensity={intensity}
-      castShadow={placement !== null}
-      shadow-mapSize-width={1024}
-      shadow-mapSize-height={1024}
+      castShadow={placement !== null && mapSize > 0}
+      shadow-mapSize-width={Math.max(mapSize, 1)}
+      shadow-mapSize-height={Math.max(mapSize, 1)}
       shadow-bias={-0.0004}
       shadow-radius={8}
       shadow-normalBias={placement ? placement.radius * 0.003 : 0}

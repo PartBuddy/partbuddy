@@ -20,7 +20,7 @@ afterEach(() => {
 describe('settings store', () => {
   it('starts with the defaults', () => {
     const store = new SettingsStore(join(folder(), 'settings.json'));
-    expect(store.all()).toEqual({ language: 'system', theme: 'system', projectsFolder: null, zoom: 1, startPage: 'home', checkUpdates: true, viewportStats: false, setupDone: false, webResearch: true, claudeApiBilling: false, models: {}, phaseModels: {} });
+    expect(store.all()).toEqual({ language: 'system', theme: 'system', projectsFolder: null, zoom: 1, startPage: 'home', checkUpdates: true, viewportStats: false, viewportQuality: 'balanced', setupDone: false, webResearch: true, claudeApiBilling: false, models: {}, phaseModels: {} });
   });
 
   it('takes over the files of earlier versions and leaves them in place', () => {
@@ -38,6 +38,7 @@ describe('settings store', () => {
       startPage: 'home',
       checkUpdates: true,
       viewportStats: false,
+      viewportQuality: 'balanced',
       setupDone: true,
       webResearch: false,
       claudeApiBilling: true,
