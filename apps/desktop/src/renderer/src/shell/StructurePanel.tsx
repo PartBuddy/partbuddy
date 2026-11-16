@@ -214,7 +214,8 @@ export function StructurePanel() {
             <Fragment key={body.name}>
               <TreeItem
                 id={`body:${body.name}`}
-                label={body.name}
+                // The name says what the row shows, its kind too (WCAG 2.5.3 label in name, usability U-27).
+                label={standard ? `${body.name} ${t('structure.standardPart')}` : kind === 'mesh' ? `${body.name} ${t('structure.mesh')}` : body.name}
                 selected={(treeSelection?.kind === 'body' && treeSelection.name === body.name) || pickedInView.has(body.name)}
                 dimmed={!body.visible}
                 expanded={open}

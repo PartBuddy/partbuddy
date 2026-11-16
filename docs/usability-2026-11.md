@@ -89,10 +89,10 @@ Fehlschritte, die keine Befunde sind: Modell-Chip auf der Startseite (gibt es nu
 importierten Netz-Projekt (hat keine), Vorlagen und Chat ohne SolidCraft (absichtlich gesperrt, die Leiste sagt warum),
 ChatGPT-Auswahl in der Einrichtung (der Test trifft das versteckte Eingabefeld; im Bild wählbar).
 
-Neu als **Feinschliff** (nicht freigegeben, offen):
+Neu als **Feinschliff** (am 16.11. freigegeben):
 
-| ID | Bereich | Problem | Beleg | Aufwand |
-|---|---|---|---|---|
-| U-26 | Chat | axe color-contrast: „1 Abfrage an SolidCraft · läuft“ und ältere, abgeblendete Antworten unter 4,5:1 | en-wide/28, recheck/07 | S |
-| U-27 | Struktur | axe label-content-name-mismatch: Netz-Körper „Ca… Netz“ trägt einen anderen Namen als sein sichtbarer Text | projects/05 | S |
-| U-28 | Einrichtung › Assistent | „Erneut prüfen“ steht zweimal (Link und Knopf in der Anmeldekarte) | missing/03 | S |
+| ID | Bereich | Problem | Beleg | Aufwand | Stand |
+|---|---|---|---|---|---|
+| U-26 | Chat | axe color-contrast: „1 Abfrage an SolidCraft · läuft“ und ältere, abgeblendete Antworten unter 4,5:1 | en-wide/28, recheck/07 | S | widerlegt: Messung mitten im Einblenden; die Farben haben 6:1, der Durchlauf misst jetzt in Ruhe (reduzierte Bewegung) |
+| U-27 | Struktur | axe label-content-name-mismatch: Netz-Körper „Ca… Netz“ trägt einen anderen Namen als sein sichtbarer Text | projects/05 | S | teilweise: der Name enthält jetzt die Art („CableClip Netz“); axe meldet weiter, weil die Zeile Knöpfe enthält (deren Namen zählt es als Text) – dafür müssten die Knöpfe aus der Baumzeile, eigener Umbau |
+| U-28 | Einrichtung › Assistent | „Erneut prüfen“ steht zweimal (Link und Knopf in der Anmeldekarte) | missing/03 | S | behoben |
