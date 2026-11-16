@@ -1,7 +1,8 @@
-import { IconAlertCircle, IconCircleCheck, IconX } from '@tabler/icons-react';
+import { IconAlertCircle, IconCircleCheck, IconInfoCircle, IconX } from '@tabler/icons-react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { platform } from '../platform';
 import { useStudio } from '../state/store';
 import { IconButton } from '../ui/Button';
 
@@ -16,6 +17,14 @@ export function Toast() {
   const { t } = useTranslation();
   const notice = useStudio((s) => s.notice);
   const setNotice = useStudio((s) => s.setNotice);
+  // A new version found by the look after the start stays until it is closed: the user decides in the settings.
+  useEffect(
+    () =>
+      platform().updates.onState((state) => {
+        if (state.state === 'available') setNotice({ tone: 'info', text: t('updates.notice', { version: state.version }) });
+      }),
+    [setNotice, t],
+  );
   useEffect(() => {
     if (notice?.tone !== 'success') return;
     const timer = setTimeout(() => {
@@ -35,7 +44,11 @@ export function Toast() {
           className={`pointer-events-auto flex max-w-text-max animate-panel-in items-start gap-2 rounded-lg border bg-surface-raised py-2 pr-1 pl-3 text-sm text-text shadow-3 ${danger ? 'border-danger' : 'border-border'}`}
           data-tone={notice.tone}
         >
-          {danger ? <IconAlertCircle className="mt-px size-icon-sm shrink-0 text-danger" aria-hidden /> : <IconCircleCheck className="mt-px size-icon-sm shrink-0 text-success" aria-hidden />}
+          {danger ? (
+            <IconAlertCircle className="mt-px size-icon-sm shrink-0 text-danger" aria-hidden />
+          ) : notice.tone === 'info' ? (
+            <IconInfoCircle className="mt-px size-icon-sm shrink-0 text-accent" aria-hidden />
+          ) : <IconCircleCheck className="mt-px size-icon-sm shrink-0 text-success" aria-hidden />}
           <span className="min-w-0 py-0.5" data-testid="notice">
             {notice.text}
           </span>

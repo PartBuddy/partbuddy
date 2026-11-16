@@ -101,7 +101,7 @@ export interface History {
 
 /** A short message about the user's own action (export saved, undo failed), read by screen readers. */
 export interface Notice {
-  tone: 'success' | 'danger';
+  tone: 'success' | 'info' | 'danger';
   text: string;
 }
 
