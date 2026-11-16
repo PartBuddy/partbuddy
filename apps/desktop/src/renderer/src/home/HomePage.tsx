@@ -77,6 +77,7 @@ export function HomePage() {
   const { t, i18n } = useTranslation();
   const connection = useStudio((s) => s.connection);
   const setHomeOpen = useStudio((s) => s.setHomeOpen);
+  const requestAssistant = useStudio((s) => s.requestAssistant);
   const run = useProjectSwitch();
   // The template SolidCraft is building: its tile says so, and the others wait (audit P-02).
   const [building, setBuilding] = useState<TemplateId | null>(null);
@@ -265,6 +266,20 @@ export function HomePage() {
           <div className="flex flex-col items-center gap-2 py-7 text-center" data-testid="home-empty">
             <p className="text-md font-semibold text-text">{t('home.emptyTitle')}</p>
             <p className="max-w-text-max text-sm text-text-muted">{t('home.emptyBody')}</p>
+            {/* The way to a first part for someone new: a project, and the chat ready to type (usability U-06). */}
+            <Button
+              variant="primary"
+              className="mt-2"
+              onPress={() =>
+                run(async () => {
+                  await api.create();
+                  requestAssistant('describe');
+                })
+              }
+              data-testid="home-describe"
+            >
+              {t('home.describe')}
+            </Button>
           </div>
         ) : shown.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-7 text-center" role="status" data-testid="home-no-match">

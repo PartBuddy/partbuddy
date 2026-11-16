@@ -1138,6 +1138,9 @@ test('the first start walks through SolidCraft, assistant, printer and project f
     await setup.getByTestId('first-start-next').click();
     await expect(setup).toHaveAttribute('data-step', 'assistant');
     await expect(setup.getByRole('radio', { name: /^Claude Code/ })).toBeChecked();
+    // Signed in, the step says so; the model per step waits folded under "Advanced" (usability U-01).
+    await expect(setup.getByTestId('agent-detail')).toContainText('Signed in');
+    await expect(setup.getByTestId('first-start-models')).not.toHaveAttribute('open');
     await setup.getByTestId('first-start-next').click();
     await expect(setup).toHaveAttribute('data-step', 'print');
     await setup.getByTestId('printer-name').getByRole('textbox').fill('Werkstatt');
@@ -1472,7 +1475,7 @@ test('the assistant shows the signed-in plan and needs SolidCraft', async () => 
   // The plan's default model with a named effort; the plan itself is in the menu.
   await expect(chip).toHaveText('Claude Code · Opus 9 · Medium');
   await chip.click();
-  await expect(page.getByTestId('agent-detail')).toHaveText('Claude Code 9.9.9 · Claude subscription');
+  await expect(page.getByTestId('agent-detail')).toHaveText('Signed in · Claude Code 9.9.9 · Claude subscription');
   await expect(page.getByRole('radio', { name: /^Claude Code/ })).toBeChecked();
   await page.screenshot({ path: test.info().outputPath('agent-menu.png') });
   await page.keyboard.press('Escape');

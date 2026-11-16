@@ -26,9 +26,13 @@ export function StatusBar() {
 
   return (
     <footer className="flex h-statusbar shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap border-t border-border bg-surface px-3 text-xs text-text-muted">
-      <span title={t('status.unitsTitle')}>{t('status.units')}</span>
-      <MaterialMenu />
-      <PrintCheckChip />
+      {homeOpen ? null : (
+        <>
+          <span title={t('status.unitsTitle')}>{t('status.units')}</span>
+          <MaterialMenu />
+          <PrintCheckChip />
+        </>
+      )}
       {bodies.length > 0 && !homeOpen ? (
         <span
           data-testid="mesh-summary"

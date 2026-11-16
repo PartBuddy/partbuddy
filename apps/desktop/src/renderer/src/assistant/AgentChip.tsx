@@ -233,7 +233,8 @@ function ModelChoiceSection({ status }: { status: AgentStatus }) {
  * The assistant's route, model and effort, and its sign-in state (B1); in the chip's menu and in the
  * settings (B6).
  */
-export function AssistantChoice() {
+/** `setup`: the first start, where the model choice waits folded under "Advanced" (usability U-01). */
+export function AssistantChoice({ setup = false }: { setup?: boolean }) {
   const { t } = useTranslation();
   const state = useAssistant((s) => s.state);
   const status = selectedStatus(state);
@@ -261,7 +262,16 @@ export function AssistantChoice() {
           </RadioField>
         ))}
       </RadioGroup>
-      <ModelChoiceSection status={status} />
+      {setup ? (
+        signedIn(status) && (status.models ?? []).length > 0 ? (
+          <details className="text-text-muted" data-testid="first-start-models">
+            <summary className="cursor-pointer text-xs outline-none focus-visible:focus-ring">{t('firstStart.models')}</summary>
+            <ModelChoiceSection status={status} />
+          </details>
+        ) : null
+      ) : (
+        <ModelChoiceSection status={status} />
+      )}
       <div className="flex flex-col gap-1 border-t border-border pt-2">
         <span data-testid="agent-detail">
           <StatusDot tone={toneOf(status)} label={statusLabel(t, status)} />

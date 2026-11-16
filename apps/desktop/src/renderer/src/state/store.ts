@@ -206,8 +206,8 @@ interface StudioState {
   focusRequest: { box: FindingBox; serial: number } | null;
   requestFocus: (box: FindingBox) => void;
   /** An empty state of the structure tree asks the chat for something: a draft about parameters, or the sketch pad. */
-  assistantRequest: { what: 'parameters' | 'sketch'; serial: number } | null;
-  requestAssistant: (what: 'parameters' | 'sketch') => void;
+  assistantRequest: { what: 'parameters' | 'sketch' | 'describe'; serial: number } | null;
+  requestAssistant: (what: 'parameters' | 'sketch' | 'describe') => void;
   /** An export waiting for the user to confirm it despite a red check. */
   exportConfirm: ExportTarget | null;
   setExportConfirm: (target: ExportTarget | null) => void;

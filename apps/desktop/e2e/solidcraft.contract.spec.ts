@@ -1271,6 +1271,41 @@ test('a failed turn says why: the plan used up until a time, no connection, or t
   }
 });
 
+test('on an empty start page "Describe a part" opens a new project with the chat ready to type (usability U-06, U-11)', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-describe-'));
+  const launched = await launchApp({
+    isolated: false,
+    work,
+    env: {
+      SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+      PARTBUDDY_SOLIDCRAFT_PORT: '7902',
+      PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+      PARTBUDDY_START_PAGE: '1',
+      PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+      PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+    },
+  });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    const home = page.getByTestId('home-page');
+    // The start page is no project: no name, no printer or print light in the bars.
+    await expect(page.getByTestId('project-menu')).toHaveCount(0);
+    await expect(page.getByTestId('material-chip')).toHaveCount(0);
+    await home.getByTestId('home-describe').click();
+    await expect(home).toHaveCount(0);
+    await expect(page.getByTestId('design-name')).toHaveText('New part', { timeout: 30_000 });
+    await expect(page.getByRole('textbox', { name: 'Message to the assistant' })).toBeFocused();
+    await expect(page.getByTestId('material-chip')).toBeVisible();
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('PartBuddy starts on the start page with no project open; a saved part gets a preview, and tiles open and import projects (B3)', async () => {
   test.setTimeout(240_000);
   const { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } = await import('node:fs');

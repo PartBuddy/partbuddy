@@ -91,7 +91,8 @@ function Working({ label }: { label: string }) {
   );
 }
 
-function Setup() {
+/** Sign-in, install or wait notice of the chosen route; nothing once it is ready. Also on the first start (usability U-01). */
+export function AssistantSetup() {
   const { t } = useTranslation();
   const status = selectedStatus(useAssistant((s) => s.state));
   const api = platform().agent;
@@ -561,10 +562,10 @@ export function AssistantPanel() {
   if (request && request.serial !== handled) {
     setHandled(request.serial);
     if (request.what === 'sketch') setSketching(true);
-    else setDraft((current) => current || t('parameters.askDraft'));
+    else if (request.what === 'parameters') setDraft((current) => current || t('parameters.askDraft'));
   }
   useEffect(() => {
-    if (request?.what === 'parameters') composer.current?.focus();
+    if (request?.what === 'parameters' || request?.what === 'describe') composer.current?.focus();
   }, [request]);
   // Photos of a real object for the next message (F6), up to four; a sketch or a drawing goes alone.
   // Each keeps the file's own name and size for its chip, so two pictures can be told apart (audit C-12).
@@ -759,7 +760,7 @@ export function AssistantPanel() {
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={list} {...handlers} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="chat-list">
       <div ref={content} className="cs-chat-list flex flex-col gap-2 p-3 pb-12">
-        <Setup />
+        <AssistantSetup />
         {items.length === 0 && (status.state === 'ready' || busy) ? (
           // A way in for an empty chat (polish round 1): examples fill the input, they do not send.
           <div className="flex flex-col gap-2 pt-4" data-testid="chat-start">
