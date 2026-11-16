@@ -157,7 +157,10 @@ test('website pictures', async () => {
       report[file] = 'ok';
     } catch (error) {
       // eslint-disable-next-line no-control-regex -- Playwright colours its messages
-      report[file] = (error as Error).message.replace(/\u001b\[\d+m/g, '').split('\n')[0]?.slice(0, 300) ?? 'failed';
+      const lines = (error as Error).message.replace(/\u001b\[\d+m/g, '').split('\n');
+      // The call log names the control that timed out; the first line alone does not.
+      const target = lines.find((line) => line.includes('waiting for'))?.trim();
+      report[file] = [lines[0], target].filter(Boolean).join(' – ').slice(0, 300) || 'failed';
       await page.screenshot({ path: test.info().outputPath(`${file}-failed.png`) }).catch(() => undefined);
       await page.keyboard.press('Escape').catch(() => undefined);
     }
