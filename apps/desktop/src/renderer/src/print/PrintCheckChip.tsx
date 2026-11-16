@@ -192,6 +192,7 @@ export function PrintCheckChip() {
   const setStepHighlight = useStudio((s) => s.setStepHighlight);
   const lacking = useLackingLines()(check?.unmeasured ?? []);
   const bodyList = useBodyList();
+  const connected = useStudio((s) => s.connection.state === 'connected');
   // "Checking" shows only when it lasts; the export asks all the same (review of #367).
   const checking = useLate(check?.measuring === true);
   const status = check?.result.status ?? 'ready';
@@ -202,7 +203,8 @@ export function PrintCheckChip() {
   // Read out are the states it ends in, not "checking" after every step.
   const [said, setSaid] = useState('');
   if (check && !check.measuring && said !== label) setSaid(label);
-  if (!check) return null;
+  // Without SolidCraft the light would tell of a part it cannot see now (usability U-24).
+  if (!check || !connected) return null;
   const dot = open === 'measuring' ? dotTone.neutral : open === 'unmeasured' ? dotTone.warning : DOT[status];
 
   return (

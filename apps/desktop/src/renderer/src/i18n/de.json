@@ -55,7 +55,8 @@
     "mirrorFailedTitle": "Das Modell konnte nicht gespiegelt werden",
     "mirrorFailedBody": "PartBuddy zeigt den letzten guten Stand. Details: {detail}",
     "emptyBodyHeadless": "Beschreibe dem Assistenten, was du brauchst. Jeder Schritt erscheint hier, Skizzen schon vor dem Körper.",
-    "startingProgress": "Einen Moment …"
+    "startingProgress": "Einen Moment …",
+    "restarted": "SolidCraft hatte sich beendet und läuft wieder. Dein Teil ist wie zuletzt gespeichert."
   },
   "viewer": {
     "canvasLabel": "3D-Ansicht des Designs",

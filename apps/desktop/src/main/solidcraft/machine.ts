@@ -12,6 +12,9 @@ import type { ControlEndpoint } from './discovery';
  * and once the user closes that window it starts the headless engine again with the saved file.
  */
 
+/** An engine that ends sooner after its start is not started again by itself. */
+export const RESTART_AFTER_MS = 60_000;
+
 export type DiscoveryResult =
   | { kind: 'running'; endpoint: ControlEndpoint }
   | { kind: 'notRunning' }
@@ -39,6 +42,8 @@ export interface SupervisorContext {
   owned: boolean;
   /** When PartBuddy started SolidCraft, to tell its fresh token file from a stale one. */
   launchedAt: number | null;
+  /** PartBuddy runs the engine without a window: the user cannot have closed it, so its end is a crash (usability U-24). */
+  headless: boolean;
   documentId: string | null;
   revision: number | null;
   detail: string | null;
@@ -90,6 +95,7 @@ export const supervisorMachine = setup({
     endpoint: null,
     owned: false,
     launchedAt: null,
+    headless: false,
     documentId: null,
     revision: null,
     detail: null,
@@ -137,12 +143,13 @@ export const supervisorMachine = setup({
                 // The headless engine is ready once it answers; there is no control file to wait for.
                 guard: { type: 'isHeadless', params: ({ event }) => event.output },
                 target: '#solidcraft.connecting',
-                actions: assign({ owned: true, endpoint: null, launchedAt: ({ event }) => event.output.launchedAt }),
+                actions: assign({ owned: true, headless: true, endpoint: null, launchedAt: ({ event }) => event.output.launchedAt }),
               },
               {
                 target: 'waiting',
                 actions: assign({
                   owned: ({ event }) => event.output.handoff !== true,
+                  headless: false,
                   resume: ({ event }) => event.output.handoff === true,
                   launchedAt: ({ event }) => event.output.launchedAt,
                 }),
@@ -199,7 +206,12 @@ export const supervisorMachine = setup({
         },
         LOST: {
           target: 'lost',
-          actions: assign({ detail: ({ event }) => event.reason }),
+          // A headless engine that ended on its own is started again once the search comes round, unless it ended
+          // within a minute of its start: then it would only crash again (usability U-24).
+          actions: assign({
+            detail: ({ event }) => event.reason,
+            resume: ({ context, event }) => context.resume || (context.headless && event.reason !== 'closed' && context.launchedAt !== null && Date.now() - context.launchedAt > RESTART_AFTER_MS),
+          }),
         },
         HANDOFF: 'starting',
         REOPEN: 'starting',

@@ -619,11 +619,13 @@ test('walkthrough: crash and Escape rechecks (de-narrow)', async () => {
       await expect(page.getByTestId('settings-dialog')).toHaveCount(0, { timeout: 3000 });
     });
     await page.getByTestId('dialog-close').click().catch(() => undefined);
+    // A crash a minute or more after the start is restarted (usability U-24); a sooner one would only crash again.
+    await page.waitForTimeout(60_000);
     await step('r4-crash-2s', async () => {
       killSolidCraft(work);
       await page.waitForTimeout(2000);
     });
-    await step('r5-crash-10s', () => page.waitForTimeout(8000));
+    await step('r5-crash-back', () => expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 90_000 }));
     await step('r6-crash-30s', () => page.waitForTimeout(20000));
     await step('r7-chat-after-crash', async () => {
       await send(page, 'Make it a box');
