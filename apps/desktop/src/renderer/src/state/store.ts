@@ -15,7 +15,7 @@ import type { FindingBox, PrintCheck, ViewerModel } from '@partbuddy/geometry';
 import { create } from 'zustand';
 
 import type { AssemblyPlan } from '../../../shared/assembly';
-import type { ConnectionStatus, DimensionMark, ExportFormat, MirroredSketch, NotesState, PartPrint, Structure } from '../../../shared/contract';
+import type { ConnectionStatus, DimensionMark, ExportFormat, MirroredSketch, NotesState, PartPrint, Structure, ViewportQuality } from '../../../shared/contract';
 
 /**
  * The ready-to-print check of one revision of one design (M7). `measuring`: SolidCraft still measures gaps and the
@@ -198,6 +198,8 @@ interface StudioState {
   setSettingsSection: (section: SettingsSection | null, option?: string | null) => void;
   /** The frame counters over the 3D view (issue #484), mirrored from the app settings. */
   viewportStats: boolean;
+  /** The quality profile of the 3D view (issue #484), mirrored from the app settings. */
+  viewportQuality: ViewportQuality;
   /** Which tab of the printer and material profiles shows. */
   profilesTab: ProfilesTab;
   setProfilesTab: (tab: ProfilesTab) => void;
@@ -359,6 +361,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   settingsSection: null,
   settingsOption: null,
   viewportStats: false,
+  viewportQuality: 'balanced',
   setSettingsSection: (settingsSection, settingsOption = null) => {
     set({ settingsSection, settingsOption });
   },

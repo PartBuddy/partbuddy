@@ -144,6 +144,38 @@ test('the settings say what the view draws with, and the frame counters show ove
   await expect(stats).toHaveAttribute('data-fps', '0', { timeout: 10_000 });
 });
 
+test('the display quality changes resolution, smoothed edges and shadow of the view at once (issue 484)', async () => {
+  const { app } = await connectedApp();
+  const { page } = app;
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces');
+  const look = () =>
+    page.evaluate(() => {
+      type Gl = { getContextAttributes(): { antialias: boolean } | null; shadowMap: { enabled: boolean } };
+      const canvas = (globalThis as unknown as { document: { querySelector(s: string): { __r3f?: () => { gl: Gl & { getContext(): Gl } } } | null } }).document.querySelector('[data-testid="viewport"] canvas');
+      const gl = canvas?.__r3f?.().gl;
+      return gl ? { antialias: gl.getContext().getContextAttributes()?.antialias ?? null, shadows: gl.shadowMap.enabled } : null;
+    });
+  await expect.poll(look).toEqual({ antialias: true, shadows: true });
+  const choose = async (label: string) => {
+    await page.getByTestId('settings').click();
+    const dialog = page.getByTestId('settings-dialog');
+    await dialog.getByTestId('settings-viewport-quality').getByText(label).click();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+  };
+  await choose('Performance');
+  await expect.poll(look).toEqual({ antialias: false, shadows: false });
+  // The new canvas still shows the part and can be picked.
+  const box = await page.getByTestId('viewport').boundingBox();
+  if (!box) throw new Error('viewport not visible');
+  await expect(async () => {
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(page.getByTestId('selected-face')).toHaveAttribute('data-name', /^F\d+:/, { timeout: 1000 });
+  }).toPass({ timeout: 30_000 });
+  await choose('Quality');
+  await expect.poll(look).toEqual({ antialias: true, shadows: true });
+});
+
 test('the user undoes, redoes and exports without the assistant (ADR 0016)', async () => {
   launched = await launchApp();
   fake = new FakeSolidCraft({ controlDir: launched.controlDir });

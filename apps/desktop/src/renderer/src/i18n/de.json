@@ -1031,6 +1031,13 @@
       "unknown": "Vom Treiber nicht genannt",
       "none": "Kein WebGL 2"
     },
+    "viewportQuality": {
+      "title": "Darstellungsqualität",
+      "hint": "Leistung zeichnet in der Grundauflösung des Bildschirms, ohne geglättete Kanten und Schatten: für langsame Grafik oder große Teile. Ausgewogen ist der Standard. Qualität behält beim Drehen die volle Auflösung und zeichnet einen feineren Schatten. Gilt sofort.",
+      "performance": "Leistung",
+      "balanced": "Ausgewogen",
+      "quality": "Qualität"
+    },
     "viewportStats": {
       "title": "Bildrate in der 3D-Ansicht zeigen",
       "hint": "Bilder pro Sekunde, Bildzeit, Zeichenaufrufe und Dreiecke in der Ecke der Ansicht. Die Ansicht zeichnet nur, solange sich etwas bewegt; in Ruhe steht dort 0."
@@ -1065,7 +1072,8 @@
       "zoom": "Schrift Schriftgröße Zoom größer kleiner",
       "projectsFolder": "Speicherort Ordner Pfad Dokumente",
       "graphics": "GPU Grafikkarte Grafik WebGL Renderer Software Hardware Beschleunigung Treiber",
-      "viewportStats": "FPS Bildrate Bilder Leistung Performance Dreiecke Zeichenaufrufe Anzeige"
+      "viewportStats": "FPS Bildrate Bilder Leistung Performance Dreiecke Zeichenaufrufe Anzeige",
+      "viewportQuality": "Qualität Leistung schnell langsam Auflösung Kantenglättung Antialiasing Schatten Profil"
     }
   },
   "print": {

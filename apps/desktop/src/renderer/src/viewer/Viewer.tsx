@@ -38,6 +38,7 @@ import { gridStep, lineScaleFor, needsReframe } from './framing';
 import { pickBox, selectionBox, VIEW_DIRECTIONS, type PickArrays } from './camera';
 import { ViewTools } from './ViewTools';
 import { StatsOverlay, StatsProbe } from './ViewportStats';
+import { QUALITY } from './quality';
 import { viewStateOf, type CameraView } from './viewState';
 import { platform } from '../platform';
 import { selectedStatus, useAssistant } from '../assistant/store';
@@ -1032,6 +1033,8 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
   const { t } = useTranslation();
   const displayMode = useStudio((s) => s.displayMode);
   const viewportStats = useStudio((s) => s.viewportStats);
+  const profileName = useStudio((s) => s.viewportQuality);
+  const profile = QUALITY[profileName];
   const plane = useSectionPlane(bodies);
   const colors = useTokenColors();
   // The exploded view, the playback and the plate are for looking: picks, notes and dimensions sit on the assembled part.
@@ -1065,12 +1068,15 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
     <Canvas
       // Draws only when something changes or moves (each change calls invalidate): an idle view costs no GPU (#484).
       frameloop="demand"
-      dpr={[1, 2]}
+      // The quality profile (issue #484); anti-aliasing belongs to the WebGL context, so a new profile builds the canvas anew.
+      key={profileName}
+      gl={{ antialias: profile.antialias }}
+      dpr={profile.dpr}
       // While the camera moves, a large part may draw at a lower resolution for a moment (AdaptiveDpr).
-      performance={{ min: 0.5 }}
+      performance={{ min: profile.minDpr }}
       // three 0.187 removed PCFSoftShadowMap (plain `shadows`) and fell back to PCF with a console
       // warning; ask for PCF itself (audit X-04).
-      shadows="percentage"
+      shadows={profile.shadowMap > 0 ? 'percentage' : false}
       // The canvas starts with a camera of its own before ours takes over; with the same field of
       // view, a framing done in between keeps fitting.
       camera={{ fov: scene.fieldOfView, near: 0.5, far: 5000, position: lastView.position.toArray() }}
@@ -1094,8 +1100,8 @@ function Scene({ documentId, bodies, sketches, steps, layout }: { documentId: st
       <StudioLight />
       <SkyLight sky={colors.sky} ground={colors.ground} />
       <directionalLight position={scene.keyLight} intensity={0.85} />
-      <ContactLight bodies={bodies} intensity={0.35} />
-      {moved ? null : <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.35 : 0.12} />}
+      <ContactLight bodies={bodies} intensity={0.35} mapSize={profile.shadowMap} />
+      {moved || profile.shadowMap === 0 ? null : <GroundShadow bodies={bodies} color={colors.shadow} opacity={colors.background.getHSL({ h: 0, s: 0, l: 0 }).l < 0.3 ? 0.35 : 0.12} />}
       <directionalLight position={scene.fillLight} intensity={0.3} />
       {bodies.map((body, i) => (
         <Body
@@ -1197,7 +1203,7 @@ export function Viewer() {
     void platform()
       .settings.app()
       .then((app) => {
-        useStudio.setState({ viewportStats: app.viewportStats });
+        useStudio.setState({ viewportStats: app.viewportStats, viewportQuality: app.viewportQuality });
       });
   }, []);
   // Leaving a design of several parts for one of a single part closes what only the first had.

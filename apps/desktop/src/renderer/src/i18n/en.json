@@ -1031,6 +1031,13 @@
       "unknown": "Not reported by the driver",
       "none": "No WebGL 2"
     },
+    "viewportQuality": {
+      "title": "Display quality",
+      "hint": "Performance draws at the screen's base resolution, without smoothed edges and shadow: for slow graphics or large parts. Balanced is the default. Quality keeps the full resolution while turning and draws a finer shadow. Applies at once.",
+      "performance": "Performance",
+      "balanced": "Balanced",
+      "quality": "Quality"
+    },
     "viewportStats": {
       "title": "Show frame rate in the 3D view",
       "hint": "Frames per second, frame time, draw calls and triangles in the corner of the view. The view only draws while something moves, so it reads 0 at rest."
@@ -1065,7 +1072,8 @@
       "zoom": "font text size zoom larger smaller",
       "projectsFolder": "location folder path documents",
       "graphics": "gpu graphics card adapter webgl renderer software hardware acceleration driver",
-      "viewportStats": "fps frame rate performance triangles draw calls overlay"
+      "viewportStats": "fps frame rate performance triangles draw calls overlay",
+      "viewportQuality": "quality performance speed resolution anti-aliasing shadow slow profile"
     }
   },
   "print": {

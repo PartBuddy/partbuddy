@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { agentKindSchema, languageSchema, modelChoiceSchema, phaseChoicesSchema, startPageSchema, themeSchema, zoomSchema, type SettingsReset } from './contract';
+import { agentKindSchema, languageSchema, modelChoiceSchema, phaseChoicesSchema, startPageSchema, themeSchema, viewportQualitySchema, zoomSchema, type SettingsReset } from './contract';
 
 /**
  * Every stored setting of the installation with its type, default and validation, in one place.
@@ -20,6 +20,8 @@ export const settingsSchema = z.object({
   checkUpdates: z.boolean().catch(true),
   /** Frame rate, frame time, triangles and draw calls over the 3D view (issue #484). */
   viewportStats: z.boolean().catch(false),
+  /** Resolution, anti-aliasing and shadows of the 3D view (issue #484). */
+  viewportQuality: viewportQualitySchema.catch('balanced'),
   /** The first-start setup (B9) was finished or skipped. */
   setupDone: z.boolean().catch(false),
   /** The assistant may search the web and read pages (B7). */
@@ -59,7 +61,7 @@ export type SettingKey = keyof Settings;
 
 /** What "reset" puts back per section of the settings dialog; the first-start flag is never reset. */
 export const RESET_KEYS: Record<Exclude<SettingsReset, 'solidcraft' | 'print' | 'all'>, readonly SettingKey[]> = {
-  general: ['language', 'theme', 'projectsFolder', 'zoom', 'startPage', 'checkUpdates', 'viewportStats'],
+  general: ['language', 'theme', 'projectsFolder', 'zoom', 'startPage', 'checkUpdates', 'viewportStats', 'viewportQuality'],
   assistant: ['webResearch', 'claudeApiBilling', 'models', 'phaseModels'],
 };
 
