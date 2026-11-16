@@ -86,7 +86,7 @@ function ParameterRow({ parameter, body, busy, level, width }: { parameter: Desi
   const applyValue = (next: number) => {
     reset();
     void platform()
-      .design.applyDimension({ parameter: parameter.name, value: next, factor: 1, label: parameter.name })
+      .design.applyDimension({ parameter: parameter.name, value: next, factor: 1, label: labelOf(parameter.comment) || parameter.name })
       .catch((error: unknown) => {
         setNotice({ tone: 'danger', text: t('actions.failed', { detail: (error as Error).message.slice(0, 200) }) });
       });

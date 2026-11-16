@@ -23,6 +23,19 @@ function sources(dir: string): string[] {
 }
 
 describe('translations', () => {
+  // Usability U-02: the format is ICU ({value}); a {{value}} reached the user as raw text.
+  it('uses ICU placeholders, never {{name}}', () => {
+    const doubled: string[] = [];
+    const walk = (node: unknown, path: string): void => {
+      if (typeof node === 'string') {
+        if (/{{w+}}/.test(node)) doubled.push(path);
+      } else if (typeof node === 'object' && node !== null) for (const [key, value] of Object.entries(node)) walk(value, path ? `${path}.${key}` : key);
+    };
+    walk(de0, 'de');
+    walk(en0, 'en');
+    expect(doubled).toEqual([]);
+  });
+
   // Audit X-02: a missing key shows the raw key ("viewer.kind.face") in the interface.
   it('has every static t() key and every key prefix of a template t() in German and English', () => {
     const missing: string[] = [];
