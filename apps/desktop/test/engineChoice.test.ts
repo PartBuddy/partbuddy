@@ -42,7 +42,7 @@ describe('SolidCraft versions', () => {
     expect(supportOf('0.40.1')).toBe('supported');
     expect(supportOf('0.41.0-rc.1')).toBe('supported');
     expect(supportOf('0.41.0')).toBe('supported');
-    expect(supportOf('0.42.0')).toBe('recommended');
+    expect(supportOf('0.42.0')).toBe('supported');
     expect(supportOf('0.43.0')).toBe('recommended');
     expect(supportOf('0.40.0')).toBe('tooOld');
     expect(supportOf('0.40.0-rc.4')).toBe('tooOld');
