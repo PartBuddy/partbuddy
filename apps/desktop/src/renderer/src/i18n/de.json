@@ -219,7 +219,8 @@
     "refresh": "Erneut prüfen",
     "unavailableTitle": "Claude Code ließ sich nicht starten",
     "unavailableBody": "Details: {detail}",
-    "empty": "Beschreibe, was SolidCraft bauen oder ändern soll. Jeder Schritt erscheint in der 3D-Ansicht.",
+    "empty": "Beschreibe, was entstehen soll – der Assistent baut es Schritt für Schritt in der 3D-Ansicht.",
+    "emptyShaped": "Ändere links einen Wert oder sag hier, was anders sein soll. Jeder Schritt erscheint in der 3D-Ansicht.",
     "working": {
       "claude-code": "Claude arbeitet",
       "chatgpt": "ChatGPT arbeitet",
@@ -471,7 +472,7 @@
       "defaultText": "Mach mir ein passendes Teil für den Gegenstand auf dem Foto.",
       "show": "Foto groß zeigen",
       "pasted": "Eingefügtes Bild",
-      "tooMany": "Höchstens {{count}} Fotos je Nachricht; weitere wurden nicht angehängt."
+      "tooMany": "Höchstens {count} Fotos je Nachricht; weitere wurden nicht angehängt."
     },
     "local": {
       "ready": "{server} · {model}",
@@ -509,6 +510,8 @@
       "holder": "Ein Wandhalter für einen Akkuschrauber: eine Platte mit zwei Senkkopfschrauben und ein Haken für einen 35 mm breiten Griff",
       "housing": "Ein Gehäuse 80 × 50 × 30 mm für eine Platine, mit verschraubtem Deckel und einem Loch für ein USB-C-Kabel",
       "photo": "Ein Ersatz-Drehknopf, der auf die Achse auf meinem Foto passt",
+      "size": "Setze {name} auf {value} mm",
+      "round": "Runde die Außenkanten mit 2 mm ab",
       "hint": "Ein Beispiel landet im Eingabefeld, damit du es vorher anpassen kannst. Eine Skizze oder ein Foto kann mitgehen."
     },
     "message": {
@@ -525,7 +528,8 @@
     "sendHint": "Senden (Eingabe)",
     "stopHint": "Stoppen (Esc)",
     "start": {
-      "title": "Was soll entstehen?"
+      "title": "Was soll entstehen?",
+      "titleShaped": "Was soll anders werden?"
     },
     "offline": "Keine Internetverbindung. Der Assistent antwortet erst wieder, wenn du online bist.",
     "announce": "Der Assistent hat geantwortet.",
@@ -779,7 +783,7 @@
     "askDraft": "Lege Parameter für die wichtigen Maße dieses Teils an.",
     "name": "Name",
     "invalid": "Eine Länge größer als 0 eingeben",
-    "discarded": "„{{value}}“ verworfen, {{kept}} bleibt",
+    "discarded": "„{value}“ verworfen, {kept} bleibt",
     "fitted": "Vom Assistenten gewählt, folgt Düse und Schichthöhe des Druckers"
   },
   "timeline": {

@@ -51,6 +51,7 @@ import { drawingFile, drawingFrom, isSvg, isSvgText, type OutgoingDrawing } from
 import { DrawingDetailNote } from './DrawingDetailNote';
 import { drawingFacts, type DrawingProblem } from '../../../shared/svgDrawing';
 import { useChatScroll } from './useChatScroll';
+import { labelOf } from '../shell/parameterRange';
 import { card } from './Fold';
 import { SourceCard } from './SourceCard';
 import { ReviewLine } from './ReviewLine';
@@ -467,6 +468,27 @@ export function AssistantPanel() {
   const [width, setWidth, maxWidth] = useChatWidth();
   const documentId = useStudio((s) => (s.model.status === 'ready' ? s.model.documentId : null));
   const { list, content, atEnd, toEnd, handlers } = useChatScroll(documentId);
+  // An empty chat on a part (a template, an import) shows how to change it, with sizes of its own (usability U-09).
+  const shaped = model.status === 'ready' && model.bodies.length > 0;
+  const [sizes, setSizes] = useState<string[]>([]);
+  useEffect(() => {
+    if (!shaped || items.length > 0) return;
+    let current = true;
+    void platform()
+      .design.parameters()
+      .then((parameters) => {
+        if (!current) return;
+        const editable = parameters.filter((parameter) => parameter.editable && parameter.unit === 'mm' && parameter.value > 0 && labelOf(parameter.comment));
+        setSizes(editable.slice(0, 2).map((parameter) => t('assistant.examples.size', { name: labelOf(parameter.comment), value: Math.round(parameter.value * 1.2) })));
+      })
+      .catch(() => {
+        if (current) setSizes([]);
+      });
+    return () => {
+      current = false;
+    };
+  }, [shaped, items.length, documentId, t]);
+  const examples = shaped ? [...sizes, t('assistant.examples.round')] : EXAMPLES.map((example) => t(`assistant.examples.${example}`));
   // A sketch for the next message (F4, F9); its elements stay while it is not sent, to draw on.
   const [sketching, setSketching] = useState(false);
   const [sketch, setSketch] = useState<{ state: SketchState; picture: SketchPicture } | null>(null);
@@ -680,21 +702,21 @@ export function AssistantPanel() {
           <div className="flex flex-col gap-2 pt-4" data-testid="chat-start">
             <p className="flex items-center gap-2 text-lg font-semibold text-text">
               <IconSparkles className="size-icon shrink-0 text-accent" aria-hidden />
-              {t('assistant.start.title')}
+              {t(shaped ? 'assistant.start.titleShaped' : 'assistant.start.title')}
             </p>
-            <p className="text-sm text-text-muted">{t('assistant.empty')}</p>
-            {EXAMPLES.map((example) => (
+            <p className="text-sm text-text-muted">{t(shaped ? 'assistant.emptyShaped' : 'assistant.empty')}</p>
+            {examples.map((example) => (
               <AriaButton
                 key={example}
                 onPress={() => {
-                  setDraft(t(`assistant.examples.${example}`));
+                  setDraft(example);
                   composer.current?.focus();
                 }}
                 className={`${card} flex-row items-start gap-2 border-border px-3 py-2 text-left text-sm text-text hover:border-border-strong hover:bg-surface-hover pressed:bg-surface-pressed ${pressable}`}
                 data-testid="chat-example"
               >
                 <IconArrowUpRight className="mt-hairline size-icon-sm shrink-0 text-text-subtle" aria-hidden />
-                {t(`assistant.examples.${example}`)}
+                {example}
               </AriaButton>
             ))}
             <p className="text-xs text-text-muted">{t('assistant.examples.hint')}</p>

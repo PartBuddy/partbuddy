@@ -219,7 +219,8 @@
     "refresh": "Check again",
     "unavailableTitle": "Claude Code could not be started",
     "unavailableBody": "Details: {detail}",
-    "empty": "Describe what SolidCraft should build or change. Every step appears in the 3D view.",
+    "empty": "Describe what you need – the assistant builds it step by step in the 3D view.",
+    "emptyShaped": "Change a value on the left, or say here what should be different. Every step appears in the 3D view.",
     "working": {
       "claude-code": "Claude is working",
       "chatgpt": "ChatGPT is working",
@@ -471,7 +472,7 @@
       "defaultText": "Make a part that fits the object in the photo.",
       "show": "Show the photo large",
       "pasted": "Pasted picture",
-      "tooMany": "At most {{count}} photos per message; the others were not attached."
+      "tooMany": "At most {count} photos per message; the others were not attached."
     },
     "local": {
       "ready": "{server} · {model}",
@@ -509,6 +510,8 @@
       "holder": "A wall holder for a cordless drill: a plate with two countersunk screws and a hook for a 35 mm wide grip",
       "housing": "A housing 80 × 50 × 30 mm for a circuit board, with a screwed-on lid and a hole for a USB-C cable",
       "photo": "A replacement knob that fits the shaft on my photo",
+      "size": "Set {name} to {value} mm",
+      "round": "Round the outer edges by 2 mm",
       "hint": "An example fills the input, so you can change it first. A sketch or a photo can go along too."
     },
     "message": {
@@ -525,7 +528,8 @@
     "sendHint": "Send (Enter)",
     "stopHint": "Stop (Esc)",
     "start": {
-      "title": "What shall we make?"
+      "title": "What shall we make?",
+      "titleShaped": "What should change?"
     },
     "offline": "No internet connection. The assistant answers again once you are online.",
     "announce": "The assistant has answered.",
@@ -779,7 +783,7 @@
     "askDraft": "Make parameters for the important sizes of this part.",
     "name": "Name",
     "invalid": "Type a length greater than 0",
-    "discarded": "“{{value}}” discarded, {{kept}} stays",
+    "discarded": "“{value}” discarded, {kept} stays",
     "fitted": "Chosen by the assistant, follows the printer's nozzle and layer height"
   },
   "timeline": {

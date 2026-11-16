@@ -414,8 +414,8 @@ test('the dimension field changes the driving parameter directly, with a preview
     await expect(cards).toHaveCount(3);
     await expect(cards.nth(0).getByTestId('step-text')).toHaveText('Box 20 × 20 × 10 mm');
     await expect(cards.nth(1).getByRole('img', { name: 'By you' })).toBeVisible();
-    await expect(cards.nth(1).getByTestId('step-text')).toHaveText(/Dimension Box1 · (Length|Width) set to 32 mm/);
-    await expect(cards.nth(2).getByTestId('step-text')).toHaveText(new RegExp(`Dimension Box1 · (Length|Width) set to ${longer} mm`));
+    await expect(cards.nth(1).getByTestId('step-text')).toHaveText(/Box1 · (Length|Width) set to 32 mm/);
+    await expect(cards.nth(2).getByTestId('step-text')).toHaveText(new RegExp(`Box1 · (Length|Width) set to ${longer} mm`));
     await expect(cards.nth(2)).toHaveAttribute('data-current', 'true');
     await expect(cards.nth(0).getByTestId('step-preview')).toHaveAttribute('src', /^data:image\//, { timeout: 10_000 });
     await expect(page.getByTestId('tool-call')).toBeHidden();
@@ -1028,7 +1028,7 @@ test('the dimensions of the box show in the view, and its height changes through
     await expect(labels).toHaveText(['20', '20', '15'], { timeout: 15_000 });
     const cards = page.getByTestId('step-card');
     await expect(cards).toHaveCount(2);
-    await expect(cards.nth(1).getByTestId('step-text')).toHaveText('Dimension Box1 · Height set to 15 mm');
+    await expect(cards.nth(1).getByTestId('step-text')).toHaveText('Box1 · Height set to 15 mm');
 
     // "All" shows every dimension of the design; off hides them.
     await page.getByTestId('dimensions-all').click();
