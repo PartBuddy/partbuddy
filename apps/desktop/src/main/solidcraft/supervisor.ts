@@ -112,6 +112,8 @@ export class SolidCraftSupervisor {
   private designFile: string | null = null;
   /** Whether the engine ran before in this session (see `openLastOnStart`). */
   private launchedBefore = false;
+  /** When the running headless engine's process started: a project switch keeps it, so a crash soon after the switch still restarts (U-24). */
+  private engineLaunchedAt: number | null = null;
   /** The file the open design was last opened from or saved to; the chat is kept next to it. */
   private currentFile: string | null = null;
   /** Set by openInSolidCraft(): the next launch opens this file in the SolidCraft window. */
@@ -1325,6 +1327,7 @@ export class SolidCraftSupervisor {
     }
     this.engine = engine;
     this.options.log(`started SolidCraft headless${design ? ' with the last design' : ''}`);
+    this.engineLaunchedAt = launchedAt;
     return { launchedAt, headless: true };
   }
 
@@ -1436,7 +1439,7 @@ export class SolidCraftSupervisor {
         this.designFile = next && this.designs?.holds(next) ? next : null;
         this.currentFile = next;
         this.options.log(`switched the project in the running SolidCraft${next ? '' : ' to a new design'}`);
-        return { launchedAt: Date.now(), headless: true };
+        return { launchedAt: this.engineLaunchedAt ?? Date.now(), headless: true };
       }
       if (kept) {
         this.engine = null;

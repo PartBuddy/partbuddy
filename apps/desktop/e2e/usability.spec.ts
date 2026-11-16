@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -469,6 +469,8 @@ for (const run of RUNS) {
     } finally {
       await launched?.close().catch(() => undefined);
       writeFileSync(join(dir, 'steps.json'), JSON.stringify(steps, null, 2));
+      // The app's log beside the pictures: a step that went wrong is read there first.
+      if (existsSync(join(work, 'partbuddy.log'))) copyFileSync(join(work, 'partbuddy.log'), join(dir, 'partbuddy.log'));
       rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
     }
   });

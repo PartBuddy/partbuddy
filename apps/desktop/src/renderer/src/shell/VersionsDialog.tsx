@@ -207,6 +207,8 @@ export function VersionsDialog({ open, onClose }: { open: boolean; onClose: () =
   }, [open, load]);
 
   const save = () => {
+    // The save button is disabled at once: the focus goes to the field first, so Escape still closes the dialog while it saves.
+    nameField.current?.focus();
     setBusy(true);
     setError(null);
     void platform()
