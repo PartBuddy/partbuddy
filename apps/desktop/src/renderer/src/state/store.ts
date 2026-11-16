@@ -103,6 +103,8 @@ export interface History {
 export interface Notice {
   tone: 'success' | 'info' | 'danger';
   text: string;
+  /** One way on, as a button in the notice (usability U-07, U-16). */
+  action?: { label: string; run: () => void; testId?: string };
 }
 
 export type Projection = 'perspective' | 'orthographic';

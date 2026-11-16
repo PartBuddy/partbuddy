@@ -118,6 +118,9 @@ test('the user undoes, redoes and exports without the assistant (ADR 0016)', asy
   await page.getByRole('button', { name: 'Export' }).click();
   await page.getByTestId('export-3mf').click();
   await expect(page.getByTestId('notice')).toHaveText('Saved as clip.3mf');
+  // The notice leads to the file (usability U-07; Explorer stays shut in tests).
+  await page.getByTestId('notice-reveal').click();
+  await expect(page.getByTestId('notice')).toHaveCount(0);
   expect(readFileSync(target, 'utf8')).toBe('fake 3mf');
   rmSync(dirname(target), { recursive: true, force: true });
 
@@ -1845,6 +1848,11 @@ test('the ready-to-print light follows the printer, points at its findings and a
   // The light comes with the first check of the mirrored part, later on a busy runner.
   await expect(light).toHaveAttribute('data-status', 'ready', { timeout: 15_000 });
   await expect(light).toHaveText('Ready to print');
+  // Green, the panel offers the next step: the export for the slicer (usability U-15).
+  await light.click();
+  await expect(page.getByTestId('print-check-export')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('print-check-panel')).toBeHidden();
 
   // A printer too small for the 64 mm clip turns it red.
   await page.getByTestId('settings').click();

@@ -581,15 +581,15 @@
     "format": {
       "3mf": {
         "name": "3MF",
-        "hint": "Für den Slicer: die sichtbaren Druckteile, jedes auf seiner Druckfläche, wo eine gesetzt ist, Rundungen fein (Abweichung höchstens {chord, number} mm je 100 mm Teilgröße)"
+        "hint": "Für Bambu Studio, PrusaSlicer und Orca – empfohlen. Jedes Teil liegt richtig auf dem Druckbett."
       },
       "stl": {
         "name": "STL",
-        "hint": "Ein Netz für jeden Slicer: die sichtbaren Druckteile, fein vernetzt; auf die Druckfläche gelegt nur ein einzelnes Teil, mehrere wie konstruiert"
+        "hint": "Für jeden Slicer. Mehrere Teile kommen so heraus, wie sie konstruiert sind."
       },
       "step": {
         "name": "STEP",
-        "hint": "Die sichtbaren Druckteile wie konstruiert, für andere CAD-Programme"
+        "hint": "Zum Weiterbearbeiten in einem anderen CAD-Programm."
       }
     },
     "exported": "Gespeichert als {file}",
@@ -608,7 +608,8 @@
       "name": "Teilen-Paket …",
       "hint": "3MF (jedes Teil auf seiner Druckfläche, wo eine gesetzt ist), STEP, vier Bilder und eine Beschreibung für Printables oder MakerWorld; ausgeblendete Körper bleiben draußen",
       "done": "Teilen-Paket gespeichert in exports\\{folder}"
-    }
+    },
+    "showInFolder": "Im Ordner zeigen"
   },
   "drawingDetail": {
     "fine": "{places, plural, one {Eine Stelle ist} other {# Stellen sind}} zu fein für die Düse ({nozzle, number} mm), die schmalste {thinnest, number} mm: Ein Strich unter {stroke, number} mm (zwei Bahnen) druckt nicht fest, ein Spalt unter {gap, number} mm schließt sich. Ab {fineFrom, number} mm Breite passt alles.",
@@ -1280,7 +1281,8 @@
       "measuring": "Die Druckprüfung ist noch nicht fertig. Es können noch Befunde dazukommen, etwa Überschneidungen oder ein blockiertes Gelenk.",
       "unmeasured": "Die Druckprüfung ist nicht vollständig gelaufen. Nicht oder nicht vollständig gemessen: {what}.",
       "done": "Die Messung ist inzwischen fertig."
-    }
+    },
+    "export": "Für den Slicer exportieren (3MF)"
   },
   "engine": {
     "menu": "SolidCraft …",
@@ -1352,7 +1354,8 @@
     "trashBodyKeep": "Der Projektordner mit Design, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen.",
     "exportPackage": "Als Datei exportieren …",
     "exportedPackage": "Das Projekt ist als .partbuddy-Datei gespeichert, mit Chat, Versionen und Skizzen.",
-    "trashed": "„{name}“ liegt im Papierkorb auf der Startseite und lässt sich dort wiederherstellen."
+    "trashed": "„{name}“ liegt im Papierkorb auf der Startseite und lässt sich dort wiederherstellen.",
+    "importedMesh": "Die Datei ist jetzt ein neues Projekt (das Original bleibt unverändert). Ein Netz aus STL, 3MF oder OBJ hat keine Maße zum Ändern: Sag dem Assistenten, was anders sein soll, oder wandle es in der Struktur mit „In Flächen umwandeln“ um."
   },
   "home": {
     "title": "Projekte",
@@ -1528,7 +1531,7 @@
   "updates": {
     "title": "Updates",
     "check": "Nach Updates suchen",
-    "notice": "PartBuddy {version} ist verfügbar. Herunterladen unter Einstellungen → Über.",
+    "notice": "PartBuddy {version} ist verfügbar.",
     "download": "Herunterladen",
     "install": "Neu starten und installieren",
     "state": {

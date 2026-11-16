@@ -883,6 +883,12 @@ if (!app.requestSingleInstanceLock()) {
       await steps.userHistory('redo', () => supervisor.redo());
       return undefined;
     });
+    // The file of the last export, for "Show in folder" in the notice (usability U-07); only a path PartBuddy wrote itself.
+    let lastExport: string | null = null;
+    bridge.handle(invokeChannels.designRevealExport, () => {
+      if (lastExport && !testRun) shell.showItemInFolder(lastExport);
+      return undefined;
+    });
     bridge.handle(invokeChannels.designExport, async ({ format }) => {
       const name = safeDesignFileName(supervisor.currentRevision()?.designName ?? '');
       // Exports go to the project's own "exports" folder (B2).
@@ -899,6 +905,7 @@ if (!app.requestSingleInstanceLock()) {
       });
       const { unverified } = await supervisor.exportDesign(format, choice.filePath, printFacesNow());
       log(`exported the design as ${format}`);
+      lastExport = choice.filePath;
       await keepVersion('export', basename(choice.filePath), true).catch((error: unknown) => {
         log(`no version at the export: ${(error as Error).message}`);
       });
@@ -1262,7 +1269,7 @@ if (!app.requestSingleInstanceLock()) {
       }
       await switchProject(() => Promise.resolve(target));
       log(kind === 'design' ? 'imported a design into a new project' : `made a new project from a ${kind} file`);
-      return { opened: true, imported: true };
+      return { opened: true, imported: true, ...(kind === 'mesh' ? { mesh: true as const } : {}) };
     });
     // Tolerance assistant: test pieces for the printer in the settings draft, built beside the open design.
     const testPiecesDesign = async ({ nozzle, layer, holeShrink }: { nozzle: number; layer: number; holeShrink?: number | undefined }) => {

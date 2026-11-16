@@ -289,6 +289,8 @@ test('the user undoes, exports and opens the headless design in the SolidCraft w
     await page.getByRole('button', { name: 'Export' }).click();
     await page.getByRole('menuitem', { name: /STL/ }).click();
     await expect(page.getByTestId('notice')).toHaveText('Saved as box.stl', { timeout: 30_000 });
+    // The notice leads to the file (usability U-07).
+    await expect(page.getByTestId('notice-reveal')).toBeVisible();
     // Binary STL: 80-byte header, triangle count, 50 bytes per triangle; a box has 12.
     const stl = readFileSync(target);
     expect(stl.readUInt32LE(80)).toBe(12);
@@ -1385,7 +1387,8 @@ test('PartBuddy starts on the start page with no project open; a saved part gets
     await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
     await expect(home.getByTestId('home-tile')).toHaveCount(2);
     await expect(home.locator('[data-open="true"]')).toHaveCount(0);
-    await expect(name).toHaveText('New part');
+    // The start page names no project (usability U-11).
+    await expect(name).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('home-after-restart.png') });
     await home.getByTestId('home-tile').filter({ hasText: 'Part' }).click();
     await expect(home).toHaveCount(0);
@@ -1464,6 +1467,20 @@ test('a STEP file becomes a project, meshes are inserted into it, converted to f
     await expect(bodies.first()).toContainText('Platine');
     // SolidCraft has no repair for parts from STEP, so the imported part offers none.
     await expect(bodies.first().getByTestId('structure-convert')).toHaveCount(0);
+
+    // A mesh as a new project says how it changes (usability U-14); then back to Platine. Its size asks nothing here.
+    await app.evaluate(({ dialog }) => {
+      dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
+    });
+    await pick(join(outside, 'Deckel.stl'));
+    await page.getByTestId('home-button').click();
+    await home.getByTestId('home-import').click();
+    await expect(name).toHaveText('Deckel', { timeout: 30_000 });
+    await expect(notice).toContainText('has no sizes to change');
+    await page.getByTestId('notice-close').click();
+    await page.getByTestId('home-button').click();
+    await home.getByTestId('home-tile').filter({ hasText: 'Platine' }).click();
+    await expect(name).toHaveText('Platine', { timeout: 30_000 });
 
     // Insert a closed mesh into the open project and convert it to faces.
     await pick(join(outside, 'Deckel.stl'));

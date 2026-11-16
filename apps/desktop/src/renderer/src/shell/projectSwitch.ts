@@ -20,7 +20,9 @@ export function useProjectSwitch(): (work: () => Promise<unknown>) => void {
           const cancelled = typeof result === 'object' && result !== null && 'opened' in result && result.opened === false;
           if (!cancelled) useStudio.getState().setHomeOpen(false);
           if (typeof result === 'object' && result !== null && 'imported' in result && result.imported === true) {
-            useStudio.getState().setNotice({ tone: 'success', text: t('project.imported') });
+            // A mesh has no sizes to change: the notice says how to go on and stays until it is read (usability U-14).
+            const mesh = 'mesh' in result && result.mesh === true;
+            useStudio.getState().setNotice(mesh ? { tone: 'info', text: t('project.importedMesh') } : { tone: 'success', text: t('project.imported') });
           }
         })
         .catch((error: unknown) => {

@@ -8,6 +8,8 @@ import { useStudio, type Unmeasured } from '../state/store';
 import { popoverPanelClass } from '../ui/Overlay';
 import { dotTone } from '../ui/Feedback';
 import { checkNow, lateOn, PENDING_SHOWN_MS } from './report';
+import { Button } from '../ui/Button';
+import { LOCAL_COMMAND_EVENT, type LocalCommand } from '../assistant/localCommand';
 
 const DOT: Record<PrintStatus, string> = { ready: dotTone.success, warn: dotTone.warning, block: dotTone.danger };
 
@@ -263,6 +265,20 @@ export function PrintCheckChip() {
               </p>
             ) : null}
             <p className="px-2 text-xs text-text-muted">{t('check.basis')}</p>
+            {/* Green: the next step is the slicer (usability U-15); the same export as the menu's and the chat's. */}
+            {status === 'ready' && open === null ? (
+              <Button
+                variant="primary"
+                size="sm"
+                className="mx-2 self-start"
+                onPress={() => {
+                  window.dispatchEvent(new CustomEvent<LocalCommand>(LOCAL_COMMAND_EVENT, { detail: { kind: 'export', format: '3mf' } }));
+                }}
+                data-testid="print-check-export"
+              >
+                {t('check.export')}
+              </Button>
+            ) : null}
           </Dialog>
         </Popover>
       </DialogTrigger>

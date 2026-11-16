@@ -581,15 +581,15 @@
     "format": {
       "3mf": {
         "name": "3MF",
-        "hint": "For the slicer: the visible printed parts, each on its print face where one is set, round faces fine (off by {chord, number} mm per 100 mm of part size at most)"
+        "hint": "For Bambu Studio, PrusaSlicer and Orca – recommended. Every part lies the right way on the bed."
       },
       "stl": {
         "name": "STL",
-        "hint": "One mesh for any slicer: the visible printed parts, finely meshed; laid on its print face only a single part, several as designed"
+        "hint": "For any slicer. Several parts come out as designed."
       },
       "step": {
         "name": "STEP",
-        "hint": "The visible printed parts as designed, for other CAD programs"
+        "hint": "To keep working in another CAD program."
       }
     },
     "exported": "Saved as {file}",
@@ -608,7 +608,8 @@
       "name": "Sharing package …",
       "hint": "3MF (each part on its print face where one is set), STEP, four pictures and a description for Printables or MakerWorld; hidden bodies stay out",
       "done": "Sharing package saved in exports\\{folder}"
-    }
+    },
+    "showInFolder": "Show in folder"
   },
   "drawingDetail": {
     "fine": "{places, plural, one {One place is} other {# places are}} too fine for the {nozzle, number} mm nozzle, the narrowest {thinnest, number} mm: a stroke under {stroke, number} mm (two lines) does not print solid, a gap under {gap, number} mm closes up. From {fineFrom, number} mm wide everything fits.",
@@ -1280,7 +1281,8 @@
       "measuring": "The print check has not finished yet. Findings may still turn up, such as overlaps or a blocked joint.",
       "unmeasured": "The print check did not run in full. Not measured, or not all of it: {what}.",
       "done": "The measuring has finished in the meantime."
-    }
+    },
+    "export": "Export for the slicer (3MF)"
   },
   "engine": {
     "menu": "SolidCraft …",
@@ -1352,7 +1354,8 @@
     "trashBodyKeep": "The project folder with design, conversation, versions and exports goes to the recycle bin at the bottom of the start page and can be restored there for 30 days.",
     "exportPackage": "Export as a file …",
     "exportedPackage": "The project is saved as a .partbuddy file, with conversation, versions and sketches.",
-    "trashed": "“{name}” is in the bin on the start page and can be restored there."
+    "trashed": "“{name}” is in the bin on the start page and can be restored there.",
+    "importedMesh": "The file became a new project (the original stays unchanged). A mesh from STL, 3MF or OBJ has no sizes to change: tell the assistant what should be different, or turn it into faces in the structure with “Convert to faces”."
   },
   "home": {
     "title": "Projects",
@@ -1528,7 +1531,7 @@
   "updates": {
     "title": "Updates",
     "check": "Look for updates",
-    "notice": "PartBuddy {version} is available. Download it in Settings → About.",
+    "notice": "PartBuddy {version} is available.",
     "download": "Download",
     "install": "Restart and install",
     "state": {
