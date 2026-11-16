@@ -63,6 +63,16 @@ describe('the conversation kept with the design (2026-11-05)', () => {
     expect(archive.takeDigest()).toBeNull();
   });
 
+  it('hands nothing of the earlier project to a new one without a saved conversation (issue 446)', () => {
+    folder = mkdtempSync(join(tmpdir(), 'partbuddy-chat-'));
+    let design: string | null = join(folder, 'Grundplatte.sc');
+    const archive = new ChatArchive({ designFile: () => design, log: () => undefined });
+    archive.save(conversation);
+    design = join(folder, 'New part.sc');
+    expect(archive.load()).toBeNull();
+    expect(archive.handover()).toBeNull();
+  });
+
   it('leaves out a file that does not match its format', () => {
     folder = mkdtempSync(join(tmpdir(), 'partbuddy-chat-'));
     const design = join(folder, 'Grundplatte.sc');

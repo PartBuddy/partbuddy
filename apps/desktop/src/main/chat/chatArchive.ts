@@ -55,6 +55,9 @@ export class ChatArchive {
 
   /** The conversation saved with the open design; arms the summary for the model's next message. */
   load(): StoredChat | null {
+    // Another design: the earlier project's conversation must not be handed over to this one.
+    this.digest = null;
+    this.items = [];
     const design = this.options.designFile();
     if (!design) return null;
     const file = chatFileOf(design);
