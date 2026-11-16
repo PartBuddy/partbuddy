@@ -4,8 +4,8 @@
   },
   "app": {
     "name": "PartBuddy",
-    "design": "Design",
-    "noDesign": "Kein Design",
+    "design": "Teil",
+    "noDesign": "Kein Teil",
     "untitled": "Neues Teil",
     "save": {
       "saving": "Speichert …",
@@ -58,7 +58,7 @@
     "startingProgress": "Einen Moment …"
   },
   "viewer": {
-    "canvasLabel": "3D-Ansicht des Designs",
+    "canvasLabel": "3D-Ansicht des Teils",
     "selection": "Auswahl",
     "flatFace": "Flache Fläche {across, number} × {up, number} mm",
     "surface": {
@@ -226,7 +226,7 @@
       "chatgpt": "ChatGPT arbeitet",
       "local": "Das lokale Modell arbeitet"
     },
-    "needsSolidCraft": "Verbinde zuerst SolidCraft; der Assistent arbeitet am offenen Design.",
+    "needsSolidCraft": "Verbinde zuerst SolidCraft; der Assistent arbeitet am offenen Teil.",
     "composer": "Nachricht an den Assistenten",
     "placeholder": "Zum Beispiel: eine Platte 40 × 20 × 5 mm mit zwei 4-mm-Bohrungen",
     "send": "Senden",
@@ -478,8 +478,8 @@
       "ready": "{server} · {model}",
       "unavailableTitle": "Kein lokales Modell bereit"
     },
-    "context": "Kontext: {used, number, percent} von {size, number} Token",
-    "contextFull": "Kontext: {used, number, percent} von {size, number} Token · neuer Chat empfohlen",
+    "context": "Gesprächsgedächtnis: {used, number, percent} belegt",
+    "contextFull": "Gesprächsgedächtnis: {used, number, percent} belegt · neuer Chat empfohlen",
     "usage": {
       "title": "Verbrauch",
       "high": "{window}: {used, number, percent} des Kontingents verbraucht. Ein leichteres Modell fürs Bauen (am Modell-Chip) schont den Rest.",
@@ -750,10 +750,10 @@
     "editing": "in Bearbeitung",
     "hide": "{name} ausblenden",
     "show": "{name} einblenden",
-    "mesh": "Mesh",
+    "mesh": "Netz",
     "convert": "{name} in Flächen umwandeln",
-    "convertHint": "Baut das Mesh auf 0,05 mm genau als bearbeitbare Flächen nach: ebene und runde Flächen, die SolidCraft erkennt, als echte Flächen, alles andere als Facetten. Geht bei geschlossenen Meshes.",
-    "convertDone": "{name} hat jetzt bearbeitbare Flächen, auf 0,05 mm genau nach dem Mesh; was SolidCraft nicht als eben oder rund erkennt, bleibt facettiert.",
+    "convertHint": "Baut das Netz auf 0,05 mm genau als bearbeitbare Flächen nach: ebene und runde Flächen, die SolidCraft erkennt, als echte Flächen, alles andere als Facetten. Geht bei geschlossenen Netzen.",
+    "convertDone": "{name} hat jetzt bearbeitbare Flächen, auf 0,05 mm genau nach dem Netz; was SolidCraft nicht als eben oder rund erkennt, bleibt facettiert.",
     "openMesh": "{name} ist nicht geschlossen, deshalb kann SolidCraft es nicht in Flächen umwandeln. Exportieren geht trotzdem; kleine Löcher repariert der Slicer selbst.",
     "standardPart": "Normteil",
     "bodiesTitle": "Körper",
@@ -794,7 +794,7 @@
   },
   "timeline": {
     "handle": "Rückroll-Balken",
-    "handleHint": "Ziehen, oder Pfeiltasten und Enter, um das Design zurückzurollen",
+    "handleHint": "Ziehen, oder Pfeiltasten und Enter, um das Teil zurückzurollen",
     "handleEnd": "am Ende, alle Schritte aktiv",
     "handleAfter": "nach {name}",
     "title": "Zeitleiste",
@@ -1110,7 +1110,7 @@
       },
       "economy": {
         "label": "Sparsam konstruieren",
-        "hint": "Spart Material und Druckzeit: lässt Volumen weg, das nichts trägt (offener Boden, Rahmen statt Platte), ohne geschlossene Körper auszuhöhlen, und hält die Bauhöhe gering. Funktion und Festigkeit gehen vor; Füllung und Geschwindigkeit bleiben Sache deines Slicers."
+        "hint": "Spart Material und Druckzeit: lässt weg, was nichts trägt (offener Boden, Rahmen statt Platte), und baut niedrig. Funktion und Festigkeit gehen vor."
       }
     },
     "add": "Drucker aus der Liste …",
@@ -1196,15 +1196,15 @@
       },
       "sharpEdge": {
         "label": "Körper ohne jede Rundung",
-        "hint": "Zeigt Körper ganz ohne Rundung oder Fase, deren Außenkanten scharf sind: Die Gestaltungsregeln runden sichtbare Kanten je nach Teilgröße mit 1, 2 oder 3 mm. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
+        "hint": "Meldet Körper ohne jede Rundung oder Fase. Sichtbare Kanten werden je nach Teilgröße mit 1, 2 oder 3 mm gerundet. Nur ein Hinweis."
       },
       "edgeRadii": {
         "label": "Zu viele Radien",
-        "hint": "Zeigt Körper, deren Außenkanten mit mehr als drei verschiedenen Radien gerundet sind (Radien, die weniger als ein Viertel auseinanderliegen, zählen als einer): Die Gestaltungsregeln nehmen zwei bis drei je Teil. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
+        "hint": "Meldet Körper mit mehr als drei verschiedenen Kantenradien; schöner sind zwei bis drei je Teil. Nur ein Hinweis."
       },
       "rootCorner": {
         "label": "Scharfer Fuß an dünnen Armen",
-        "hint": "Zeigt schlanke, frei stehende Arme, Haken und dünne Zapfen (mindestens dreimal so lang wie dick), die mit einer scharfen Innenecke auf einer Fläche stehen: Dort bricht ein Arm unter Last zuerst, eine Rundung von der halben Dicke hält ihn. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
+        "hint": "Meldet schlanke Arme, Haken und Zapfen mit scharfer Innenecke am Fuß: Dort brechen sie zuerst, eine Rundung von halber Dicke hält sie. Nur ein Hinweis."
       },
       "shallowSlope": {
         "label": "Flache Schrägen",
@@ -1212,7 +1212,7 @@
       },
       "shellCorner": {
         "label": "Ungleiche Schalenecken",
-        "hint": "Zeigt gerundete Außenkanten einer Schale, an denen die Wand in der Ecke dünner als die halbe Wand wird, weil innen nicht passend gerundet ist: Innen gehört der Außenradius weniger der Wand hin. Nur ein Hinweis, nie eine Sperre; aus, solange die Gestaltungsregel „Rundungen und Fasen“ aus ist."
+        "hint": "Meldet Ecken einer Schale, die innen nicht mitgerundet sind und dort zu dünn werden. Nur ein Hinweis."
       }
     }
   },
@@ -1227,7 +1227,7 @@
     },
     "none": "Keine Probleme gefunden: Das Teil passt in den Bauraum, die Wände sind dick genug, nichts neigt sich über den Überhangwinkel.",
     "noneSoFar": "Bisher keine Probleme gefunden.",
-    "basis": "Geprüft nach jeder Änderung, jeder Körper auf seiner Druckfläche, sonst wie konstruiert (auf der untersten Stelle stehend), mit Drucker und Material dieses Teils. Ausgeblendete Körper sind nicht geprüft. Stützen und Brücken entscheidet der Slicer.",
+    "basis": "Geprüft nach jeder Änderung, mit Drucker und Material dieses Teils, jeder Körper so, wie er auf dem Bett liegt. Ausgeblendete Körper zählen nicht; Stützen plant der Slicer.",
     "measuring": "Die Prüfung läuft noch. Überschneidungen, zu enge Spalte oder ein blockiertes Gelenk können noch dazukommen.",
     "unmeasured": "Nicht oder nicht vollständig gemessen: {what}. Befunde dazu können fehlen.",
     "unchecked": "Nicht auf Abstände geprüft (Netzkörper): {bodies}",
@@ -1309,7 +1309,7 @@
       "noVersion": "Dieses SolidCraft nennt keine Version.",
       "tooOld": "Dieses SolidCraft ist zu alt. PartBuddy braucht mindestens {minimum}."
     },
-    "restartHint": "Das gewählte SolidCraft gilt nach einem Neustart von PartBuddy. Dein Design wird vorher gesichert.",
+    "restartHint": "Das gewählte SolidCraft gilt nach einem Neustart von PartBuddy. Dein Teil wird vorher gesichert.",
     "automatic": "Automatisch suchen",
     "choose": "Programm wählen …",
     "restart": "PartBuddy neu starten",
@@ -1341,7 +1341,7 @@
       "chars": "Ein Name darf keines dieser Zeichen enthalten: \\ / : * ? \" | und keine spitzen Klammern."
     },
     "trashTitle": "„{name}“ in den Papierkorb?",
-    "trashBody": "Der Projektordner mit Design, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen. Danach zeigt PartBuddy die Startseite.",
+    "trashBody": "Der Projektordner mit dem Teil, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen. Danach zeigt PartBuddy die Startseite.",
     "trashConfirm": "In den Papierkorb",
     "import": "Als neues Projekt importieren …",
     "insert": "Datei einfügen …",
@@ -1351,7 +1351,7 @@
     "dropKinds": "STEP, IGES, STL, 3MF, OBJ, ein SolidCraft-Design oder ein PartBuddy-Projekt",
     "dropUnknown": "PartBuddy importiert STEP, IGES, STL, 3MF, OBJ, SolidCraft-Designs und PartBuddy-Projekte (.partbuddy).",
     "dropNoPath": "Diese Datei liegt noch nicht auf dem Datenträger. Erst speichern, dann aus dem Explorer ziehen.",
-    "trashBodyKeep": "Der Projektordner mit Design, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen.",
+    "trashBodyKeep": "Der Projektordner mit dem Teil, Chat, Versionen und Exporten kommt in den Papierkorb unten auf der Startseite und lässt sich dort 30 Tage lang wiederherstellen.",
     "exportPackage": "Als Datei exportieren …",
     "exportedPackage": "Das Projekt ist als .partbuddy-Datei gespeichert, mit Chat, Versionen und Skizzen.",
     "trashed": "„{name}“ liegt im Papierkorb auf der Startseite und lässt sich dort wiederherstellen.",
@@ -1445,7 +1445,7 @@
     "name": "Name der Version",
     "namePlaceholder": "Zum Beispiel: vor dem Deckel",
     "save": "Version speichern",
-    "hint": "PartBuddy speichert außerdem bei jedem Export und vor jeder Anfrage an den Assistenten eine Version, wenn sich das Design geändert hat.",
+    "hint": "PartBuddy speichert außerdem bei jedem Export und vor jeder Anfrage an den Assistenten eine Version, wenn sich das Teil geändert hat.",
     "empty": "Noch keine Version gespeichert. Gib oben einen Namen ein; beim Exportieren und vor jeder Anfrage an den Assistenten legt PartBuddy selbst eine an.",
     "list": "{count, plural, one {# Version} other {# Versionen}}",
     "compare": "Mit jetzt vergleichen",
@@ -1453,7 +1453,7 @@
     "restore": "Wiederherstellen",
     "restoreQuestion": "Aktuellen Stand als Version sichern und diese öffnen?",
     "restored": "Die Version ist wieder offen; der Stand davor ist als Version gesichert.",
-    "compareEmpty": "Weder die Version noch das Design hat einen Körper.",
+    "compareEmpty": "Weder die Version noch das Teil hat einen Körper.",
     "compareSame": "Seit dieser Version hat sich nichts geändert.",
     "same": "unverändert",
     "added": "neu seit dieser Version",
@@ -1522,7 +1522,7 @@
     "models": "Erweitert: Modell je Arbeitsschritt",
     "assistant": "Wähle den Assistenten, den du schon bezahlst: Claude über dein Claude Code oder ChatGPT mit deinem Abo. Anmelden geht auch später.",
     "print": "Wähl deinen Drucker aus der Liste – Bauraum, Düse und Schichthöhe trägt PartBuddy dann selbst ein. Der Assistent konstruiert passend dazu.",
-    "projects": "Jedes Projekt bekommt hier einen eigenen Ordner mit Design, Gespräch, Versionen und Exporten.",
+    "projects": "Jedes Projekt bekommt hier einen eigenen Ordner mit dem Teil, Gespräch, Versionen und Exporten.",
     "skip": "Einrichtung überspringen",
     "back": "Zurück",
     "next": "Weiter",
@@ -1647,7 +1647,7 @@
     },
     "hint": {
       "tappedHole": "Ein modelliertes Gewinde dieser Größe, im Durchmesser {thread, number} mm größer für den Druck, mit angefaster Mündung; nicht modelliert wird mit dem Kernlochdurchmesser gebohrt, um nach dem Druck nachzuschneiden.",
-      "screwHole": "Durchgangsloch aus PartBuddys Tabelle nach ISO 273 (um {shrink, number} mm größer gezeichnet, das Lochaufmaß des Materials, damit es in seiner Größe herauskommt), mit Platz für den Kopf nach ISO 4762 oder ISO 10642 plus {head, number} mm für den Druck (je Seite bei der Flachsenkung, einmal auf den Durchmesser der Kegelsenkung). Eine Flachsenkung bekommt zwei Brückenschichten von {layer, number} mm unter ihrem Boden und druckt so auch zum Bett hin.",
+      "screwHole": "Durchgangsloch nach ISO 273, um {shrink, number} mm größer gezeichnet, damit es nach dem Druck passt, mit Platz für den Kopf (+{head, number} mm). Eine Flachsenkung druckt dank zweier Brückenschichten ({layer, number} mm) auch zum Bett hin.",
       "insertSeat": "Typische Werte für ruthex-Einsätze, einen Millimeter tiefer als der Einsatz. Prüf das Datenblatt deines Einsatzes. In dieser Größe gezeichnet, ohne Lochaufmaß des Materials: der Einsatz schmilzt sich hinein.",
       "boss": "Ein Dom mit Sitz für eine Einschmelzmutter dieser Größe und mindestens 2 mm Wand.",
       "nutTrap": "Sechskanttasche nach ISO 4032 mit {room, number} mm Luft (die Steckpassung des Materials) und 0,4 mm Tiefenzugabe, darunter ein Durchgangsloch nach ISO 273. Ältere DIN-Muttern sind bei M10 breiter (17 mm): dafür {din, number} als Schlüsselweite angeben.",
