@@ -1516,6 +1516,7 @@
   "updates": {
     "title": "Updates",
     "check": "Nach Updates suchen",
+    "notice": "PartBuddy {version} ist verfügbar. Herunterladen unter Einstellungen → Über.",
     "download": "Herunterladen",
     "install": "Neu starten und installieren",
     "state": {
