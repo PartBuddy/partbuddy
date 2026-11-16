@@ -1212,8 +1212,9 @@ test('a part becomes a project folder that is renamed, duplicated, opened, start
     await page.getByTestId('project-trash').click();
     await expect(page.getByTestId('project-trash-dialog')).toContainText('Move "Bracket" to the recycle bin?');
     await page.getByTestId('project-trash-confirm').click();
-    await expect(name).toHaveText('New part', { timeout: 30_000 });
-    expect(existsSync(join(projects, 'Bracket'))).toBe(false);
+    // The start page names no project (usability U-11).
+    await expect(name).toHaveCount(0, { timeout: 30_000 });
+    await expect.poll(() => existsSync(join(projects, 'Bracket')), { timeout: 15_000 }).toBe(false);
     // Then the start page with the bin, not a silent new part (audit A-22).
     await expect(page.getByTestId('home-page')).toBeVisible();
     const slots = readdirSync(join(projects, '.trash'));
@@ -1838,11 +1839,12 @@ test('function blocks are previewed and built at a face: tapped hole, screw hole
       await apply(block);
     }
     for (const line of ['Tapped hole M4', 'Screw hole M3', 'Hole ⌀ 4 mm, 6.7 mm deep', 'Screw boss ⌀ 7.2 mm']) {
-      await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId('step-text').and(page.getByText(line, { exact: true }))).toBeVisible({ timeout: 30_000 });
     }
     // The design changed only through the four blocks, the tapped hole twice (`more`): previews leave nothing
     // behind. All six by name: a count alone passed while the timeline was still one step behind.
-    await expect(page.getByTestId('timeline-feature')).toHaveText(['Box1', 'Hole1', 'Hole2', 'Hole3', 'Hole4', 'Boss1'], { timeout: 30_000 });
+    // Blocks from the interface name their features (usability U-22).
+    await expect(page.getByTestId('timeline-feature')).toHaveText(['Box1', 'Tapped hole M4 1', 'Tapped hole M4 2', 'Screw hole M3', 'Heat-set insert M3', 'Boss1'], { timeout: 30_000 });
     expect((await preview({ block: 'boss', body: 'Body1', point: [10, 10, 5], size: 'M3', diameter: 8, height: 5 })).ok).toBe(false);
     await page.screenshot({ path: test.info().outputPath('blocks.png') });
   } finally {
@@ -1897,7 +1899,7 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
       await apply(block);
     }
     for (const line of ['Text “PB”', 'Nut trap M2', 'Slot 6 mm', 'Lip 1.2 mm']) {
-      await expect(page.getByText(line)).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId('step-text').and(page.getByText(line, { exact: true }))).toBeVisible({ timeout: 30_000 });
     }
     await page.screenshot({ path: test.info().outputPath('blocks-sketched.png') });
 
