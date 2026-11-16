@@ -1295,6 +1295,7 @@ test('on an empty start page "Describe a part" opens a new project with the chat
     // The start page is no project: no name, no printer or print light in the bars.
     await expect(page.getByTestId('project-menu')).toHaveCount(0);
     await expect(page.getByTestId('material-chip')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('home-empty.png') });
     await home.getByTestId('home-describe').click();
     await expect(home).toHaveCount(0);
     await expect(page.getByTestId('design-name')).toHaveText('New part', { timeout: 30_000 });
