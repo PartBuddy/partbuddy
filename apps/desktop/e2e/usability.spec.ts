@@ -137,9 +137,11 @@ async function closeOverlays(page: Page): Promise<void> {
   }
 }
 
-/** The SolidCraft processes this test started (their command line names its control folder), ended hard. */
-function killSolidCraft(port: string): void {
-  execFileSync('pwsh', ['-NoProfile', '-Command', `Get-CimInstance Win32_Process -Filter "Name like 'solid%'" | Where-Object { $_.CommandLine -match '--control\s+${port}\b' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`]);
+/** The SolidCraft this test started, ended hard: the headless one names the test's work folder (`--allow-path`). */
+function killSolidCraft(work: string): void {
+  const command = `Get-CimInstance Win32_Process -Filter "Name like 'solid%'" | Where-Object { $_.CommandLine.Contains('${work.replace(/'/g, "''")}') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; $_.ProcessId }`;
+  const killed = execFileSync('pwsh', ['-NoProfile', '-Command', command], { encoding: 'utf8' });
+  if (!killed.trim()) throw new Error(`no SolidCraft for ${work} found`);
 }
 
 const RUNS = [
@@ -454,7 +456,7 @@ for (const run of RUNS) {
         await turnEnded(page);
       });
       await step('t7-solidcraft-crashed', async () => {
-        killSolidCraft(run.port);
+        killSolidCraft(work);
         await page.waitForTimeout(4000);
       });
       await step('t7-solidcraft-after-crash', async () => {
@@ -618,7 +620,7 @@ test('walkthrough: crash and Escape rechecks (de-narrow)', async () => {
     });
     await page.getByTestId('dialog-close').click().catch(() => undefined);
     await step('r4-crash-2s', async () => {
-      killSolidCraft('7955');
+      killSolidCraft(work);
       await page.waitForTimeout(2000);
     });
     await step('r5-crash-10s', () => page.waitForTimeout(8000));
