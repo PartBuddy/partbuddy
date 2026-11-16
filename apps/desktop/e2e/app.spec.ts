@@ -1219,6 +1219,19 @@ test('the settings open with Ctrl+comma, find every option by search and open on
     await expect(page.getByTestId('settings-assistant')).toHaveAttribute('aria-selected', 'true');
     await expect(dialog.locator('[data-setting="research"]')).toHaveAttribute('data-highlighted', 'true');
     await expect(dialog.getByTestId('research').getByRole('switch')).toBeFocused();
+
+    // Focused, the close button shows its tooltip; Escape still closes the settings (usability U-03).
+    await dialog.getByTestId('dialog-close').focus();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    // "?" outside a text field lists the shortcuts (U-20); in a field it is a character.
+    await page.getByTestId('composer').getByRole('textbox').first().focus();
+    await page.keyboard.press('Shift+Slash');
+    await expect(dialog).toHaveCount(0);
+    await page.getByTestId('composer').getByRole('textbox').first().fill('');
+    await page.getByTestId('settings').focus();
+    await page.keyboard.press('Shift+?');
+    await expect(page.getByTestId('settings-shortcuts')).toHaveAttribute('aria-selected', 'true');
   } finally {
     await launched?.close();
     launched = null;

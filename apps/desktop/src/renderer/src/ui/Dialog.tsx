@@ -1,5 +1,5 @@
 import { IconX } from '@tabler/icons-react';
-import { useContext } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { OverlayTriggerStateContext } from 'react-aria-components';
 
@@ -24,8 +24,22 @@ export const dialogTitleClass = 'text-lg font-semibold text-text';
 export function DialogClose({ onPress }: { onPress?: () => void }) {
   const { t } = useTranslation();
   const state = useContext(OverlayTriggerStateContext);
+  const button = useRef<HTMLButtonElement>(null);
+  const close = onPress ?? (() => state?.close());
+  // Focused, the button shows its tooltip, and React Aria's tooltip takes the Escape on the document in the capture
+  // phase: the dialog never saw it (usability U-03). The window hears it first.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || document.activeElement !== button.current) return;
+      event.stopPropagation();
+      if (onPress) onPress();
+      else state?.close();
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [onPress, state]);
   return (
-    <IconButton label={t('dialog.close')} shortcut="Esc" onPress={onPress ?? (() => state?.close())} data-testid="dialog-close">
+    <IconButton ref={button} label={t('dialog.close')} shortcut="Esc" onPress={close} data-testid="dialog-close">
       <IconX className="size-icon-sm" aria-hidden />
     </IconButton>
   );

@@ -28,6 +28,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: 'newProject', group: 'app', label: 'project.new', keys: [['ctrl', 'N']] },
   { id: 'openProject', group: 'app', label: 'settings.keys.openProject', keys: [['ctrl', 'O']] },
   { id: 'close', group: 'app', label: 'settings.keys.close', keys: [['esc']] },
+  { id: 'shortcuts', group: 'app', label: 'settings.keys.shortcuts', keys: [['?']] },
   { id: 'undo', group: 'design', label: 'actions.undo', keys: [['ctrl', 'Z']] },
   { id: 'redo', group: 'design', label: 'actions.redo', keys: [['ctrl', 'Y'], ['ctrl', 'shift', 'Z']] },
   { id: 'rotate', group: 'view', label: 'settings.keys.rotate', keys: [['drag']] },

@@ -1,5 +1,5 @@
 import { IconLoader2 } from '@tabler/icons-react';
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import {
   Button as AriaButton,
   ToggleButton as AriaToggleButton,
@@ -87,6 +87,7 @@ export function iconButtonClass(size: ButtonSize = 'sm', tone: 'quiet' | 'second
 }
 
 export interface IconButtonProps extends Omit<AriaButtonProps, 'className' | 'aria-label'> {
+  ref?: Ref<HTMLButtonElement>;
   /** Accessible name and tooltip; icon-only buttons always have both. */
   label: string;
   shortcut?: string;
