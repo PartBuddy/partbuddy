@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WebGPU probe</title>
+    <script>
+      const base = new URLSearchParams(location.search).get('three');
+      const map = { imports: { three: `${base}/build/three.module.js`, 'three/webgpu': `${base}/build/three.webgpu.js`, 'three/addons/': `${base}/examples/jsm/` } };
+      const element = document.createElement('script');
+      element.type = 'importmap';
+      element.textContent = JSON.stringify(map);
+      document.currentScript.after(element);
+    </script>
+  </head>
+  <body style="margin: 0">
+    <script type="module">
+      const FRAMES = 120;
+      const WIDTH = 1440;
+      const HEIGHT = 900;
+      const DPR = 1.5;
+
+      /** PartBuddy's view in short: the part, its edges, three lights, room light and a contact shadow. */
+      function build(THREE, RoomEnvironment, renderer) {
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf4f4f5);
+        const part = new THREE.TorusKnotGeometry(40, 12, 2400, 220);
+        const body = new THREE.Mesh(part, new THREE.MeshStandardMaterial({ color: 0xb8bcc4, roughness: 0.55, metalness: 0.05 }));
+        body.castShadow = true;
+        scene.add(body);
+        scene.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.TorusKnotGeometry(40, 12, 600, 60), 20), new THREE.LineBasicMaterial({ color: 0x27272a })));
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.ShadowMaterial({ opacity: 0.12 }));
+        floor.position.z = -60;
+        floor.receiveShadow = true;
+        scene.add(floor);
+        const key = new THREE.DirectionalLight(0xffffff, 0.85);
+        key.position.set(100, -150, 200);
+        const contact = new THREE.DirectionalLight(0xffffff, 0.35);
+        contact.position.set(0, 0, 300);
+        contact.castShadow = true;
+        contact.shadow.mapSize.set(1024, 1024);
+        Object.assign(contact.shadow.camera, { left: -80, right: 80, top: 80, bottom: -80, near: 50, far: 500 });
+        scene.add(key, contact, new THREE.HemisphereLight(0xffffff, 0x888888, 0.4));
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+        const camera = new THREE.PerspectiveCamera(35, WIDTH / HEIGHT, 0.5, 5000);
+        return { scene, camera, triangles: part.index.count / 3 };
+      }
+
+      function orbit(camera, i) {
+        const a = (i / FRAMES) * Math.PI * 2;
+        camera.position.set(Math.cos(a) * 260, Math.sin(a) * 260, 140);
+        camera.up.set(0, 0, 1);
+        camera.lookAt(0, 0, 0);
+      }
+
+      async function measure(kind) {
+        const THREE = kind === 'webgpu' ? await import('three/webgpu') : await import('three');
+        const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js');
+        const canvas = document.createElement('canvas');
+        document.body.append(canvas);
+        const renderer = kind === 'webgpu' ? new THREE.WebGPURenderer({ canvas, antialias: true }) : new THREE.WebGLRenderer({ canvas, antialias: true });
+        if (kind === 'webgpu') await renderer.init();
+        renderer.setPixelRatio(DPR);
+        renderer.setSize(WIDTH, HEIGHT);
+        renderer.shadowMap.enabled = true;
+        const { scene, camera, triangles } = build(THREE, RoomEnvironment, renderer);
+        const gl = kind === 'webgl' ? renderer.getContext() : null;
+        const device = kind === 'webgpu' ? renderer.backend.device : null;
+        // Waits until the GPU has drawn, so the time is the drawing and not only handing it over.
+        const finish = async () => {
+          if (gl) gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+          else await device.queue.onSubmittedWorkDone();
+        };
+        const frame = async (i) => {
+          orbit(camera, i);
+          if (kind === 'webgpu') await renderer.renderAsync(scene, camera);
+          else renderer.render(scene, camera);
+          await finish();
+        };
+        // Warm-up: shaders compiled and the shadow drawn before the clock runs.
+        for (let i = 0; i < 10; i += 1) await frame(i);
+        const times = [];
+        for (let i = 0; i < FRAMES; i += 1) {
+          const start = performance.now();
+          await frame(i);
+          times.push(performance.now() - start);
+        }
+        times.sort((a, b) => a - b);
+        const adapter = gl
+          ? gl.getParameter(gl.getExtension('WEBGL_debug_renderer_info').UNMASKED_RENDERER_WEBGL)
+          : `${device.adapterInfo?.vendor ?? ''} ${device.adapterInfo?.architecture ?? ''} ${device.adapterInfo?.description ?? ''}`.trim();
+        renderer.dispose();
+        canvas.remove();
+        const median = times[Math.floor(times.length / 2)];
+        return { adapter, triangles, medianMs: Math.round(median * 10) / 10, p95Ms: Math.round(times[Math.floor(times.length * 0.95)] * 10) / 10, fps: Math.round(1000 / median) };
+      }
+
+      window.probe = async () => {
+        const result = { size: `${WIDTH}x${HEIGHT} @${DPR}`, frames: FRAMES };
+        for (const kind of ['webgl', 'webgpu']) {
+          console.log(`measuring ${kind}`);
+          try {
+            result[kind] = await measure(kind);
+          } catch (error) {
+            result[kind] = { error: String(error) };
+          }
+        }
+        return result;
+      };
+    </script>
+  </body>
+</html>
