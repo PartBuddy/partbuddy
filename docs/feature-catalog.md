@@ -161,6 +161,7 @@ As planned: a level is shown only when its proof exists; higher levels never rep
 | Version comparison as geometric diff (added, removed, moved faces) | Review changes between part versions |
 | Photo overlay with SolidCraft `compare_picture` | Check outlines against a photo of the real object |
 | First-run setup that detects SolidCraft, OrcaSlicer and Blender and guides installation | External tools stay customer-installed (ADR 0007) |
+| OpenCode as an assistant route over ACP (#489; planned 2026-11-17, built next; checked 2026-11-16: `opencode acp` takes PartBuddy's MCP server per session and calls its tools, the shell has to be denied in its config) | Adds GitHub Copilot plans, every provider with an own API key (Gemini, OpenRouter, Mistral …) and OpenCode's free Zen models; one ACP route could serve later ACP agents too. The full package: if a free model hangs, that one does not work |
 
 ## Could
 
@@ -173,7 +174,6 @@ As planned: a level is shown only when its proof exists; higher levels never rep
 | Knowledge panel: rules with IDs behind each recommendation | Explains why the assistant suggests something |
 | Export snapshot as glTF with face IDs | Share a view state |
 | Local-only mode switch that disables every cloud provider | Strong privacy promise |
-| OpenCode as an assistant route over ACP (#489; checked 2026-11-16: `opencode acp` takes PartBuddy's MCP server per session and calls its tools, the shell has to be denied in its config) | Adds GitHub Copilot plans and free models; one ACP route could serve later ACP agents too. Candidate only: a further route to keep working with a fast-changing API (OpenCode 2 since 2026-10-12) |
 
 ## Won't (for now)
 
