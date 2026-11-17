@@ -768,9 +768,12 @@ export function AssistantPanel() {
         {t('assistant.title')}
       </h2>
       <div className="relative flex min-h-0 flex-1 flex-col">
+      {/* Above the list, not in it: a sign-in stays in reach however long the chat (issue #499). */}
+      <div className="flex shrink-0 flex-col px-3 pt-3 empty:hidden" data-testid="chat-setup">
+        <AssistantSetup />
+      </div>
       <div ref={list} {...handlers} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="chat-list">
       <div ref={content} className="cs-chat-list flex flex-col gap-2 p-3 pb-12">
-        <AssistantSetup />
         {items.length === 0 && (status.state === 'ready' || busy) ? (
           // A way in for an empty chat (polish round 1): examples fill the input, they do not send.
           <div className="flex flex-col gap-2 pt-4" data-testid="chat-start">

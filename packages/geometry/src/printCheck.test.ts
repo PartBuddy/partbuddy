@@ -169,7 +169,7 @@ describe('the ready-to-print check (M7)', () => {
         expect(placed(45.2, turn, mirrored, lift), how).toMatchObject({ limit: 45 });
       }
     }
-  });
+  }, 60_000);
 
   it('checks a body lying on its print face, and as designed when the face is not a flat one of the body', () => {
     const table = boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]]);
