@@ -36,7 +36,7 @@
     "fflate": "0.8.3",
     "i18next": "27.0.1",
     "i18next-icu": "2.7.0",
-    "intl-messageformat": "12.1.4",
+    "intl-messageformat": "12.1.5",
     "jose": "6.2.17",
     "ollama-ai-provider-v2": "4.1.0",
     "react": "19.3.1",
