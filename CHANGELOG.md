@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.7](https://github.com/PartBuddy/partbuddy/compare/v0.3.6...v0.3.7) (2026-11-17)
+
+
+### Bug Fixes
+
+* **deps:** update dependency ai to v7.0.166 ([#463](https://github.com/PartBuddy/partbuddy/issues/463)) ([939a9bf](https://github.com/PartBuddy/partbuddy/commit/939a9bf791075facb85f688fae161efbd71f7055))
+* **deps:** update dependency intl-messageformat to v12.1.5 ([#461](https://github.com/PartBuddy/partbuddy/issues/461)) ([245c522](https://github.com/PartBuddy/partbuddy/commit/245c522e53a086a35a6ba0121fecf3cdafb62bca))
+* **deps:** update dependency jose to v6.2.17 ([#462](https://github.com/PartBuddy/partbuddy/issues/462)) ([0d44002](https://github.com/PartBuddy/partbuddy/commit/0d440028ac1a41d79b8cfd6cd1bfc2f0a314b7d7))
+* **deps:** update dependency react-i18next to v18.0.1 ([#464](https://github.com/PartBuddy/partbuddy/issues/464)) ([54765cc](https://github.com/PartBuddy/partbuddy/commit/54765cc192a2da28e28bd23883364dfa3f672a13))
+* keep the sign-in above the chat so a long chat no longer hides it ([#501](https://github.com/PartBuddy/partbuddy/issues/501)) ([1bc14c1](https://github.com/PartBuddy/partbuddy/commit/1bc14c1b1b8c1c972317c40f6d475297ce834c33))
+
 ## [0.3.6](https://github.com/PartBuddy/partbuddy/compare/v0.3.5...v0.3.6) (2026-11-16)
 
 
