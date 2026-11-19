@@ -563,7 +563,8 @@ export const agentStatusSchema = z
     /** The effort in use; absent: the model's own default. */
     effort: effortName.optional(),
     /** What the plan offers, once read. */
-    models: z.array(modelOptionSchema).max(30).optional(),
+    // OpenCode with GitHub Copilot offered 50 (2026-11-19); a gateway such as OpenRouter offers hundreds, the list scrolls.
+    models: z.array(modelOptionSchema).max(200).optional(),
     /** The choice kept for new chats, when the user set one. */
     defaultChoice: modelChoiceSchema.optional(),
     /** The step the last or running turn worked in, and the model each step runs with in this chat (issue #446). */

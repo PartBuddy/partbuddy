@@ -4,7 +4,8 @@ import { join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { AgentEvent, AgentStatus, ModelChoice } from '../src/shared/contract';
+import { agentStatusSchema, type AgentEvent, type AgentStatus, type ModelChoice } from '../src/shared/contract';
+import { choiceStatus } from '../src/main/agents/modelChoice';
 import { AcpError, failureOf, modelsOfSession, TurnText } from '../src/main/agents/acp';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
 import { agentFile, findOpenCode, OpenCodeAgent, prepareFolder, supportedVersion, terminalSignIn } from '../src/main/agents/openCode';
@@ -51,6 +52,14 @@ describe('OpenCode route (issue 489)', () => {
       { id: 'effort', currentValue: 'high', options: [{ value: 'none' }, { value: 'high' }, { value: 'default' }] },
     ]);
     expect(read).toEqual({ models: [{ id: 'a/x', name: 'A X', efforts: ['none', 'high'] }, { id: 'b/y', name: 'b/y', efforts: [] }], current: 'a/x', effort: 'high' });
+  });
+
+  it('keeps all 50 models OpenCode offered with GitHub Copilot signed in, the free and local ones at the end (2026-11-19)', () => {
+    const options = Array.from({ length: 50 }, (_, i) => ({ value: i < 36 ? `github-copilot/m${String(i)}` : `opencode/free-${String(i)}` }));
+    const { models } = modelsOfSession([{ id: 'model', currentValue: 'github-copilot/m0', options }]);
+    const status = agentStatusSchema.parse({ agent: 'opencode', state: 'ready', ...choiceStatus(models, { model: 'opencode/free-49', effort: null }, null) });
+    expect(status.models).toHaveLength(50);
+    expect(status.model).toBe('opencode/free-49');
   });
 
   it('streams a message in chunks, gives each one whole, and parts messages as paragraphs', () => {
