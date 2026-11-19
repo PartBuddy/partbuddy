@@ -109,7 +109,9 @@ describe.runIf(process.env.REAL_OPENCODE === '1')('the OpenCode route against th
     const status = await route.refresh();
     expect(status.models?.map((option) => option.id), `${model} is not offered; sign in first`).toContain(model);
     await route.send('Call the inspect_design tool, then tell me in one sentence what the design holds.');
-    expect(await done()).toMatchObject({ ok: true });
+    const ended = await done();
+    // The reason in the message: a provider's refusal is the first thing to read.
+    expect(ended, JSON.stringify(ended)).toMatchObject({ ok: true });
     expect(calls).toContain('inspect_design');
   });
 });

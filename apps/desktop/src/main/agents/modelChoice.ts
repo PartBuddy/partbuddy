@@ -44,7 +44,7 @@ export function allowedChoice(options: readonly ModelOption[], choice: ModelChoi
 /** The fields of a route's status that show the choice. */
 export function choiceStatus(options: readonly ModelOption[] | null, current: ModelChoice | null, stored: ModelChoice | null) {
   return {
-    ...(options && options.length > 0 ? { models: options.slice(0, 30) } : {}),
+    ...(options && options.length > 0 ? { models: options.slice(0, 200) } : {}),
     ...(current ? { model: current.model } : {}),
     ...(current?.effort ? { effort: current.effort } : {}),
     ...(stored ? { defaultChoice: stored } : {}),
