@@ -23,7 +23,7 @@ export const CLAUDE_RESEARCH_TOOLS = ['WebSearch', 'WebFetch'] as const;
 
 const MAX_LINKS = 8;
 
-function webUrl(value: unknown): string | null {
+export function webUrl(value: unknown): string | null {
   if (typeof value !== 'string' || value.length > 2000) return null;
   try {
     const url = new URL(value);
@@ -107,6 +107,28 @@ export function sourceOfSearchResult(content: unknown): ResearchSource | null {
     }
   }
   return { kind: 'search', query: query.slice(0, 300), ...(links.length > 0 ? { links } : {}) };
+}
+
+/**
+ * The card of OpenCode's `websearch` or `webfetch` once it completed (over ACP, issue 489): the query or the address
+ * from its input, and a search's links from its answer, Markdown headings `## [title](url)` (OpenCode 2.3.2).
+ */
+export function sourceOfOpenCodeTool(name: unknown, input: unknown, content: unknown): ResearchSource | null {
+  const args = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>;
+  if (name === 'webfetch') {
+    const url = webUrl(args.url);
+    return url ? { kind: 'page', url } : null;
+  }
+  if (name !== 'websearch') return null;
+  const query = text(args.query, 300);
+  if (!query) return null;
+  const raw = Array.isArray(content) ? content.map((part) => (part as { content?: { text?: unknown } }).content?.text).filter((part): part is string => typeof part === 'string').join('\n') : '';
+  const links: { url: string; title: string }[] = [];
+  for (const match of raw.matchAll(/^##\s+\[(.+?)\]\((\S+?)\)\s*$/gm)) {
+    const url = webUrl(match[2]);
+    if (url && links.length < MAX_LINKS && !links.some((link) => link.url === url)) links.push({ url, title: linkTitle(match[1], url) });
+  }
+  return { kind: 'search', query, ...(links.length > 0 ? { links } : {}) };
 }
 
 /** A source the AI SDK reports for ChatGPT's web search. */

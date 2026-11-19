@@ -1,8 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
-import type { ModelOption } from '../../shared/contract';
+import type { ModelOption, ResearchSource } from '../../shared/contract';
 import type { TurnTokens } from './loop';
+import { sourceOfOpenCodeTool } from './research';
 
 /**
  * A client of the Agent Client Protocol (agentclientprotocol.com, version 1): newline-delimited JSON-RPC over the
@@ -175,7 +176,8 @@ export type AcpEvent =
   | { type: 'textDelta'; text: string }
   | { type: 'text'; text: string }
   | { type: 'context'; used: number; size: number; cost: number | null }
-  | { type: 'retry'; message: string };
+  | { type: 'retry'; message: string }
+  | { type: 'source'; source: ResearchSource };
 
 /**
  * The text of a turn, from `session/update` notifications: message chunks stream as deltas, and each message, once
@@ -186,6 +188,8 @@ export class TurnText {
   private message: string | null = null;
   private text = '';
   private any = false;
+  /** The agent's own tool calls by id: the name comes with the call, the input with an update, the result at its end. */
+  private readonly tools = new Map<string, { name: unknown; input: unknown }>();
 
   update(update: Record<string, unknown>): AcpEvent[] {
     switch (update.sessionUpdate) {
@@ -209,6 +213,20 @@ export class TurnText {
         const amount = (update.cost as { amount?: unknown } | undefined)?.amount;
         return [{ type: 'context', used, size, cost: typeof amount === 'number' && Number.isFinite(amount) && amount >= 0 ? amount : null }];
       }
+      case 'tool_call':
+      case 'tool_call_update': {
+        // Research (B7): OpenCode's web search and page reads become cards once they completed; PartBuddy's own tools
+        // come through the gate proxy and are reported there.
+        if (typeof update.toolCallId !== 'string') return [];
+        const call = this.tools.get(update.toolCallId) ?? { name: update.name, input: {} };
+        const input = update.rawInput;
+        if (typeof input === 'object' && input !== null && Object.keys(input).length > 0) call.input = input;
+        this.tools.set(update.toolCallId, call);
+        if (update.status !== 'completed' && update.status !== 'failed') return [];
+        this.tools.delete(update.toolCallId);
+        const source = update.status === 'completed' ? sourceOfOpenCodeTool(call.name, call.input, update.content) : null;
+        return source ? [{ type: 'source', source }] : [];
+      }
       case 'session_info_update': {
         // A failed model call OpenCode tries again (e.g. a provider's rate limit): logged, the turn goes on.
         const retry = (update._meta as Record<string, unknown> | undefined)?.['opencode/retry'] as { error?: { message?: unknown } } | null | undefined;
@@ -224,6 +242,7 @@ export class TurnText {
     const events = this.flush();
     this.message = null;
     this.any = false;
+    this.tools.clear();
     return events;
   }
 

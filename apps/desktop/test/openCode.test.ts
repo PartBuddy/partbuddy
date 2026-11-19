@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { AgentEvent, AgentStatus, ModelChoice } from '../src/shared/contract';
 import { AcpError, failureOf, modelsOfSession, TurnText } from '../src/main/agents/acp';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { agentFile, findOpenCode, OpenCodeAgent, supportedVersion } from '../src/main/agents/openCode';
+import { agentFile, findOpenCode, OpenCodeAgent, prepareFolder, supportedVersion } from '../src/main/agents/openCode';
 
 const cleanups: (() => unknown)[] = [];
 afterEach(async () => {
@@ -35,6 +35,16 @@ describe('OpenCode route (issue 489)', () => {
     expect(agentFile('ROLE', true)).toContain('action: "websearch", resource: "*", effect: allow');
   });
 
+  it('lets OpenCode pick a search provider for research and drops its search otherwise', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'partbuddy-opencode-folder-'));
+    cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+    prepareFolder(dir, 'AGENT', true);
+    expect(JSON.parse(readFileSync(join(dir, 'opencode.json'), 'utf8'))).toMatchObject({ default_agent: 'partbuddy', websearch: { provider: 'random' } });
+    prepareFolder(dir, 'AGENT', false);
+    expect(JSON.parse(readFileSync(join(dir, 'opencode.json'), 'utf8'))).toMatchObject({ websearch: false });
+    expect(readFileSync(join(dir, '.opencode', 'agents', 'partbuddy.md'), 'utf8')).toBe('AGENT');
+  });
+
   it('reads the models, and the efforts of the current one, from the session', () => {
     const read = modelsOfSession([
       { id: 'model', currentValue: 'a/x', options: [{ value: 'a/x', name: 'A X' }, { value: 'b/y' }] },
@@ -51,6 +61,38 @@ describe('OpenCode route (issue 489)', () => {
     expect(text.update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'hm' } })).toEqual([]);
     expect(chunk('m2', 'Next')).toEqual([{ type: 'text', text: 'Hello' }, { type: 'textDelta', text: '\n\n' }, { type: 'textDelta', text: 'Next' }]);
     expect(text.end()).toEqual([{ type: 'text', text: 'Next' }]);
+  });
+
+  it('makes cards of OpenCode\'s web search and page reads once they completed, not of failed ones (B7)', () => {
+    const text = new TurnText();
+    const call = (toolCallId: string, name: string) => text.update({ sessionUpdate: 'tool_call', toolCallId, name, title: name, kind: 'other', status: 'pending', rawInput: {} });
+    const update = (toolCallId: string, status: string, rawInput?: unknown, content?: unknown) => text.update({ sessionUpdate: 'tool_call_update', toolCallId, status, ...(rawInput ? { rawInput } : {}), ...(content ? { content } : {}) });
+    // As OpenCode 2.3.2 sends them (2026-11-19): the name with the call, the input with the first update, the result at the end.
+    expect(call('s1', 'websearch')).toEqual([]);
+    expect(update('s1', 'in_progress', { query: 'Ruthex M3 insert' })).toEqual([]);
+    const results = '## [Heat-set inserts: sizes](https://asked3d.com/guides/heat-set-inserts)\n\nAn M3 insert is 4.6 mm across.\n\n## [ruthex M3 (100 pieces) [RX]](https://amazon.com/dp/B08BCRZZS3)\n\nText';
+    expect(update('s1', 'completed', undefined, [{ type: 'content', content: { type: 'text', text: results } }])).toEqual([
+      {
+        type: 'source',
+        source: {
+          kind: 'search',
+          query: 'Ruthex M3 insert',
+          links: [
+            { url: 'https://asked3d.com/guides/heat-set-inserts', title: 'Heat-set inserts: sizes' },
+            { url: 'https://amazon.com/dp/B08BCRZZS3', title: 'ruthex M3 (100 pieces) [RX]' },
+          ],
+        },
+      },
+    ]);
+    call('f1', 'webfetch');
+    update('f1', 'in_progress', { url: 'https://www.ruthex.de/', format: 'markdown' });
+    expect(update('f1', 'completed', undefined, [{ type: 'content', content: { type: 'text', text: 'page' } }])).toEqual([{ type: 'source', source: { kind: 'page', url: 'https://www.ruthex.de/' } }]);
+    call('s2', 'websearch');
+    update('s2', 'in_progress', { query: 'nothing' });
+    expect(update('s2', 'failed', undefined, [{ type: 'content', content: { type: 'text', text: 'Web search cancelled' } }])).toEqual([]);
+    // PartBuddy's own tools are reported by the gate proxy.
+    call('p1', 'partbuddy_inspect_design');
+    expect(update('p1', 'completed', {})).toEqual([]);
   });
 
   it('names why a prompt failed', () => {
@@ -127,6 +169,14 @@ describe('OpenCode agent with a fake OpenCode', { timeout: 30_000 }, () => {
     await ended();
     expect(trace()).toContain('session/set_config_option model=github-copilot/gpt-9');
     expect(events.filter((event) => event.type === 'text').at(-1)).toEqual({ type: 'text', text: 'model github-copilot/gpt-9 effort default' });
+  });
+
+  it("shows OpenCode's web search as a card in the chat (B7)", async () => {
+    const { agent, events, ended } = setup();
+    await agent.refresh();
+    await agent.send('Research the insert');
+    await ended();
+    expect(events.filter((event) => event.type === 'source')).toEqual([{ type: 'source', source: { kind: 'search', query: 'M3 insert', links: [{ url: 'https://example.com/inserts', title: 'Inserts' }] } }]);
   });
 
   it('says when the free models are used up', async () => {
