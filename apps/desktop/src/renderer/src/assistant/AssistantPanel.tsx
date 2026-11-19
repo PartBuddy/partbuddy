@@ -409,11 +409,11 @@ function FailureCard({ item, retry }: { item: Extract<ConversationItem, { kind: 
   const otherRoute = detail === 'limit' && state.selected !== 'chatgpt' && (chatgpt?.state === 'ready' || chatgpt?.state === 'busy');
   const time = resetsAt === null ? null : new Intl.DateTimeFormat(i18n.language, { hour: '2-digit', minute: '2-digit' }).format(new Date(resetsAt));
   const reasonText =
-    detail === 'limit'
-      ? t(time ? 'assistant.failed.reason.limit' : 'assistant.failed.reason.limitLater', { time })
-      : // On OpenCode a provider wants a key or a sign-in of its own, not Claude Code's (issue 489).
-        detail === 'signedOut' && state.selected === 'opencode'
-        ? t('assistant.opencode.signedOut')
+    // On OpenCode the limit, the sign-in and the plan are a provider's, not Claude Code's (issue 489).
+    state.selected === 'opencode' && ['limit', 'signedOut', 'model'].includes(detail)
+      ? t(`assistant.opencode.${detail}`)
+      : detail === 'limit'
+        ? t(time ? 'assistant.failed.reason.limit' : 'assistant.failed.reason.limitLater', { time })
         : t(`assistant.failed.reason.${FAILURE_REASONS.has(detail) ? detail : 'other'}`);
   // The words of the program itself, for what has no plain text of its own.
   const raw = item.reason && !['signedOut', 'limit', 'offline', ROUNDS].includes(detail) ? item.reason : null;

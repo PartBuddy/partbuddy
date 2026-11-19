@@ -268,11 +268,13 @@ export function promptTokens(result: unknown): TurnTokens | null {
  * Why a prompt failed, for the chat (usability U-04, U-05): signed out, a plan's or the free models' limit, or no
  * connection. ACP's `auth_required` is error -32000; OpenCode names the free limit "provider.free-limit".
  */
-export function failureOf(error: Error): 'signedOut' | 'limit' | 'offline' | 'failed' {
+export function failureOf(error: Error): 'signedOut' | 'limit' | 'offline' | 'model' | 'failed' {
   const name = error instanceof AcpError ? error.kind : '';
   const code = error instanceof AcpError ? error.code : 0;
   if (code === -32000 || /auth/i.test(name) || /authenticat|api key|unauthori[sz]ed|\b401\b/i.test(error.message)) return 'signedOut';
   if (/limit|quota/i.test(name) || /limit reached|usage limit|rate.?limit|quota|\b429\b/i.test(error.message)) return 'limit';
+  // A model the account's plan does not serve: GitHub Copilot Free answers every chosen model so (2026-11-19).
+  if (/model is not supported|not available for integrator|model_not_supported/i.test(error.message)) return 'model';
   if (/connection|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|fetch failed|getaddrinfo|network/i.test(error.message)) return 'offline';
   return 'failed';
 }

@@ -121,6 +121,8 @@ describe('OpenCode route (issue 489)', () => {
     expect(failureOf(new AcpError('Free usage limit reached.', -32603, 'provider.free-limit'))).toBe('limit');
     expect(failureOf(new AcpError('Authentication required', -32000, ''))).toBe('signedOut');
     expect(failureOf(new Error('fetch failed'))).toBe('offline');
+    expect(failureOf(new AcpError('Internal error: The requested model is not supported.', -32603, ''))).toBe('model');
+    expect(failureOf(new AcpError('The requested model is not available for integrator "opencode".', -32603, ''))).toBe('model');
     expect(failureOf(new Error('boom'))).toBe('failed');
   });
 });
