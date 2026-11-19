@@ -1,5 +1,5 @@
-import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { execFile, spawn } from 'node:child_process';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 
 import type { AgentEvent, AgentStatus, ModelChoice, ModelOption, Phase, Selection } from '../../shared/contract';
@@ -94,8 +94,8 @@ export interface OpenCodeOptions {
   phases?: PhaseStore;
   research?: () => boolean;
   review?: TurnReview;
-  /** Opens OpenCode's own sign-in for providers (a terminal on the user's screen); tests replace it. */
-  startSignIn?: (opencode: AcpCommand) => ChildProcess;
+  /** Opens OpenCode's own sign-in for providers in a window of its own, resolving once it ended; tests replace it. */
+  startSignIn?: (opencode: AcpCommand) => Promise<void>;
   log(message: string): void;
 }
 
@@ -104,10 +104,65 @@ export interface OpenCodeListeners {
   event(event: AgentEvent): void;
 }
 
-/** `opencode auth login` in a console window of its own: it asks which provider, interactively. */
-function openSignIn(opencode: AcpCommand, env: NodeJS.ProcessEnv): ChildProcess {
-  // shortcut: a detached console program gets a window of its own on Windows only; macOS and Linux need a terminal started for it.
-  return spawn(opencode.command, [...opencode.prefix, 'auth', 'login'], { env, detached: true, stdio: 'ignore', windowsHide: false, shell: false });
+/** A word for `sh`, in single quotes. */
+const shellWord = (word: string) => `'${word.replace(/'/g, `'\\''`)}'`;
+
+/** Terminals of Linux desktops, in the order tried, with the arguments that run a command in them. */
+const LINUX_TERMINALS: [string, string[]][] = [
+  ['x-terminal-emulator', ['-e']],
+  ['gnome-terminal', ['--']],
+  ['konsole', ['-e']],
+  ['xfce4-terminal', ['-x']],
+  ['kitty', []],
+  ['alacritty', ['-e']],
+  ['xterm', ['-e']],
+];
+
+/**
+ * How to show `opencode auth login` in a terminal on macOS and Linux, where a console program gets no window of its own:
+ * Terminal.app through AppleScript, else the first terminal found on the PATH. The command leaves `marker` behind when
+ * the sign-in ended, since the terminal itself returns at once. Null without a terminal.
+ */
+export function terminalSignIn(opencode: AcpCommand, marker: string, platform: NodeJS.Platform, onPath: (name: string) => boolean): { command: string; args: string[] } | null {
+  const line = `${[opencode.command, ...opencode.prefix, 'auth', 'login'].map(shellWord).join(' ')}; : > ${shellWord(marker)}`;
+  if (platform === 'darwin') {
+    const script = line.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return { command: 'osascript', args: ['-e', `tell application "Terminal" to do script "${script}"`, '-e', 'tell application "Terminal" to activate'] };
+  }
+  const found = LINUX_TERMINALS.find(([name]) => onPath(name));
+  return found ? { command: found[0], args: [...found[1], 'sh', '-c', line] } : null;
+}
+
+/**
+ * `opencode auth login` in a window of its own, where it asks which provider, interactively; resolves once it ended.
+ * On Windows a console program started detached gets its own window; elsewhere a terminal runs it (`terminalSignIn`).
+ */
+function openSignIn(opencode: AcpCommand, env: NodeJS.ProcessEnv, workDir: string): Promise<void> {
+  if (process.platform === 'win32') {
+    const child = spawn(opencode.command, [...opencode.prefix, 'auth', 'login'], { env, detached: true, stdio: 'ignore', windowsHide: false, shell: false });
+    return new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('exit', () => resolve());
+    });
+  }
+  mkdirSync(workDir, { recursive: true });
+  const marker = join(workDir, `opencode-login-${String(Date.now())}.done`);
+  const onPath = (name: string) => (env.PATH ?? '').split(delimiter).some((dir) => dir !== '' && existsSync(join(dir, name)));
+  const terminal = terminalSignIn(opencode, marker, process.platform, onPath);
+  if (!terminal) return Promise.reject(new Error('no terminal found; run "opencode auth login" in one yourself, then press "Check again"'));
+  const child = spawn(terminal.command, terminal.args, { env, detached: true, stdio: 'ignore', shell: false });
+  child.unref();
+  return new Promise((resolve, reject) => {
+    child.once('error', reject);
+    // shortcut: the window may be closed before the sign-in ends; after 30 minutes PartBuddy stops waiting, "Check again" reads the models then.
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (!existsSync(marker) && Date.now() - started < 30 * 60_000) return;
+      clearInterval(timer);
+      rmSync(marker, { force: true });
+      resolve();
+    }, 2000);
+  });
 }
 
 /** One OpenCode process per app run; one ACP session per conversation, deleted when it ends (OpenCode keeps sessions). */
@@ -128,7 +183,7 @@ export class OpenCodeAgent implements AgentBackend {
   private context = { used: 0, size: 0 };
   private text = new TurnText();
   private stopping = false;
-  private login: ChildProcess | null = null;
+  private login: Promise<void> | null = null;
   private looking: Promise<AgentStatus> | null = null;
 
   constructor(
@@ -407,17 +462,25 @@ export class OpenCodeAgent implements AgentBackend {
   /** OpenCode's own sign-in, for a provider such as GitHub Copilot or an API key; the models are read again after it. */
   signIn(): void {
     if (!this.opencode) return;
-    if (this.login?.exitCode === null) this.login.kill();
+    // One window at a time: a second press while one is open does nothing.
+    if (this.login) return;
     this.options.log('OpenCode sign-in started');
-    const child = (this.options.startSignIn ?? ((opencode) => openSignIn(opencode, this.options.env)))(this.opencode);
-    this.login = child;
-    child.once('error', (error) => this.options.log(`Warning: OpenCode sign-in could not start: ${error.message}`));
-    child.once('exit', (code) => {
-      if (this.login === child) this.login = null;
-      this.options.log(`OpenCode sign-in ended (${code === null ? 'stopped' : `exit ${String(code)}`})`);
-      // A new provider brings its models; the process reads credentials as it starts.
-      this.models = null;
-      void this.restart();
+    const login = (this.options.startSignIn ?? ((opencode) => openSignIn(opencode, this.options.env, this.options.workDir)))(this.opencode);
+    this.login = login;
+    login.then(
+      () => {
+        this.options.log('OpenCode sign-in ended');
+        // A new provider brings its models; the process reads credentials as it starts.
+        this.models = null;
+        void this.restart();
+      },
+      (error: unknown) => {
+        const message = (error as Error).message;
+        this.options.log(`Warning: OpenCode sign-in could not start: ${message}`);
+        this.listeners.event({ type: 'error', message: `OpenCode sign-in could not start: ${message}`.slice(0, 500) });
+      },
+    ).finally(() => {
+      this.login = null;
     });
   }
 
