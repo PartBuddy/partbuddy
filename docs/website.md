@@ -19,6 +19,14 @@ facts, releases and pictures come from this repository; nothing is kept twice.
   no other workflows): the same, plus a `repository_dispatch` (`partbuddy-release`) that redeploys the
   website at once, plus the job `media`, which renders the screenshots and opens `site-sync/media`.
 
+**The "New in" card** on the homepage comes from a `## What's new` section in the newest release's
+notes. It is written by hand in `site/whats-new.md`, whose first line names the version (`<!-- v0.3.9 -->`).
+Before the release pull request is merged, update that file in a pull request of its own: bold titles, a
+sentence each, only what the release really brings, optionally `<!-- shot: name -->` for a picture from
+`src/assets/shots`. The job *Publish the release* puts the section into the draft's notes and refuses to
+publish while the file names another version; the release then stays a draft (installed apps see nothing)
+until the file is fixed on main and the job is re-run.
+
 Only what the app does today goes into `site/site-content.json`. Check a change before merging with
 `node tools/site-sync.mjs content ../partbuddy-web`, then `npm run build` there.
 

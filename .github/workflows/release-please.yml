@@ -53,6 +53,28 @@ jobs:
     permissions:
       contents: write
     steps:
+      # main, not the tag: after a refusal, a fixed site/whats-new.md on main lets the job re-run.
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      # The website shows its "New in" card only from a "## What's new" section (docs/website.md).
+      - name: Add the What's new section
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          f=site/whats-new.md
+          if [ "$(head -n 1 "$f")" != "<!-- $TAG -->" ]; then
+            echo "::error file=$f::$f is not written for $TAG. Write its What's new for $TAG, merge it to main, then re-run this job; the release stays a draft until then."
+            exit 1
+          fi
+          gh release view "$TAG" --json body --jq .body --repo "$GITHUB_REPOSITORY" > body.md
+          if ! grep -q "^## What's new" body.md; then
+            { head -n 1 body.md; echo; tail -n +2 "$f"; tail -n +2 body.md; } > notes.md
+            gh release edit "$TAG" --notes-file notes.md --repo "$GITHUB_REPOSITORY"
+          fi
       - name: Publish the draft
         env:
           GH_TOKEN: ${{ github.token }}
