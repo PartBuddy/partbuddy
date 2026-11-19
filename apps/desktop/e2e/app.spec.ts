@@ -1586,6 +1586,19 @@ test('the renderer sees only the typed bridge', async () => {
   expect(csp).not.toContain('unsafe-eval');
 });
 
+test('OpenCode is a route of its own, with its models and the way to connect a provider (issue 489)', async () => {
+  launched = await launchApp();
+  const { page } = launched;
+  await page.getByTestId('agent-status').click();
+  await page.getByTestId('agent-menu').getByText('OpenCode', { exact: true }).click();
+  // Ready without a sign-in: the free models need none.
+  await expect(page.getByTestId('agent-status')).toHaveText('OpenCode · opencode/Big Pickle', { timeout: 30_000 });
+  // The menu stays open after the choice.
+  await expect(page.getByTestId('agent-detail')).toContainText('OpenCode 2.3.2');
+  await expect(page.getByTestId('opencode-connect')).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('opencode-menu.png') });
+});
+
 test('the assistant shows the signed-in plan and needs SolidCraft', async () => {
   launched = await launchApp();
   const { page } = launched;

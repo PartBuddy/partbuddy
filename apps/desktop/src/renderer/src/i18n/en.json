@@ -216,6 +216,15 @@
         "busy": "Working",
         "notInstalled": "Not available",
         "needsSubscription": "Not available"
+      },
+      "opencode": {
+        "checking": "Looking for OpenCode",
+        "notInstalled": "OpenCode not installed",
+        "signedOut": "Not signed in to OpenCode",
+        "ready": "Ready",
+        "busy": "Working",
+        "unavailable": "OpenCode not available",
+        "needsSubscription": "Not available"
       }
     },
     "notInstalledTitle": "Claude Code is not installed",
@@ -250,7 +259,8 @@
     "routes": {
       "claude-code": "Claude Code",
       "chatgpt": "ChatGPT",
-      "local": "Local model"
+      "local": "Local model",
+      "opencode": "OpenCode"
     },
     "chatgpt": {
       "signedIn": "ChatGPT · {account} · {model}",
@@ -340,7 +350,8 @@
       "describe": {
         "claude-code": "Your Claude plan, through Claude Code",
         "chatgpt": "Your ChatGPT plan, signed in here",
-        "local": "A model on this computer (Ollama, LM Studio, llama.cpp, vLLM, Strata); nothing leaves it"
+        "local": "A model on this computer (Ollama, LM Studio, llama.cpp, vLLM, Strata); nothing leaves it",
+        "opencode": "Your OpenCode: GitHub Copilot, your own API key or free models"
       },
       "state": {
         "checking": "checking",
@@ -563,6 +574,13 @@
       "drop": "Discard",
       "send": "Send once the assistant is done",
       "sendHint": "Goes once the run ends"
+    },
+    "opencode": {
+      "ready": "OpenCode {version}",
+      "connect": "Connect a provider…",
+      "notInstalledTitle": "OpenCode is not installed",
+      "unavailableTitle": "OpenCode cannot be used",
+      "notInstalledBody": "Install OpenCode 2 from opencode.ai, then check again. Without a sign-in it offers free models; GitHub Copilot or your own API key you connect in OpenCode."
     }
   },
   "live": {

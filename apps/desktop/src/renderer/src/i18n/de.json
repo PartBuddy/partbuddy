@@ -216,6 +216,15 @@
         "busy": "Arbeitet",
         "notInstalled": "Nicht verfügbar",
         "needsSubscription": "Nicht verfügbar"
+      },
+      "opencode": {
+        "checking": "Suche OpenCode",
+        "notInstalled": "OpenCode nicht installiert",
+        "signedOut": "Bei OpenCode nicht angemeldet",
+        "ready": "Bereit",
+        "busy": "Arbeitet",
+        "unavailable": "OpenCode nicht verfügbar",
+        "needsSubscription": "Nicht verfügbar"
       }
     },
     "notInstalledTitle": "Claude Code ist nicht installiert",
@@ -250,7 +259,8 @@
     "routes": {
       "claude-code": "Claude Code",
       "chatgpt": "ChatGPT",
-      "local": "Lokales Modell"
+      "local": "Lokales Modell",
+      "opencode": "OpenCode"
     },
     "chatgpt": {
       "signedIn": "ChatGPT · {account} · {model}",
@@ -340,7 +350,8 @@
       "describe": {
         "claude-code": "Dein Claude-Abo, über Claude Code",
         "chatgpt": "Dein ChatGPT-Abo, hier angemeldet",
-        "local": "Ein Modell auf diesem Rechner (Ollama, LM Studio, llama.cpp, vLLM, Strata); nichts verlässt ihn"
+        "local": "Ein Modell auf diesem Rechner (Ollama, LM Studio, llama.cpp, vLLM, Strata); nichts verlässt ihn",
+        "opencode": "Dein OpenCode: GitHub Copilot, eigener API-Schlüssel oder freie Modelle"
       },
       "state": {
         "checking": "wird geprüft",
@@ -563,6 +574,13 @@
       "drop": "Verwerfen",
       "send": "Senden, sobald der Assistent fertig ist",
       "sendHint": "Geht raus, sobald der Lauf endet"
+    },
+    "opencode": {
+      "ready": "OpenCode {version}",
+      "connect": "Anbieter verbinden …",
+      "notInstalledTitle": "OpenCode ist nicht installiert",
+      "unavailableTitle": "OpenCode lässt sich nicht nutzen",
+      "notInstalledBody": "Installiere OpenCode 2 von opencode.ai und prüfe dann erneut. Ohne Anmeldung bietet es freie Modelle; GitHub Copilot oder einen eigenen API-Schlüssel verbindest du in OpenCode."
     }
   },
   "live": {

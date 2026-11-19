@@ -14,7 +14,7 @@ import { popoverPanelClass } from '../ui/Overlay';
 type T = ReturnType<typeof useTranslation>['t'];
 type Tone = 'success' | 'neutral' | 'warning';
 
-const ROUTES: AgentKind[] = ['claude-code', 'chatgpt', 'local'];
+const ROUTES: AgentKind[] = ['claude-code', 'chatgpt', 'local', 'opencode'];
 const CHATGPT_USAGE = 'https://chatgpt.com/settings/usage';
 
 function signedIn(status: AgentStatus): boolean {
@@ -35,6 +35,7 @@ function toneOf(status: AgentStatus): Tone {
 export function statusLabel(t: T, status: AgentStatus): string {
   if (!signedIn(status)) return t(`assistant.state.${status.agent}.${status.state}`);
   if (status.agent === 'chatgpt') return t('assistant.chatgpt.signedIn', { account: status.account ?? '', model: status.model ?? '' });
+  if (status.agent === 'opencode') return t('assistant.opencode.ready', { version: status.version ?? '' });
   if (status.agent === 'local') return t('assistant.local.ready', { server: `${status.account ?? ''} ${status.version ?? ''}`.trim(), model: status.models?.find((model) => model.id === status.model)?.name ?? status.model ?? '' });
   // Not the plan's name: Claude Code reports an Ultra plan as "max" (seen 2026-11-06).
   const plan = status.method === 'claude.ai' ? t('assistant.plan') : t('assistant.apiKey');
@@ -246,7 +247,7 @@ export function AssistantChoice({ setup = false }: { setup?: boolean }) {
         aria-label={t('assistant.route')}
         value={state.selected}
         onChange={(key) => {
-          if (key === 'claude-code' || key === 'chatgpt' || key === 'local') void api.select(key);
+          if (ROUTES.includes(key as AgentKind)) void api.select(key as AgentKind);
         }}
         className="flex flex-col gap-1"
       >
@@ -327,6 +328,18 @@ export function AssistantChoice({ setup = false }: { setup?: boolean }) {
               }}
             >
               {t('assistant.chatgpt.signOut')}
+            </AriaButton>
+          ) : null}
+          {status.agent === 'opencode' && signedIn(status) ? (
+            // OpenCode's own sign-in in a window of its own: GitHub Copilot, an API key or OpenCode Zen (issue #489).
+            <AriaButton
+              className={linkButton}
+              onPress={() => {
+                void api.signIn();
+              }}
+              data-testid="opencode-connect"
+            >
+              {t('assistant.opencode.connect')}
             </AriaButton>
           ) : null}
         </div>

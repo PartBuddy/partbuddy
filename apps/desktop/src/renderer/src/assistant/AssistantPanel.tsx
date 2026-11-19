@@ -105,6 +105,17 @@ export function AssistantSetup() {
       {t('assistant.refresh')}
     </Button>
   );
+  if (status.agent === 'opencode') {
+    if (status.state === 'checking') return <Busy label={t('assistant.state.opencode.checking')} />;
+    if (status.state === 'notInstalled' || status.state === 'unavailable') {
+      return (
+        <Notice icon={IconDownload} title={t(`assistant.opencode.${status.state}Title`)} body={status.detail ?? t('assistant.opencode.notInstalledBody')}>
+          {refresh}
+        </Notice>
+      );
+    }
+    return null;
+  }
   if (status.agent === 'local') {
     if (status.state === 'checking') return <Busy label={t('assistant.state.local.checking')} />;
     if (status.state === 'unavailable') {
