@@ -833,7 +833,7 @@ export class SolidCraftSupervisor {
     const block = await this.boldBlock(given);
     return this.trial('block preview', async () => {
       const placed = await this.centredBlock(block);
-      const { steps, unmeasured } = await this.actions.blockSteps(placed, undefined, (line) => this.options.log(line), printer);
+      const { steps, unmeasured } = await this.actions.blockSteps(placed, await this.sketchOf(placed), (line) => this.options.log(line), printer);
       // A snap fit's root radius, tried on its own: the form says when it comes out smaller or not at all (review of BC-17 S4).
       const root = placed.block === 'snapFit' ? { applied: await this.actions.rootOf(placed, steps), wanted: snapRoot(placed) } : undefined;
       const preview = await this.actions.previewSteps(placed.block === 'snapFit' && root?.applied ? [...steps, ...rootFillet(placed)] : steps, blockBodies(placed));
@@ -842,6 +842,13 @@ export class SolidCraftSupervisor {
       // A cut whose reach could not be measured goes through all: the panel says so (audit W2).
       return preview.ok ? { ...preview, ...(unmeasured ? { unmeasured: true as const } : {}), ...(root ? { root } : {}) } : preview;
     });
+  }
+
+  /** A logo's or text's sketch name, one no other has: it can be moved on its own later, and SolidCraft 0.44 refuses a name twice. */
+  private async sketchOf(block: FeatureBlock): Promise<string | undefined> {
+    if (block.block === 'logo') return uniqueLogoName(block.name, await this.actions.sketchNames());
+    if (block.block === 'text') return uniqueLogoName(block.text, await this.actions.sketchNames(), TEXT_PREFIX);
+    return undefined;
   }
 
   /** A logo "on the face's middle": its point moved there before it is built, so the ghost shows it there too. */
@@ -862,9 +869,7 @@ export class SolidCraftSupervisor {
   async applyBlock(given: FeatureBlock, printer?: ToolPrinter, name?: string): Promise<{ rootSharp: true } | null> {
     let block = await this.boldBlock(given);
     await this.probing;
-    // A logo's sketches get a name no other logo has, so it can be moved on its own later.
-    const sketch =
-      block.block === 'logo' ? uniqueLogoName(block.name, await this.actions.sketchNames()) : block.block === 'text' ? uniqueLogoName(block.text, await this.actions.sketchNames(), TEXT_PREFIX) : undefined;
+    const sketch = await this.sketchOf(block);
     block = await this.centredBlock(block);
     const { steps: built } = await this.actions.blockSteps(block, sketch, (line) => this.options.log(line), printer);
     // A block from the interface gets readable feature names, as the assistant's do ("Hole1" otherwise; usability U-22).

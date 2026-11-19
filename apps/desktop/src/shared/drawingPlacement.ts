@@ -33,7 +33,7 @@ export function logoBase(name: string): string {
   return (name.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'Logo').slice(0, 60);
 }
 
-/** The sketch name of a new logo: SolidCraft allows a name twice, so a second "Badge" becomes "SVG-Logo Badge 2". */
+/** The sketch name of a new logo: a second "Badge" becomes "SVG-Logo Badge 2", since SolidCraft 0.44 refuses a name twice. */
 export function uniqueLogoName(name: string, taken: readonly string[], prefix = LOGO_PREFIX): string {
   const first = `${prefix}${logoBase(name)}`;
   if (!taken.includes(first)) return first;
@@ -80,6 +80,12 @@ export interface PlacedSketch {
 const isVec3 = (value: unknown): value is Vec3 => Array.isArray(value) && value.length === 3 && value.every((entry) => typeof entry === 'number' && Number.isFinite(entry));
 
 /** The logos in a `document.inspect` / `inspect_design` result: each name with its sketches. */
+/**
+ * The logo a sketch belongs to: a logo in colours has a sketch per piece, the first named as the logo, the others "… #2" and on
+ * (SolidCraft 0.44 refuses a feature name twice; `logoBase` keeps "#" out of the names). Older designs repeat the name.
+ */
+export const logoOfSketch = (name: string) => name.replace(/ #\d+$/, '');
+
 export function placedLogos(inspect: unknown): Map<string, PlacedSketch[]> {
   const logos = new Map<string, PlacedSketch[]>();
   const sketches = (inspect as { sketches?: unknown } | null)?.sketches;
@@ -87,9 +93,9 @@ export function placedLogos(inspect: unknown): Map<string, PlacedSketch[]> {
     const plane = entry.plane as Record<string, unknown> | undefined;
     if (typeof entry.name !== 'string' || !isPlacedName(entry.name) || !Number.isInteger(entry.id)) continue;
     if (!plane || !isVec3(plane.origin) || !isVec3(plane.x_dir) || !isVec3(plane.y_dir)) continue;
-    const list = logos.get(entry.name) ?? [];
+    const list = logos.get(logoOfSketch(entry.name)) ?? [];
     list.push({ id: entry.id as number, name: entry.name, plane: { origin: plane.origin, x_dir: plane.x_dir, y_dir: plane.y_dir } });
-    logos.set(entry.name, list);
+    logos.set(logoOfSketch(entry.name), list);
   }
   return logos;
 }

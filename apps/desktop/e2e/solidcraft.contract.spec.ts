@@ -683,12 +683,15 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     await expect(card.getByRole('button', { name: 'Build' })).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('plan-approved.png') });
     // While the assistant works, Stop takes Send's place and the chip keeps its name (it shrank to a dot beside both).
+    // Its width before, not a fixed one: "Opus 9" is under 100 px (SolidCraft 0.44.1 run, 2026-11-19), a dot about 24.
+    const idle = (await page.getByTestId('agent-status').boundingBox())?.width ?? 0;
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Take your time');
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Send' })).toHaveCount(0);
     const chip = await page.getByTestId('agent-status').boundingBox();
-    expect(chip?.width ?? 0).toBeGreaterThan(120);
+    expect(idle).toBeGreaterThan(60);
+    expect(chip?.width ?? 0).toBeGreaterThanOrEqual(idle - 1);
     await page.screenshot({ path: test.info().outputPath('composer-busy.png') });
     // A message written meanwhile waits and goes once the run ends (decided 2026-11-10).
     await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('What about the holes?');
