@@ -3,6 +3,8 @@
   "worksWith": [
     "Claude Code",
     "ChatGPT",
+    "OpenCode",
+    "GitHub Copilot",
     "Ollama",
     "LM Studio",
     "vLLM",
@@ -239,7 +241,7 @@
     },
     {
       "title": "Your model, your choice",
-      "text": "Use your Claude or ChatGPT subscription, or keep everything on your machine with a local model."
+      "text": "Use your Claude or ChatGPT subscription, GitHub Copilot (Pro or higher) or your own API key through OpenCode, or keep everything on your machine with a local model."
     }
   ],
   "models": {
@@ -255,6 +257,7 @@
   "roadmap": {
     "today": [
       "Design with an assistant in real CAD",
+      "OpenCode as a fourth route: GitHub Copilot (Pro or higher), your own API keys, or the free Zen models with their small shared limit",
       "Sketches, photos and research as input",
       "Print check and slicer hand-off",
       "English and German, installer with update checks",
