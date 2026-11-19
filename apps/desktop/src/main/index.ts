@@ -41,6 +41,7 @@ import { blockPhrase, describeUserAction } from '../shared/stepPhrases';
 import { ChatGptAccount } from './chatgpt/account';
 import { ChatGptAgent } from './chatgpt/chatgptAgent';
 import { LocalAgent } from './local/localAgent';
+import { OpenCodeAgent } from './agents/openCode';
 import { hostId } from './chatgpt/oauth';
 import { SecretStore } from './credentials/secretStore';
 import { loadNoteKey } from './notes/noteRecord';
@@ -763,7 +764,12 @@ if (!app.requestSingleInstanceLock()) {
       ...(process.env.PARTBUDDY_OLLAMA_URL ? { url: process.env.PARTBUDDY_OLLAMA_URL } : {}),
       ...(process.env.PARTBUDDY_STRATA_URL ? { strataUrl: process.env.PARTBUDDY_STRATA_URL } : {}),
     });
-    assistant = new Assistant({ 'claude-code': claude, chatgpt, local }, (state) => {
+    // OpenCode (issue #489): its own folder beside Claude Code's; PARTBUDDY_OPENCODE_COMMAND points tests at a double.
+    const opencode = new OpenCodeAgent(
+      { env: process.env, home: homedir(), workDir: join(app.getPath('userData'), 'agent'), tools, choices: assistantSettings, phases: assistantSettings, research: () => assistantSettings.webResearch(), review, log },
+      { status: changed, event: emitEvent },
+    );
+    assistant = new Assistant({ 'claude-code': claude, chatgpt, local, opencode }, (state) => {
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentStatus, state);
     });
     const agent = assistant;

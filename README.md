@@ -32,7 +32,8 @@ PartBuddy 0.1.0 is the first preview, for Windows 10 and 11.
    (`SolidCraft-0.44.1-windows-x64.exe`). PartBuddy needs 0.40.1 or newer; older versions,
    the 0.40.0 pre-releases included, are refused.
 3. **An assistant:** your Claude subscription through [Claude Code](https://claude.com/claude-code),
-   your ChatGPT subscription, or a local model. The first start walks you through all three steps.
+   your ChatGPT subscription, a local model, or [OpenCode 2](https://opencode.ai) with GitHub Copilot,
+   your own API key or its free models. The first start walks you through all three steps.
 
 ## What it does
 

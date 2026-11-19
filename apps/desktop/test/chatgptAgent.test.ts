@@ -289,8 +289,9 @@ describe('assistant routes', () => {
     const claude = backend('claude-code');
     const chatgpt = backend('chatgpt');
     const local = backend('local');
+    const opencode = backend('opencode');
     const states: unknown[] = [];
-    const assistant = new Assistant({ 'claude-code': claude.route, chatgpt: chatgpt.route, local: local.route }, (state) => states.push(state));
+    const assistant = new Assistant({ 'claude-code': claude.route, chatgpt: chatgpt.route, local: local.route, opencode: opencode.route }, (state) => states.push(state));
     await assistant.send('a');
     const state = await assistant.select('chatgpt');
     await assistant.send('b');
@@ -301,7 +302,7 @@ describe('assistant routes', () => {
     await assistant.select('chatgpt');
     expect(chatgpt.calls.filter((call) => call === 'refresh')).toHaveLength(1);
     expect(state.selected).toBe('chatgpt');
-    expect(state.agents.map((a) => a.agent)).toEqual(['claude-code', 'chatgpt', 'local']);
+    expect(state.agents.map((a) => a.agent)).toEqual(['claude-code', 'chatgpt', 'local', 'opencode']);
     expect(states.length).toBeGreaterThan(0);
   });
 });

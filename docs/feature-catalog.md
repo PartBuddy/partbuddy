@@ -161,7 +161,7 @@ As planned: a level is shown only when its proof exists; higher levels never rep
 | Version comparison as geometric diff (added, removed, moved faces) | Review changes between part versions |
 | Photo overlay with SolidCraft `compare_picture` | Check outlines against a photo of the real object |
 | First-run setup that detects SolidCraft, OrcaSlicer and Blender and guides installation | External tools stay customer-installed (ADR 0007) |
-| OpenCode as an assistant route over ACP (#489; planned 2026-11-17, built next; checked 2026-11-16: `opencode acp` takes PartBuddy's MCP server per session and calls its tools, the shell has to be denied in its config) | Adds GitHub Copilot plans, every provider with an own API key (Gemini, OpenRouter, Mistral …) and OpenCode's free Zen models; one ACP route could serve later ACP agents too. The full package: if a free model hangs, that one does not work |
+| OpenCode as an assistant route over ACP (#489, built 2026-11-19) | The route "OpenCode" runs the user's OpenCode 2 (`opencode acp`) from a private folder with PartBuddy's own agent: PartBuddy's role as its system prompt, every OpenCode tool denied but PartBuddy's gate proxy (and the web for research); OpenCode 1 reads another configuration and is refused. Models and efforts come from the session; providers (GitHub Copilot, API keys, OpenCode Zen) are connected in OpenCode's own sign-in, which "Connect a provider…" opens. Chats are deleted from OpenCode's history when they end. The free Zen models share one small limit (reached after a single request on 2026-11-19); PartBuddy says so in the chat. Checked for real with OpenCode 2.3.2 and a local Qwen model with 32K context (Ollama's default 2K cut the prompt off) |
 
 ## Could
 

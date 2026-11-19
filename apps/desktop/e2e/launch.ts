@@ -53,6 +53,8 @@ export async function launchApp(
     // Beside all displays, without focus or taskbar button: tests never disturb the developer.
     // PARTBUDDY_WINDOW_DISPLAY=leftmost shows the window on purpose.
     PARTBUDDY_WINDOW_DISPLAY: process.env.PARTBUDDY_WINDOW_DISPLAY === 'leftmost' ? 'leftmost' : 'offscreen',
+    // A fake OpenCode always: the app reads every route's models at its start, and a real OpenCode would start with it.
+    PARTBUDDY_OPENCODE_COMMAND: JSON.stringify([process.execPath, join(appDir, 'test', 'fakeOpenCode.mjs')]),
     ...(isolated
       ? {
           SOLIDCRAFT_CONTROL_DIR: controlDir,
