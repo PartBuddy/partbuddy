@@ -580,7 +580,8 @@
       "connect": "Connect a provider…",
       "notInstalledTitle": "OpenCode is not installed",
       "unavailableTitle": "OpenCode cannot be used",
-      "notInstalledBody": "Install OpenCode 2 from opencode.ai, then check again. Without a sign-in it offers free models; GitHub Copilot or your own API key you connect in OpenCode."
+      "notInstalledBody": "Install OpenCode 2 from opencode.ai, then check again. Without a sign-in it offers free models; GitHub Copilot or your own API key you connect in OpenCode.",
+      "signedOut": "The model's provider wants a sign-in or a valid API key. Connect it in OpenCode, then send the message again."
     }
   },
   "live": {

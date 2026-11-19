@@ -411,7 +411,10 @@ function FailureCard({ item, retry }: { item: Extract<ConversationItem, { kind: 
   const reasonText =
     detail === 'limit'
       ? t(time ? 'assistant.failed.reason.limit' : 'assistant.failed.reason.limitLater', { time })
-      : t(`assistant.failed.reason.${FAILURE_REASONS.has(detail) ? detail : 'other'}`);
+      : // On OpenCode a provider wants a key or a sign-in of its own, not Claude Code's (issue 489).
+        detail === 'signedOut' && state.selected === 'opencode'
+        ? t('assistant.opencode.signedOut')
+        : t(`assistant.failed.reason.${FAILURE_REASONS.has(detail) ? detail : 'other'}`);
   // The words of the program itself, for what has no plain text of its own.
   const raw = item.reason && !['signedOut', 'limit', 'offline', ROUNDS].includes(detail) ? item.reason : null;
   return (
@@ -436,7 +439,7 @@ function FailureCard({ item, retry }: { item: Extract<ConversationItem, { kind: 
           data-testid="turn-sign-in"
         >
           <IconLogin className="size-icon-sm" aria-hidden />
-          {t('assistant.signIn')}
+          {t(state.selected === 'opencode' ? 'assistant.opencode.connect' : 'assistant.signIn')}
         </Button>
       ) : null}
       {otherRoute ? (
