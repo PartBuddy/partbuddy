@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { AgentEvent, AgentStatus, ModelChoice } from '../src/shared/contract';
 import { AcpError, failureOf, modelsOfSession, TurnText } from '../src/main/agents/acp';
 import type { UpstreamTools } from '../src/main/agents/gateProxy';
-import { agentFile, findOpenCode, OpenCodeAgent, prepareFolder, supportedVersion } from '../src/main/agents/openCode';
+import { agentFile, findOpenCode, OpenCodeAgent, prepareFolder, supportedVersion, terminalSignIn } from '../src/main/agents/openCode';
 
 const cleanups: (() => unknown)[] = [];
 afterEach(async () => {
@@ -95,6 +95,19 @@ describe('OpenCode route (issue 489)', () => {
     expect(update('p1', 'completed', {})).toEqual([]);
   });
 
+  it('opens the sign-in in a terminal on macOS and Linux, leaving a marker once it ended', () => {
+    const opencode = { command: "OPEN CODE/it's", prefix: [] };
+    const mac = terminalSignIn(opencode, 'MARK', 'darwin', () => false);
+    // AppleScript gets the shell line with its quotes escaped; the path with a space and a quote stays one word.
+    expect(mac).toEqual({
+      command: 'osascript',
+      args: ['-e', String.raw`tell application "Terminal" to do script "'OPEN CODE/it'\\''s' 'auth' 'login'; : > 'MARK'"`, '-e', 'tell application "Terminal" to activate'],
+    });
+    const linux = terminalSignIn(opencode, 'MARK', 'linux', (name) => name === 'gnome-terminal' || name === 'xterm');
+    expect(linux).toEqual({ command: 'gnome-terminal', args: ['--', 'sh', '-c', String.raw`'OPEN CODE/it'\''s' 'auth' 'login'; : > 'MARK'`] });
+    expect(terminalSignIn(opencode, 'MARK', 'linux', () => false)).toBeNull();
+  });
+
   it('names why a prompt failed', () => {
     expect(failureOf(new AcpError('Free usage limit reached.', -32603, 'provider.free-limit'))).toBe('limit');
     expect(failureOf(new AcpError('Authentication required', -32000, ''))).toBe('signedOut');
@@ -104,7 +117,7 @@ describe('OpenCode route (issue 489)', () => {
 });
 
 describe('OpenCode agent with a fake OpenCode', { timeout: 30_000 }, () => {
-  function setup(env: Record<string, string> = {}) {
+  function setup(env: Record<string, string> = {}, startSignIn?: () => Promise<void>) {
     const workDir = mkdtempSync(join(tmpdir(), 'partbuddy-opencode-'));
     const traceFile = join(workDir, 'trace');
     const calls: string[] = [];
@@ -127,6 +140,7 @@ describe('OpenCode agent with a fake OpenCode', { timeout: 30_000 }, () => {
         tools: () => Promise.resolve(upstream),
         choices: { get: () => kept.choice, set: (_route, choice) => (kept.choice = choice) },
         log: () => undefined,
+        ...(startSignIn ? { startSignIn } : {}),
       },
       { status: (status) => statuses.push(status), event: (event) => events.push(event) },
     );
@@ -177,6 +191,31 @@ describe('OpenCode agent with a fake OpenCode', { timeout: 30_000 }, () => {
     await agent.send('Research the insert');
     await ended();
     expect(events.filter((event) => event.type === 'source')).toEqual([{ type: 'source', source: { kind: 'search', query: 'M3 insert', links: [{ url: 'https://example.com/inserts', title: 'Inserts' }] } }]);
+  });
+
+  it('reads the models again after a sign-in, and says when none could open', async () => {
+    const opened: string[] = [];
+    let finish: () => void = () => undefined;
+    const { agent, events, trace } = setup({}, () => {
+      opened.push('window');
+      return new Promise<void>((resolve) => (finish = resolve));
+    });
+    await agent.refresh();
+    agent.signIn();
+    // A second press while the window is open opens none.
+    agent.signIn();
+    expect(opened).toEqual(['window']);
+    const starts = trace().filter((line) => line === 'initialize').length;
+    finish();
+    for (let i = 0; i < 100 && trace().filter((line) => line === 'initialize').length === starts; i++) await new Promise((done) => setTimeout(done, 50));
+    // OpenCode was started again, so it reads the new provider's credentials and models.
+    expect(trace().filter((line) => line === 'initialize').length).toBe(starts + 1);
+    const failing = setup({}, () => Promise.reject(new Error('no terminal found')));
+    await failing.agent.refresh();
+    failing.agent.signIn();
+    await new Promise((done) => setTimeout(done, 50));
+    expect(failing.events).toContainEqual({ type: 'error', message: 'OpenCode sign-in could not start: no terminal found' });
+    expect(events.some((event) => event.type === 'error')).toBe(false);
   });
 
   it('says when the free models are used up', async () => {
