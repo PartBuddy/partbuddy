@@ -76,10 +76,12 @@ export function agentFile(role: string, research: boolean): string {
 }
 
 /** Writes PartBuddy's agent and makes it the folder's default; the folder holds nothing else. */
-export function prepareFolder(dir: string, agent: string): void {
+export function prepareFolder(dir: string, agent: string, research: boolean): void {
   mkdirSync(join(dir, '.opencode', 'agents'), { recursive: true });
   writeFileSync(join(dir, '.opencode', 'agents', 'partbuddy.md'), agent, 'utf8');
-  writeFileSync(join(dir, 'opencode.json'), JSON.stringify({ $schema: 'https://opencode.ai/config.json', default_agent: 'partbuddy' }), 'utf8');
+  // Web search asks for its provider at first use, a question PartBuddy refuses over ACP ("Web search cancelled",
+  // 2026-11-19): OpenCode picks an available one itself (TinyFish needs no key); without research the tool is gone.
+  writeFileSync(join(dir, 'opencode.json'), JSON.stringify({ $schema: 'https://opencode.ai/config.json', default_agent: 'partbuddy', websearch: research ? { provider: 'random' } : false }), 'utf8');
 }
 
 export interface OpenCodeOptions {
@@ -207,7 +209,7 @@ export class OpenCodeAgent implements AgentBackend {
     if (this.connection?.running && agent === this.agent) return this.connection;
     if (!this.opencode) throw new Error('OpenCode is not installed');
     await this.connection?.stop();
-    prepareFolder(this.folder, agent);
+    prepareFolder(this.folder, agent, this.options.research?.() ?? false);
     this.agent = agent;
     const connection = new AcpConnection(this.opencode, ['acp'], { cwd: this.folder, env: this.options.env, log: (message) => this.options.log(message) });
     connection.onUpdate((params) => {

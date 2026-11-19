@@ -63,6 +63,15 @@ if (args.includes('--version')) {
         out({ id, error: { code: -32603, message: 'Internal error: Free usage limit reached. Connect a provider or subscribe to OpenCode Go to keep going, or switch models.', data: { errorName: 'provider.free-limit' } } });
         continue;
       }
+      // "Research": OpenCode's own web search, as 2.3.2 reports it over ACP.
+      if (text.includes('Research')) {
+        update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call_s1', name: 'websearch', title: 'websearch', kind: 'other', status: 'pending', rawInput: {} });
+        update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call_s1', status: 'in_progress', rawInput: { query: 'M3 insert' } });
+        update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call_s1', status: 'completed', content: [{ type: 'content', content: { type: 'text', text: '## [Inserts](https://example.com/inserts)\n\n4.6 mm' } }] });
+        update(sessionId, { sessionUpdate: 'agent_message_chunk', messageId: 'm0', content: { type: 'text', text: '4.6 mm, per example.com.' } });
+        out({ id, result: { stopReason: 'end_turn' } });
+        continue;
+      }
       if (text.includes('Which model')) {
         update(sessionId, { sessionUpdate: 'agent_message_chunk', messageId: 'm0', content: { type: 'text', text: `model ${model} effort ${effort}` } });
         out({ id, result: { stopReason: 'end_turn' } });
