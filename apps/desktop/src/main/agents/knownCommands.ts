@@ -24,11 +24,13 @@ export const GROUP_EXCEPTIONS = new Set(['edit.undo', 'edit.redo', 'view.save', 
  * sketch.spline.handles, sketch.spline.reset_handles) and removes none; ids such as assembly.constraint.edit, missing
  * in 0.40.0-rc.4, are already in 0.40.1.
  * 0.42.0 adds two (sketch.insert_airfoil, whose `path` the policy refuses, and solid.cell_grid) and removes none.
+ * 0.44.1 (673) adds four: the 3D sketch constraints sketch.constraint.along_axis and on_plane, and browser.toggle_planes and
+ * toggle_reference, which hide or show reference geometry and undo like browser.visibility.
  * A command a later SolidCraft adds to one of those groups is refused until someone has looked at it and added it
  * here; the contract test "knows every command of the allowed groups" names it. Which of these are refused is
  * policy.ts's business.
  */
-export const KNOWN_COMMANDS_VERSION = '0.42.0';
+export const KNOWN_COMMANDS_VERSION = '0.44.1';
 
 export const KNOWN_COMMANDS: ReadonlySet<string> = new Set(
   `
@@ -37,7 +39,7 @@ appearance.paste appearance.pick_up appearance.replace
 assembly.bom assembly.constraint.create assembly.constraint.edit assembly.mass_properties
 body.print_face body.rename body.repair
 browser.collapse_all browser.expand_all browser.group browser.move browser.order browser.rename_group browser.reparent
-browser.ungroup browser.visibility
+browser.toggle_planes browser.toggle_reference browser.ungroup browser.visibility
 canvas.calibrate canvas.decal canvas.delete canvas.edit canvas.insert canvas.straighten canvas.to_sketch
 component.activate component.break_link component.capture_position component.copies component.copy_bodies component.create
 component.cycle_color component.delete component.edit_in_place component.extract component.finish_edit component.from_bodies
@@ -78,9 +80,9 @@ sketch.arc.center_point sketch.arc.tangent sketch.arc.three_point sketch.arc3d s
 sketch.auto_constrain_from_datum sketch.auto_project sketch.blend_curve sketch.break sketch.break_link sketch.cancel
 sketch.centerline sketch.chain sketch.chamfer.distance_angle sketch.chamfer.equal_distance sketch.chamfer.two_distance
 sketch.circle.center sketch.circle.three_point sketch.circle.three_tangent sketch.circle.two_point sketch.circle.two_tangent
-sketch.conic sketch.constrainer sketch.constraint.coincident sketch.constraint.collinear sketch.constraint.concentric
+sketch.conic sketch.constrainer sketch.constraint.along_axis sketch.constraint.coincident sketch.constraint.collinear sketch.constraint.concentric
 sketch.constraint.curvature sketch.constraint.equal sketch.constraint.fix sketch.constraint.horizontal_vertical
-sketch.constraint.midpoint sketch.constraint.parallel sketch.constraint.perpendicular sketch.constraint.polygon
+sketch.constraint.midpoint sketch.constraint.on_plane sketch.constraint.parallel sketch.constraint.perpendicular sketch.constraint.polygon
 sketch.constraint.symmetry sketch.constraint.tangent sketch.construction sketch.construction_line sketch.construction_line.angle
 sketch.construction_line.bisector sketch.construction_line.horizontal sketch.construction_line.parallel
 sketch.construction_line.perpendicular sketch.construction_line.tangent_at sketch.construction_line.tangent_external

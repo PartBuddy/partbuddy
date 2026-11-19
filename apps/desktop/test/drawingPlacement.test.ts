@@ -31,13 +31,17 @@ describe('placing a logo', () => {
     const logos = placedLogos({
       sketches: [
         { id: 2, name: 'SVG-Logo Badge', plane: top },
+        // As older designs have it: the same name again.
         { id: 5, name: 'SVG-Logo Badge', plane: top },
+        // Since SolidCraft 0.44: the further pieces numbered; "Badge 2" is another logo.
+        { id: 6, name: 'SVG-Logo Badge #3', plane: top },
+        { id: 9, name: 'SVG-Logo Badge 2', plane: top },
         { id: 7, name: 'Sketch3', plane: top },
         { id: 8, name: 'SVG-Logo Broken' },
       ],
     });
-    expect([...logos.keys()]).toEqual(['SVG-Logo Badge']);
-    expect(logos.get('SVG-Logo Badge')?.map((sketch) => sketch.id)).toEqual([2, 5]);
+    expect([...logos.keys()]).toEqual(['SVG-Logo Badge', 'SVG-Logo Badge 2']);
+    expect(logos.get('SVG-Logo Badge')?.map((sketch) => sketch.id)).toEqual([2, 5, 6]);
   });
 
   it('moves the plane along its own axes', () => {

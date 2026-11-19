@@ -529,8 +529,8 @@ function colourSteps(block: LogoBlock, sketch: string): Step[] {
   const height = (size.height / (size.width || 1)) * block.width;
   const plane = planeAt(block.point, block.normal);
   const inlay = block.mode === 'deboss';
-  const steps: Step[] = layers.flatMap((layer) => [
-    { command: 'sketch.create', params: { plane, project_edges: false, name: sketch } },
+  const steps: Step[] = layers.flatMap((layer, i) => [
+    { command: 'sketch.create', params: { plane, project_edges: false, name: i === 0 ? sketch : `${sketch} #${String(i + 1)}` } },
     { command: 'sketch.insert_svg', params: { text: shapesSvg(read.drawing, block.width, [layer.piece]), at: [round(-block.width / 2), round(height / 2)], align: 'origin' } },
     { command: 'solid.extrude', params: { distance: `${String(round(inlay ? -block.depth : block.depth))} mm`, operation: 'new', body_name: layer.body } },
     // Coloured at once, so a piece a later cut splits keeps its colour in both parts.
