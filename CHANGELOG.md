@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.8](https://github.com/PartBuddy/partbuddy/compare/v0.3.7...v0.3.8) (2026-11-19)
+
+
+### Features
+
+* add opencode as a fourth assistant route over ACP ([#504](https://github.com/PartBuddy/partbuddy/issues/504)) ([113cb59](https://github.com/PartBuddy/partbuddy/commit/113cb594a829bb81abc00a9dea5fb2cd812e71f0))
+* open the opencode sign-in in a terminal on macos and linux ([#507](https://github.com/PartBuddy/partbuddy/issues/507)) ([97d30fc](https://github.com/PartBuddy/partbuddy/commit/97d30fc12b2196bce16da543478081ec548d2263))
+* recommend SolidCraft 0.44.1 ([ebea465](https://github.com/PartBuddy/partbuddy/commit/ebea46588be15a5f8db44fb81f27bd94dc8807e7))
+* show opencode's web search and page reads as research cards ([#506](https://github.com/PartBuddy/partbuddy/issues/506)) ([3fe78e8](https://github.com/PartBuddy/partbuddy/commit/3fe78e88960bc8df3aba8a5e8626878037f7fa1a))
+
+
+### Bug Fixes
+
+* logos follow SolidCraft 0.44, which refuses a feature name twice ([ebea465](https://github.com/PartBuddy/partbuddy/commit/ebea46588be15a5f8db44fb81f27bd94dc8807e7))
+* name an unserved model and the provider's limit on the opencode route ([#510](https://github.com/PartBuddy/partbuddy/issues/510)) ([1bc3bcc](https://github.com/PartBuddy/partbuddy/commit/1bc3bcc5e1ef75d5f47200adafe497738849166d))
+* show all models opencode offers, not only the first 30 ([#509](https://github.com/PartBuddy/partbuddy/issues/509)) ([ce92e30](https://github.com/PartBuddy/partbuddy/commit/ce92e30d980d0e7853efcdf46a32dc1d914dd286))
+
 ## [0.3.7](https://github.com/PartBuddy/partbuddy/compare/v0.3.6...v0.3.7) (2026-11-17)
 
 
