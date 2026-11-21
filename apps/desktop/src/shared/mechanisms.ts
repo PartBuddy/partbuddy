@@ -1152,9 +1152,15 @@ const allowedOf = (type: string) => {
  */
 export const UPRIGHT_BREAK = { least: 1.5, most: 2 };
 
-/** What an answer says of an arm that bends across its layers (audit R31, H-21: "at about half the strain" had no source); `then` follows as its own sentence. */
-export const uprightSaid = (arm: string, then: string) =>
-  `Printed standing, ${arm} bends across its layers, and upright test bars of PLA, ABS and PC broke at ${String(UPRIGHT_BREAK.least)} to ${String(UPRIGHT_BREAK.most)} % without yielding, bent or pulled (Ultimaker data sheets). ${then}`;
+/**
+ * What an arm may bend at its root whichever way the part lies (decided 2026-11-21, audit R35, N-nach-7): PartBuddy does not
+ * choose how a part is printed, so every arm is held to {@link SNAP_ONCE} of the weakest upright bars' break, 1.0 %.
+ */
+export const UPRIGHT_STRAIN = Math.floor(SNAP_ONCE * UPRIGHT_BREAK.least * 10 + 1e-6) / 10;
+
+/** What an answer says of an arm sized to hold printed standing (audit R31, H-21: "at about half the strain" had no source). */
+export const uprightSaid = (arm: string) =>
+  `${arm[0]?.toUpperCase() ?? ''}${arm.slice(1)} is sized to hold printed standing too, where it bends across its layers: upright test bars of PLA, ABS and PC broke at ${String(UPRIGHT_BREAK.least)} to ${String(UPRIGHT_BREAK.most)} % without yielding, bent or pulled (Ultimaker data sheets), so it is held to ${String(UPRIGHT_STRAIN)} % whichever way the part lies.`;
 
 /**
  * How far a snap arm may bend at its root in the profile's material, per cent, and which entry that is: a word of the
@@ -1162,14 +1168,16 @@ export const uprightSaid = (arm: string, then: string) =>
  * PLA's, the lowest of all, when none is (`known` false: `ABS`). A name that says fibres is never known and takes {@link SNAP_FIBRE}
  * (`fibre`: `PLA-CF`, `Bambu PETG CF`, `PC Blend Carbon Fiber`).
  */
-export function snapLimit(material?: { name?: string | undefined }): { strain: number; often: number; type: string; known: boolean; fibre: boolean; name: string } {
+export function snapLimit(material?: { name?: string | undefined }): { strain: number; often: number; type: string; known: boolean; fibre: boolean; name: string; lying: number } {
   // No material is PLA, as with every tool (toolFit.ts DEFAULT_MATERIAL).
   const name = material?.name?.trim() || SNAP_FALLBACK;
   const fibre = FIBRE.test(name.toUpperCase());
   const types = fibre ? [] : name.toUpperCase().split(/\s+/).filter((word) => word in SNAP_YIELD);
   const type = types.sort((a, b) => allowedOf(a) - allowedOf(b))[0];
-  const strain = fibre ? SNAP_FIBRE : allowedOf(type ?? SNAP_FALLBACK);
-  return { strain, often: Math.floor(strain * SNAP_OFTEN * 10 + 1e-6) / 10, type: type ?? SNAP_FALLBACK, known: type !== undefined, fibre, name };
+  // What the material takes lying, and what any arm takes standing: the lower holds either way (UPRIGHT_STRAIN).
+  const lying = fibre ? SNAP_FIBRE : allowedOf(type ?? SNAP_FALLBACK);
+  const strain = Math.min(lying, UPRIGHT_STRAIN);
+  return { strain, often: Math.floor(strain * SNAP_OFTEN * 10 + 1e-6) / 10, type: type ?? SNAP_FALLBACK, known: type !== undefined, fibre, name, lying };
 }
 
 /** What a fibre-filled material is allowed, in per cent of PLA's: from the constants, for the texts. */
@@ -1177,6 +1185,8 @@ export const FIBRE_SHARE = Math.round((SNAP_FIBRE / allowedOf(SNAP_FALLBACK)) * 
 
 /** What an answer says of the allowed strain: the material's, that none is known and PLA's is taken, or that fibres take less. */
 export function limitWords(limit: ReturnType<typeof snapLimit>): string {
+  if (limit.strain < limit.lying)
+    return `${String(limit.strain)} %, what an arm takes printed standing (${String(Math.round(SNAP_ONCE * 100))} % of the ${String(UPRIGHT_BREAK.least)} % at which upright bars broke), under the ${String(limit.lying)} % printed ${limit.type} takes lying${limit.known ? '' : ` (no allowed strain is known for ${limit.name}, so PartBuddy holds it to ${limit.type}'s)`}`;
   if (limit.fibre)
     return `${String(limit.strain)} %: ${limit.name} is fibre-filled, and fibres lower what a plastic takes (Bayer: moulded PC with glass 2 to 2.2 % against 4 % without); with no value for it PartBuddy holds it to ${String(FIBRE_SHARE)} % of PLA's, its own choice`;
   return limit.known
@@ -1219,12 +1229,6 @@ export function snapWindow(hook: SnapHook = SNAP): { from: number; to: number; h
   const from = round(hook.length - hook.catchLength - hook.seat);
   return { from, to: round(from + hook.catchLength + hook.seat + hook.air), half: round(hook.width / 2 + hook.side) };
 }
-
-/**
- * Whether a part stands upright along `up` as it is designed: within 45° of Z.
- * shortcut: the design's lay, not the print face (audit S-13 asks the print check, lane L1, to report an arm across its layers).
- */
-export const standsUpright = (up: Vec3) => Math.abs(up[2]) / (Math.hypot(...up) || 1) >= Math.SQRT1_2;
 
 /** `up` of length 1 and `way` square to it, of length 1, and `across` = up × way: the frame of a snap hook and of a latch (one code; BC-11 review). */
 function frameOf(upward: Vec3, way: Vec3): { up: Vec3; way: Vec3; across: Vec3 } {
@@ -1423,8 +1427,7 @@ export function latchStrain(arm: LatchArm = LATCH): number {
  * The latch on the printer in the material (audit W15 rest, BC-16: refused on coarse nozzles before): the arm at least two
  * lines thick, its root's radius half of that, and its lever long enough to bend within what the material takes
  * ({@link snapLimit}), measured from where the radius starts as {@link latchStrain} does.
- * shortcut: held to the strain of bars printed flat, though the arm prints upright and bends across its layers: 1.53 %, over
- * the 1.5 % at which the weakest upright bars broke (UPRIGHT_BREAK); the answer says so. Lengthen the lever when a print cracks.
+ * The arm prints upright and bends across its layers: {@link snapLimit} holds it to {@link UPRIGHT_STRAIN} (audit N-nach-7).
  */
 export function latchArm(printer: FitPrinter, material?: { name?: string | undefined }): LatchArm {
   const thick = Math.max(LATCH.thick, minimumWall(printer.nozzle));
