@@ -322,6 +322,14 @@ describe('what the check could not measure', () => {
     expect(note).not.toContain('Measure it yourself (inspect.clearance)');
   });
 
+  it('never says ready to print while a measure failed (audit H-05)', () => {
+    const report = { status: 'ready' as const, findings: [{ kind: 'faceLost' as const, severity: 'warn' as const, bodies: ['Lid'] }], nozzle: 0.4, revision: 3, unmeasured: ['clearance' as const] };
+    const note = printCheckNote(report);
+    expect(note).toContain('nothing blocks it in what was measured, but not all of it was measured (see below).');
+    expect(note).not.toContain(' ready to print.');
+    expect(printCheckNote({ ...report, unmeasured: [] })).toContain(' ready to print.');
+  });
+
   it('measures 200 joint runs at most and says when there were more', () => {
     const joint = (id: number) => ({ id, name: `J${String(id)}`, values: [{ unit: 'deg' as const, value: 0, limits: [-90, 90] as [number, number], index: 0 }] });
     expect(jointRuns(Array.from({ length: 100 }, (_, i) => joint(i)))).toMatchObject({ more: false });
