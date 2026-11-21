@@ -57,6 +57,9 @@ export const supportedVersion = (version: string) => Number(/^(\d+)\./.exec(vers
  * docs "Agents"), with permissions that deny every tool (the last matching rule wins) and allow PartBuddy's MCP tools,
  * named `partbuddy_<tool>`, and the web for research. A denied tool is not offered at all: asked to run `dir`, the
  * model had no shell and said so (OpenCode 2.3.2 with a local Qwen model, 2026-11-19).
+ * OpenCode 2.3.2 offers MCP tools only inside Code Mode's `execute`, so it is allowed too; denied, the model got no
+ * tool at all and Zen's free models refused the request as "Free usage limit reached" (issue #513). Inside `execute`
+ * only PartBuddy's tools are listed, and its HTTP requests fall under `webfetch` (probe of 2026-11-21).
  */
 export function agentFile(role: string, research: boolean): string {
   const rule = (action: string, effect: string) => `  - { action: "${action}", resource: "*", effect: ${effect} }`;
@@ -66,6 +69,7 @@ export function agentFile(role: string, research: boolean): string {
     'mode: primary',
     'permissions:',
     rule('*', 'deny'),
+    rule('execute', 'allow'),
     rule('partbuddy_*', 'allow'),
     ...(research ? [rule('webfetch', 'allow'), rule('websearch', 'allow')] : []),
     '---',

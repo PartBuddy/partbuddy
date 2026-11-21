@@ -31,6 +31,8 @@ describe('OpenCode route (issue 489)', () => {
     const plain = agentFile('ROLE', false);
     // The last matching rule wins: deny all first, then PartBuddy's MCP tools.
     expect(plain.indexOf('action: "*", resource: "*", effect: deny')).toBeLessThan(plain.indexOf('action: "partbuddy_*", resource: "*", effect: allow'));
+    // MCP tools are reached only through Code Mode's execute (issue 513).
+    expect(plain.indexOf('action: "*", resource: "*", effect: deny')).toBeLessThan(plain.indexOf('action: "execute", resource: "*", effect: allow'));
     expect(plain).not.toContain('webfetch');
     expect(plain.trimEnd().endsWith('ROLE')).toBe(true);
     expect(agentFile('ROLE', true)).toContain('action: "websearch", resource: "*", effect: allow');
