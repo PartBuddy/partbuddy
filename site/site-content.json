@@ -257,7 +257,7 @@
   "roadmap": {
     "today": [
       "Design with an assistant in real CAD",
-      "OpenCode as a fourth route: GitHub Copilot (Pro or higher), your own API keys, or the free Zen models with their small shared limit",
+      "OpenCode as a fourth route: GitHub Copilot (Pro or higher), your own API keys, or the free Zen models",
       "Sketches, photos and research as input",
       "Print check and slicer hand-off",
       "English and German, installer with update checks",
