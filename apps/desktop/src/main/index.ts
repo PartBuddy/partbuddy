@@ -64,7 +64,7 @@ import { readVersion } from './solidcraft/engineVersion';
 import { safeDesignFileName } from './solidcraft/headless';
 import { longPath, SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
-import { CHECK_PENDING_VIEW, CheckTold, printCheckNote, withCheckOfChange } from './print/printCheckNote';
+import { CHECK_PENDING, CHECK_PENDING_VIEW, CheckTold, printCheckNote, withCheckOfChange } from './print/printCheckNote';
 import { templatePrintFaces, templateSteps } from '../shared/templates';
 import { testPieceSteps } from '../shared/testPieces';
 import { sketchNote } from './agents/sketchNote';
@@ -852,8 +852,10 @@ if (!app.requestSingleInstanceLock()) {
       const sentAt = new Date();
       // The check as the last turn's tool answers told it goes not again in full with this message (issue #446); it is still
       // recorded as sent, so a later change of it is told.
-      const checkLine = printCheck ? checkNote.take(conversation.route, conversation.fresh, printCheckNote(printCheck)) : null;
-      const checkKnown = printCheck !== null && !conversation.fresh && checkTold.knows(printCheck);
+      // A check of an older revision is no check of the part "as it is now": the model is sent for the new one (audit H-06).
+      const current = printCheck !== null && printCheck.revision === supervisor.currentRevision()?.revision ? printCheck : null;
+      const checkLine = current ? checkNote.take(conversation.route, conversation.fresh, printCheckNote(current)) : printCheck ? CHECK_PENDING : null;
+      const checkKnown = current !== null && !conversation.fresh && checkTold.knows(current);
       checkTold.forget();
       review.newTurn();
       const lines = [

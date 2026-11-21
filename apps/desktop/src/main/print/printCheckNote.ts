@@ -209,7 +209,18 @@ export function printCheckNote(report: PrintCheckReport, view = false): string {
     return [`${head} nothing found ${report.measuring ? `so far (${checkedMesh(report)})` : `in what it checks (${checkedMesh(report)}${measured})`}.`, ...preliminary, ...measureLines(report), `${NOT_CHECKED}${designLine(report)}${offLine(report)}]`].join('\n');
   // An assembly whose parts do not go together or move is no finished part, though each piece prints (audit H-12).
   const fitting = report.findings.some((finding) => FIT_KINDS.has(finding.kind));
-  const verdict = report.status === 'block' ? 'not ready to print' : report.status === 'warn' ? (fitting ? 'prints, but its parts may not go together or move as designed' : 'prints, with warnings') : 'ready to print';
+  // A measure that failed or a body it cannot measure leaves the verdict open, never "ready" (audit H-05).
+  const incomplete = failed.length > 0 || (report.unchecked ?? []).length > 0;
+  const verdict =
+    report.status === 'block'
+      ? 'not ready to print'
+      : report.status === 'warn'
+        ? fitting
+          ? 'prints, but its parts may not go together or move as designed'
+          : 'prints, with warnings'
+        : incomplete
+          ? 'nothing blocks it in what was measured, but not all of it was measured (see below)'
+          : 'ready to print';
   return [`${head} ${verdict}.`, ...findingLines(report), ...preliminary, ...measureLines(report), `${FIX_BEFORE_DONE} ${NOT_CHECKED}${designLine(report)}${offLine(report)}]`].join('\n');
 }
 
