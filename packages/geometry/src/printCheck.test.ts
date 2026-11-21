@@ -207,6 +207,12 @@ describe('the ready-to-print check (M7)', () => {
     expect(pair(0.4).findings).toEqual([]);
   });
 
+  it('says a body without faces is not checked instead of reading ready (audit D47)', () => {
+    const cube = box('Ghost', [0, 0, 0], [20, 20, 20]);
+    const ghost = { ...cube, model: { ...cube.model, table: { ...cube.model.table, faces: [] } } };
+    expect(checkPrint([ghost], PLA)).toEqual({ status: 'warn', findings: [{ kind: 'noFaces', severity: 'warn', bodies: ['Ghost'] }] });
+  });
+
   it('blocks a body that is an open shell, and says nothing else about it', () => {
     // Audit N-druckpruefung-2: a cube without its top face (SolidCraft: closed false, volume 0) read ready.
     const shell = box('Shell', [0, 0, 0], [20, 20, 20], false);

@@ -1321,6 +1321,7 @@
       "suppressed": "{count, plural, one {{features} is suppressed} other {{features}{more, plural, =0 {} one { and one more} other { and # more}} are suppressed}}: not in the part as checked and exported",
       "rolledBack": "The timeline is rolled back: {features}{more, plural, =0 {} one { and one more} other { and # more}} {count, plural, one {is} other {are}} not in the part as checked and exported",
       "open": "{count, plural, one {{bodies} is no closed solid} other {{bodies} are no closed solids}}: an open surface without volume does not print",
+      "noFaces": "{count, plural, one {{bodies} has} other {{bodies} have}} no faces in the view: size, walls, overhangs and bed contact are not checked",
       "faceLost": "{count, plural, one {The print face of {bodies} is no flat face of it any more} other {The print faces of {bodies} are no flat faces of them any more}} (renamed or changed): {count, plural, one {checked without it. Set it again} other {checked without them. Set them again}} where the part should lie.",
       "separate": "{bodies} touch but are separate bodies: the slicer lays each on the bed by itself. Combine them if they are one part.",
       "fused": "{bodies} print as one piece and touch: they fuse there, and the mechanism between them does not move. Leave a gap there.",

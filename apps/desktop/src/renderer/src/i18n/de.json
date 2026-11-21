@@ -1321,6 +1321,7 @@
       "suppressed": "{count, plural, one {{features} ist unterdrückt} other {{features}{more, plural, =0 {} one { und eins mehr} other { und # weitere}} sind unterdrückt}}: nicht im geprüften und exportierten Teil",
       "rolledBack": "Der Verlauf ist zurückgesetzt: {features}{more, plural, =0 {} one { und eins mehr} other { und # weitere}} {count, plural, one {fehlt} other {fehlen}} im geprüften und exportierten Teil",
       "open": "{count, plural, one {{bodies} ist kein geschlossener Körper} other {{bodies} sind keine geschlossenen Körper}}: eine offene Fläche ohne Volumen wird nicht gedruckt",
+      "noFaces": "{count, plural, one {{bodies} hat} other {{bodies} haben}} in der Ansicht keine Flächen: Größe, Wände, Überhänge und Auflage sind nicht geprüft",
       "faceLost": "{count, plural, one {Die Druckfläche von {bodies} ist keine ebene Fläche des Körpers mehr} other {Die Druckflächen von {bodies} sind keine ebenen Flächen der Körper mehr}} (umbenannt oder geändert): ohne sie geprüft. Leg sie dort neu fest, wo das Teil liegen soll.",
       "separate": "{bodies} berühren sich, sind aber getrennte Körper: Der Slicer legt jeden für sich aufs Druckbett. Vereinige sie, wenn sie ein Teil sind.",
       "fused": "{bodies} werden in einem Stück gedruckt und berühren sich: Dort verschmelzen sie, und der Mechanismus zwischen ihnen bewegt sich nicht. Lass dort einen Spalt.",
