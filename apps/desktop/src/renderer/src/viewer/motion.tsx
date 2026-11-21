@@ -135,8 +135,15 @@ export function usePlateLayout(bodies: BodyModel[], open: boolean, bed: [number,
     if (!open || !bed || inputs.length === 0) return;
     const worker = new Worker(new URL('../workers/nest.worker.ts', import.meta.url), { type: 'module' });
     const request: NestRequest = { id: 1, parts: inputs.map((input) => ({ id: input.name, points: input.points, height: input.height })), options: { bed, spacing: PLATE.spacing, margin: PLATE.margin, rotations: PLATE.rotations } };
+    // The check fits a part to the bed's edge, as the slicer does: when the margin leaves a part off, it is laid again without (audit D38).
+    let margin = PLATE.margin;
     worker.onmessage = (event: MessageEvent<NestResponse>) => {
       const response = event.data;
+      if (response.ok && response.result.misfits.length > 0 && margin > 0) {
+        margin = 0;
+        worker.postMessage({ ...request, options: { ...request.options, margin } });
+        return;
+      }
       if (!response.ok) {
         console.warn(`plate layout failed: ${response.message}`);
         setLayout({ status: 'error', result: null, poses: new Map(), input: inputs });

@@ -72,6 +72,12 @@ describe('nest', () => {
     check(parts, result);
   });
 
+  it('lays a part the margin leaves off without the margin, as the check and the slicer do (audit D38)', () => {
+    const parts = [rect('Wide', 215, 100)];
+    expect(nest(parts, options).misfits).toContainEqual({ id: 'Wide', reason: 'size' });
+    expect(nest(parts, { ...options, margin: 0 }).misfits).toEqual([]);
+  });
+
   it('marks a part larger than the bed and one taller than it', () => {
     const parts = [rect('Huge', 300, 300), rect('Tall', 20, 20, 400)];
     const result = nest(parts, options);
