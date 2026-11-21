@@ -162,7 +162,7 @@ Reihenfolge der Hüllen (außen → innen, `main/index.ts:584–588`): Policy (`
 | 128 | Fehler aus `common` | mT:100, 102 | „fixed, moving, from and to are needed“; „from and to must be two points“ | – | – | T-m:42 | |
 | 129 | Fehler hinge | mech:59–70 | 7 Meldungen (zwei Körper, Ø 4–40, Spalt 0,2–1, Augen, Wand, Dach, Augenlänge) | – | – | T-m:42 | |
 | 130 | Fehler slide | mech:201–207; mT:134, 507 | 7 Meldungen + „up must be three numbers“ + „could not be measured“ | – | – | T-m:270 | |
-| 131 | Fehler closure | mT:144–155; mech:308–312 | 9 Meldungen | – | – | T-m:334 | |
+| 131 | Fehler closure | mT:144–155; mech:308–312 | 10 Meldungen (berichtigt 21.11., G10) | – | – | T-m:334 | |
 | 132 | Fehler screw | mT:232–238; mech:447–454 | 11 Meldungen | – | – | T-m:398 | |
 | 133 | Fehler lid | mT:213, 318; mech:550–553 | 6 Meldungen | – | – | T-m:478, 490 | |
 | 134 | Fehler snap / latch / plug | mT:190, 200–202, 596; mech:629–634, 712–715, 776–780 | je 4–6 Meldungen | – | – | T-m:531, 587, 644 | |
@@ -298,7 +298,7 @@ Reihenfolge der Hüllen (außen → innen, `main/index.ts:584–588`): Policy (`
 
 | Nr | Funktion/Option/Parameter/Grenzwert | Datei:Zeile | Wert bzw. Bereich | Geometrische Wirkung | Durchsetzung im Code | Test | Status |
 |---|---|---|---|---|---|---|---|
-| 242 | Erlaubte Werkzeuge `ALLOWED` | policy.ts:13–49 | 16 SolidCraft-Werkzeuge + 9 `partbuddy_*` | – | policy.ts:166 | T-a:40 | |
+| 242 | Erlaubte Werkzeuge `ALLOWED` | policy.ts:13–49 | 16 SolidCraft-Werkzeuge + 10 `partbuddy_*` (berichtigt 21.11., G10) | – | policy.ts:166 | T-a:40 | |
 | 243 | `NEEDS_CONFIRMATION` | policy.ts:56–61 | new_design, open, save, export | – | policy.ts:162–165 | T-a:45 | |
 | 244 | Werkzeuge als Batch-Schritt | policy.ts:67–82 | 14 Namen | – | policy.ts:155 | T-a:59 | |
 | 245 | Datei-Kommandos | policy.ts:88 | `^(file|doc|settings|diagnostics)\.` | – | policy.ts:119–124 | T-a:53, 70 | |

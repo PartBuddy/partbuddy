@@ -332,6 +332,29 @@ Alle Themenregeln sind Bitten („It builds nothing“, standardTool.ts:14). Die
 | 239 | localAgent.ts:305, :311 | Verbindungstest „Call the tool … with word ok“ | eigener Kurzaufruf, nicht Teil des Gesprächs | I | ok |
 | 240 | loop.ts:122; gateProxy.ts:173 | „SolidCraft tool failed: …“ | ja | I | ok |
 
+### 1.15 Nachgetragen aus der Gegenprüfung (H-25, 21.11.2026)
+
+Texte an das Modell, die Teil 1 nicht führte; Wortlaut, Fundstelle (Stand 12.11.) und warum es zählt stehen in
+[09-gegenpruefung-regeln-solidcraft.md](09-gegenpruefung-regeln-solidcraft.md), Abschnitt 1, unter derselben Nummer.
+
+| Nr | Text an das Modell | Ort (Stand 12.11.) |
+|---|---|---|
+| F1 | „the solids are built, but the bodies did not become components; join them with joint.as_built“ | mechanismTool.ts |
+| F2 | „the guide is built, but the moving body could not be measured; join the bodies with joint.as_built {type: slider}“ | mechanismTool.ts |
+| F3 | „… Undo what was built, then call again.“ (Zweig ohne lesbare Undo-Tiefe) | mechanismTool.ts |
+| F4 | Fehlertexte von `lipOf`, `pegOf`, `latchOf`, `snapOf`, `lidOf`, `screwOf`, „shape must be …“, „kind must be …“ | mechanismTool.ts |
+| F5 | `lidProblem`, `snapProblem`, `pegProblem`, `latchProblem` | shared/mechanisms.ts |
+| F6 | `keyholeProblem`, `magnetProblem`, `knobProblem` | shared/wallMount.ts, magnet.ts, knob.ts |
+| F7 | Notiz-Zeilen „added / changed / deleted / accepted note …“ über `workLog.mention` | main/notes/notesService.ts |
+| F8 | „n note(s) from the design file are not shown until the user accepts them“ | main/agents/viewContext.ts |
+| F9 | Namensraum-Beschreibung „SolidCraft CAD: inspect and change the open design.“ | main/chatgpt/chatgptAgent.ts |
+| F10 | Vorsätze „Not placed: …“, „Not moved: …“ | main/agents/drawingTool.ts |
+| F11 | zod-Standardmeldungen je Feld von `featureBlockSchema` | shared/contract.ts über blockTool.ts |
+| F13 | englische Schrittphrasen in Arbeitslog-Notiz und Chat-Zusammenfassung | shared/stepPhrases.ts |
+
+F12 (SolidCrafts eigene Server-Anweisungen, Werkzeug- und Befehlstexte) ist bewusst nicht nachgetragen: das sind
+SolidCrafts Texte, die mit jeder Version wechseln; sie mitzuschneiden wäre ein eigener Lauf mit laufender Engine.
+
 ## Teil 2 – Lückenliste: Regel und harte Prüfung
 
 | Thema | Regel im Text | Harte Prüfung im Code | Urteil |
