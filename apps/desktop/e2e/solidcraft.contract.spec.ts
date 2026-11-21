@@ -689,6 +689,8 @@ test('a plan waits for Go: PartBuddy refuses building before the answer (M2a)', 
     await page.getByRole('button', { name: 'Send' }).click();
     await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Send' })).toHaveCount(0);
+    // Nothing leaves the design halfway through a turn (audit D23).
+    await expect(page.getByTestId('export')).toBeDisabled();
     const chip = await page.getByTestId('agent-status').boundingBox();
     expect(idle).toBeGreaterThan(60);
     expect(chip?.width ?? 0).toBeGreaterThanOrEqual(idle - 1);

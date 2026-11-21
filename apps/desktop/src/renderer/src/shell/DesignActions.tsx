@@ -193,7 +193,7 @@ export function DesignActions() {
       </ToolButton>
       <span aria-hidden className="mx-1 h-icon w-hairline bg-border" />
       <MenuTrigger onOpenChange={loadSlicers}>
-        <AriaButton isDisabled={!connected || !hasBodies} className={buttonClass('quiet', 'sm')} data-testid="export">
+        <AriaButton isDisabled={!idle || !hasBodies} className={buttonClass('quiet', 'sm')} data-testid="export">
           <IconDownload className="size-icon-sm" aria-hidden />
           {t('actions.export')}
           <IconChevronDown className="size-icon-sm text-text-subtle" aria-hidden />
