@@ -1,4 +1,4 @@
-teilweise: designVisibility wartet jetzt auf den Assistenten (fix/lock-export-while-assistant-works); Kanalliste in PRUEFLISTE.md offen (Doku)
+behoben: designVisibility wartet seit PR #519 auf den Assistenten; die fünf Aktionen aus Tabelle 1.1 (undo, redo, visibility, rename-body, restore-version) haben alle die Sperre (Stand 21.11.). Volle Kanalliste bewusst nicht nachgetragen: Phase 1/4 abgeschlossen
 | Kennung | Datei | Fundstelle | Ist (gekürzt) | Status |
 |---|---|---|---|---|
 | D1 | 01-inventur-druck-export-ui | G/printCheck.ts:261-280, 310-319; M/print/printCheckNote.ts:23 | Breite und Tiefe werden über **alle** Körper gemeinsam genommen („Width and depth of all bodies together“), in der Lage, in der sie konstruiert (bzw. um den Ursprung gedreht) sind. Zwei kleine Teile, die 300 mm ausein… | behoben, nachgemessen 13.11. main a6e52eb (04-messung-druckpruefung) · vorher: behoben PR #353 (gemergt), nachgemessen 0.40.1 · in Arbeit: Subagent, Zweig fix/print-check-audit · vorher: gemessen rc.4: bestätigt (04-messung-druckpruefung) |

@@ -44,7 +44,7 @@ passende Datei unter **T**.
 | 26 | `laid`: Drehung auf Druckfläche (`planeNormal` → −Z) | G/printCheck.ts:283-301 | Float32 | Körper wird für Größe/Überhang/Auflage auf die Druckfläche gelegt | Fläche per **Name** gesucht; nicht gefunden oder nicht plan → stillschweigend „wie konstruiert“ (D20) | G/printCheck.test.ts („checks a body lying on its print face…“) | |
 | 27 | `bedOf`: tiefster Punkt des einzelnen Körpers | G/printCheck.ts:304-308 | mm | jedes Teil steht auf seinem eigenen tiefsten Punkt | – | G/printCheck.test.ts („lays every body on the bed by itself…“) | |
 | 28 | Feature-Fehler → `block`, Feature-Warnung → `warn` | G/printCheck.ts:331-335 | unterdrückte/zurückgerollte übersprungen | Befund `feature` mit SolidCrafts Text | – | G/printCheck.test.ts („blocks on a feature SolidCraft could not build…“) | |
-| 29 | Körper ohne Flächen werden ausgelassen | G/printCheck.ts:337 | `faces.length > 0` | solche Körper werden gar nicht geprüft | keine Meldung (D51) | keiner | |
+| 29 | Körper ohne Flächen werden ausgelassen | G/printCheck.ts:337 | `faces.length > 0` | solche Körper werden gar nicht geprüft | keine Meldung (D47; seit 21.11. Befund `noFaces`) | keiner | |
 | 30 | Überhang-Befund: Schwelle Fläche | G/printCheck.ts:406-407 | ≥ 1 mm² (je Fläche und gesamt) | Befund `overhang`, immer `warn` | – | G/printCheck.test.ts („marks the ceiling of a table top…“) | |
 | 31 | Auflage-Befund | G/printCheck.ts:410-413 | Summe `onBed` < 25 mm² → `warn` | Befund `contact` | – (D3) | G/printCheck.test.ts | |
 | 32 | Sortierung/Status | G/printCheck.ts:322-325, 416-417 | block vor warn; Status = schwerster Befund | Ampel | – | G/printCheck.test.ts („keeps what blocks printing first…“) | |
@@ -212,7 +212,7 @@ passende Datei unter **T**.
 | 164 | Maßfeld: Abstand zweier Flächen nur bei Parallelität | M/solidcraft/dimensions.ts:96; R/viewer/dimensionOf.ts:54 | \|\|dot\| − 1\| ≤ 1e-6 | – | ja | T/dimensions.test.ts | |
 | 165 | Maßfeld: Ziehpfeil-Raster | R/viewer/dimensionOf.ts:149-157 | 1 mm, mit Alt 0,1 mm | – | Wert > 0 außer `signed` | keiner eigens gefunden | |
 | 166 | Parameterliste | M/solidcraft/dimensions.ts:188-209 | nur `source: user`; `editable` = mm + reine Zahl; ≤ 300 | – | ja | T/parametersSection.test.ts | |
-| 167 | Maßmarken | M/solidcraft/supervisor.ts:797-886; S/contract.ts:735-738 | ≤ 60 Features, ≤ 400 Marken, ≤ 200 Ausdrücke | Anzeige der Maße am Teil | – | T/dimensionMarks.test.ts | |
+| 167 | Maßmarken | M/solidcraft/supervisor.ts:797-886; S/contract.ts:735-738 | ≤ 50 Features je Anfrage (Schema), ≤ 60 in der Antwort, ≤ 400 Marken, ≤ 200 Ausdrücke (berichtigt 21.11., G10) | Anzeige der Maße am Teil | – | T/dimensionMarks.test.ts | |
 | 168 | Messen | M/solidcraft/actions.ts:137-145; S/contract.ts:913-915 | 1–2 Auswahlen (Fläche/Kante/Ecke) | `inspect.measure` → Abstand mm, Winkel ° | zod | T/measure.test.ts | |
 | 169 | Messen lokal (≈) | R/viewer/measure.ts:41, 71, 92-100 | Kreis-/Geradentoleranz 0,02 mm; parallel ab < 0,01°; Winkel 0–90°, 3 Stellen | Sofortwert aus dem Netz, bis SolidCraft antwortet | als „≈“ markiert (R/viewer/SelectionActions.tsx:216-221) | T/measure.test.ts | |
 | 170 | Abstandsmessung | M/solidcraft/actions.ts:184-188, 219-239; S/contract.ts:917 | 2–200 Körper, Spalt 0–5 mm; je ≤ 100 Paare | `inspect.clearance`; Netzkörper („unchecked“) werden ausgelassen | Auslassung ohne Meldung (D8) | T/actions.test.ts | |
