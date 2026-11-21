@@ -279,6 +279,18 @@ describe('the ready-to-print check (M7)', () => {
     expect(drafted.findings.map((f) => f.kind)).toContain('thinWall');
   });
 
+  it('warns of a sharp fin under 30° where it is one to two lines thick, and leaves its tip and duller wedges alone (audit D14)', () => {
+    // A 20° fin 20 mm long: thinner than two lines (0.9 mm) over its last 2.5 mm, under one line over its last 1.2 mm.
+    const fin = checkPrint([prismBody('Fin', [[0, 0], [20, 0], [0, 20 * Math.tan(Math.PI / 9)]], 20)], PLA);
+    const thin = fin.findings.filter((f) => f.kind === 'thinWall');
+    expect(thin.length).toBeGreaterThan(0);
+    expect(thin.every((f) => f.severity === 'warn')).toBe(true);
+    expect(fin.status).not.toBe('block');
+    // A 60° dovetail edge is no wall (the 30° run-out above neither).
+    const dovetail = checkPrint([prismBody('Rail', [[0, 0], [20, 0], [0, 20 * Math.tan(Math.PI / 3)]], 20)], PLA);
+    expect(dovetail.findings.map((f) => f.kind)).not.toContain('thinWall');
+  });
+
   it('finds a hole that cuts the wall of the part open as a wall of nothing, and leaves a cut cylinder that opens alone (audit N-normteile-policy-2)', () => {
     // A block 20 × 20 × 20 and a 3.4 mm hole along Y, its axis 1 mm under the top: the top is open over the hole's length.
     const [cx, cz, r] = [10, 19, 1.7];

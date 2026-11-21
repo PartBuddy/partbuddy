@@ -199,6 +199,11 @@ const BLOCK_THIN_AREA = 5;
  * as walls of 0.01 mm and blocked).
  */
 const OPPOSITE = -Math.cos((10 * Math.PI) / 180);
+/**
+ * A sharper wedge, under 30° (a fin, a knife edge), is a thin wall where it is one to two lines thick: the slicer leaves out
+ * only its tip under one line (decided 2026-11-21, audit D14). From 30° on, a thread's run-out and a 60° dovetail, it is not.
+ */
+const SHARP_EDGE = -Math.cos((30 * Math.PI) / 180) - 1e-3;
 /** Rays spread over a body's surface; a finer mesh still has one ray in the middle of every triangle. */
 const MAX_RAYS = 40_000;
 const EPSILON = 1e-3;
@@ -496,7 +501,13 @@ function thinWalls(body: PrintCheckBody, profile: PrintCheckProfile, down = new 
       if (thickness > minimum - EPSILON) return;
       const met = triangle(positions, index, hit.faceIndex);
       const opposite = met.normal;
-      if (!opposite || (opposite.dot(normal) > OPPOSITE && !(bore && Math.abs(opposite.dot(bore)) < ALONG && !hollowAt(model, hit.faceIndex, opposite, met.centroid)))) return;
+      const facing = opposite?.dot(normal) ?? 0;
+      // A hole's rim where it meets the face it goes through (a rod drilled across) is such a wedge the slicer leaves out: not a fin.
+      const hole = face?.name.includes(':bore') || model.table.faces[model.triangleFaces[hit.faceIndex] ?? 0]?.name.includes(':bore');
+      const sharp = facing > OPPOSITE && facing < SHARP_EDGE && !hole;
+      if (!opposite || (facing > OPPOSITE && !sharp && !(bore && Math.abs(opposite.dot(bore)) < ALONG && !hollowAt(model, hit.faceIndex, opposite, met.centroid)))) return;
+      // The tip of a sharp wedge, under one line, is what the slicer leaves out: never counted, so a fin only ever warns.
+      if (sharp && thickness < printable - EPSILON) return;
       // The corners only say how thin the face gets; its area is shared out among the spread points.
       const share = p < count ? area / count : 0;
       thin.faces.add(model.triangleFaces[t] ?? 0, share, thickness, corners);
