@@ -1066,8 +1066,8 @@ describe('what a block takes and the sizes it builds (audit BC-03)', () => {
     expect(blockOf({ block: 'nutTrap', ...up, depth: 2 })).toBe('depth 2: an M3 nut is 2.4 mm high and would stand out of the pocket; the standard is 2.8');
     expect(blockOf({ block: 'lip', ...at, width: 0.5 })).toBe('width 0.5: a lip narrower than 0.9 mm (two lines on a 0.4 mm nozzle) does not print solid');
     // The arm of 3 mm bent 35.6 % (measured rc.4): over what the profile's material takes it is refused (audit T18, R56).
-    expect(blockOf({ block: 'snapFit', ...up, length: 3 })).toBe('length 3: the arm bends 35.56 % at its root as the catch snaps in, more than the 2 % PartBuddy allows printed PLA; make it at least 10.3 mm long, or thinner, or the catch shallower');
-    expect(blockOf({ block: 'snapFit', ...up })).toMatchObject({ length: 12 });
+    expect(blockOf({ block: 'snapFit', ...up, length: 3 })).toBe('length 3: the arm bends 35.56 % at its root as the catch snaps in, more than the 1 % PartBuddy allows printed PLA; make it at least 14.2 mm long, or thinner, or the catch shallower');
+    expect(blockOf({ block: 'snapFit', ...up })).toMatchObject({ length: 14.2 });
     expect(blockOf({ block: 'snapFit', ...up, thickness: 0.5 })).toContain('thickness 0.5: an arm under 0.9 mm');
     expect(blockOf({ block: 'tappedHole', ...at, size: 'M5', depth: 0.1 })).toBe('depth 0.1: under one layer (0.2 mm) nothing prints');
   });
@@ -1114,8 +1114,8 @@ describe('what a block takes and the sizes it builds (audit BC-03)', () => {
     );
     expect(built('solid.extrude')).toEqual([{ distance: '-3 mm', operation: 'cut', targets: ['Plate'], name: 'Langloch' }]);
     const snap = await said(tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 15 }));
-    expect(snap).toContain('length 15 (standard 12)');
-    expect(snap).toContain("The arm bends 0.89 % at its root as the catch snaps in, within the 2 %, what printed PLA takes for one snap-in (70 % of its yield strain). Printed standing, the arm bends across its layers, and upright test bars of PLA, ABS and PC broke at 1.5 to 2 % without yielding, bent or pulled (Ultimaker data sheets). As designed it stands upright: where the part allows, lay the part so that the arm lies flat.");
+    expect(snap).toContain('length 15 (standard 14.2)');
+    expect(snap).toContain("The arm bends 0.89 % at its root as the catch snaps in, within the 1 %, what an arm takes printed standing (70 % of the 1.5 % at which upright bars broke), under the 2 % printed PLA takes lying. For a part taken apart often keep under 0.6 % (60 % of that, Bayer): make the arm longer or thinner, or the catch shallower. The arm is sized to hold printed standing too, where it bends across its layers: upright test bars of PLA, ABS and PC broke at 1.5 to 2 % without yielding, bent or pulled (Ultimaker data sheets), so it is held to 1 % whichever way the part lies.");
     expect(snap).toContain(' It meets the face in a 0.9 mm radius on both sides (0.6 × its thickness, Bayer).');
     expect(built('solid.fillet')).toEqual([[10, 10, 6], [10, 8.5, 6]].map((edge) => ({ edges: [edge], radius: '0.9 mm', tangent_chain: false, fit: 'reduce', body: 'Plate', name: 'Snap fit root' })));
   });
@@ -1158,19 +1158,20 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
     expect(blockOf({ block: 'text', ...up, text: 'Hi', height: 3 })).toContain('give height 4 or more');
     // Through the tool: the printer comes from the profile, and the answer says so.
     const fine = plate(undefined, nozzle(0.8));
-    // A raised size says why (second review of PR 369, K7); one the model gave names its standard.
-    expect(await said(fine.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 15 }))).toContain('length 15 (standard 12), thickness 1.8 (raised from the standard 1.5 for the 0.8 mm nozzle), width 5, catchDepth 0.82 (raised from the standard 0.8 for the 0.8 mm nozzle)');
+    // A raised size says why (second review of PR 369, K7); one the model gave names its standard. 16 mm: 150 · 1.8 · 0.82 / 15.25² = 0.95 %.
+    expect(await said(fine.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 16 }))).toContain('length 16 (standard 15.7), thickness 1.8 (raised from the standard 1.5 for the 0.8 mm nozzle), width 5, catchDepth 0.82 (raised from the standard 0.8 for the 0.8 mm nozzle)');
     expect(fine.built('plastic.snap_fit')[0]).toMatchObject({ thickness: '1.8 mm' });
   });
 
   it("checks the form's blocks by the same limits, and no font whose strokes were not measured (contract test F1)", () => {
-    // The blocks the contract tests build through the form print on a 0.4 mm nozzle.
+    // The blocks the contract tests build through the form print on a 0.4 mm nozzle. Snap arms held to 1 % (UPRIGHT_STRAIN):
+    // 14.2 mm with a catch of 0.8 bends 0.995 %, 11.4 mm with one of 0.5 bends 0.99 %.
     const form = [
       { block: 'text', body: 'Body1', point: [10, 0, 5], normal: [0, -1, 0], size: 'M3', text: 'PB', height: 4, depth: 0.6, mode: 'deboss', bold: true, font: 'Georgia' },
       { block: 'nutTrap', body: 'Body1', point: [10, 10, 0], normal: [0, 0, -1], size: 'M2', flats: 4.3, depth: 2 },
       { block: 'slot', body: 'Body1', point: [20, 10, 5], normal: [1, 0, 0], size: 'M3', length: 6, width: 3.4, depth: 3, along: 'x' },
       { block: 'lip', body: 'Body1', point: [1.5, 10, 10], size: 'M3', type: 'lip', width: 1.2, height: 2, gap: 0.2 },
-      { block: 'snapFit', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', length: 12, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5, hook: 'y+' },
+      { block: 'snapFit', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', length: 14.2, thickness: 1.5, width: 5, catchDepth: 0.8, catchLength: 1.5, hook: 'y+' },
       { block: 'text', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', text: 'PB', height: 6, depth: 0.6, mode: 'emboss', bold: false },
     ] as FeatureBlock[];
     // And every other block the contract tests build or try through the form (solidcraft.contract.spec.ts).
@@ -1183,7 +1184,7 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
         { block: 'insertSeat', ...top(5, 15), size: 'M3', diameter: 4, depth: 6.7 },
         { block: 'boss', ...top(15, 15), size: 'M2', diameter: 7.2, height: 6 },
         { block: 'boss', body: 'Body1', point: [10, 10, 5], size: 'M3', diameter: 8, height: 5 },
-        { block: 'snapFit', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', length: 9, thickness: 1.5, width: 5, catchDepth: 0.5, catchLength: 1.5, hook: 'y+' },
+        { block: 'snapFit', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', length: 11.4, thickness: 1.5, width: 5, catchDepth: 0.5, catchLength: 1.5, hook: 'y+' },
         { block: 'logo', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', name: 'ring', svg: '', width: 12, depth: 0.6, mode: 'deboss' },
         { block: 'logo', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', name: 'Badge', svg: '', width: 16, depth: 0.6, mode: 'deboss', colours: true },
         { block: 'logo', body: 'Body1', point: [10, 10, 10], normal: [0, 0, 1], size: 'M3', name: 'ring', svg: '', width: 6, depth: 0.6, mode: 'deboss' },
@@ -1211,9 +1212,9 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
     expect(raisedBlock(defaultBlock('snapFit', 'Body1', [10, 10, 10], 'M3', [0, 0, 1]), nozzle(0.8))).toMatchObject({ block: { thickness: 1.8, width: 5, catchDepth: 0.82 }, raised: ['thickness', 'catchDepth'] });
     expect(raisedBlock(defaultBlock('text', 'Body1', [10, 0, 5], 'M3', [0, -1, 0]), nozzle(0.8)).block).toMatchObject({ height: 8 });
     expect(raisedBlock(defaultBlock('text', 'Body1', [10, 0, 5], 'M3', [0, -1, 0]), nozzle(0.4)).raised).toEqual([]);
-    // Every standard the form starts from prints once raised, on every nozzle.
+    // Every standard the form starts from (defaultBlock on the printer, as BlockPanel.tsx does) prints once raised, on every nozzle.
     for (const kind of ['lip', 'snapFit', 'text', 'nutTrap', 'slot'] as const)
-      for (const size of [0.25, 0.4, 0.6, 0.8]) expect(blockLimit(raisedBlock(defaultBlock(kind, 'Body1', [10, 10, 10], 'M3', [0, 0, 1]), nozzle(size)).block, nozzle(size)), kind + String(size)).toBeNull();
+      for (const size of [0.25, 0.4, 0.6, 0.8]) expect(blockLimit(raisedBlock(defaultBlock(kind, 'Body1', [10, 10, 10], 'M3', [0, 0, 1], nozzle(size)), nozzle(size)).block, nozzle(size)), kind + String(size)).toBeNull();
     // A size someone gave stays as given, and is refused.
     expect(raisedBlock(form[3] as FeatureBlock, nozzle(0.8), ['width']).block).toMatchObject({ width: 1.2 });
   });
@@ -1287,16 +1288,19 @@ describe('a block on the printer in use, on a moved part and on an uneven rim (r
   it("refuses a snap arm that bends more than the profile's material takes, and says what one opened often takes (audit T18, R56, R41)", async () => {
     const pla = plate();
     const answer = await said(pla.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 4 }));
-    expect(answer).toContain('length 4: the arm bends 17.05 % at its root as the catch snaps in, more than the 2 % PartBuddy allows printed PLA; make it at least 10.3 mm long');
+    expect(answer).toContain('length 4: the arm bends 17.05 % at its root as the catch snaps in, more than the 1 % PartBuddy allows printed PLA; make it at least 14.2 mm long');
     expect(pla.built('plastic.snap_fit')).toEqual([]);
-    // PETG takes 3.5 % once and 2.1 % often (Prusament and Ultimaker data sheets, Bayer): 10.5 mm bends 1.89 % and is built.
+    // PETG takes 3.5 % lying (Prusament and Ultimaker data sheets), but any arm is held to the 1 % it takes standing and 0.6 % often
+    // (Bayer): 10.5 mm (1.9 %, rounded up) is refused, 18.1 mm bends 0.6 % and is built.
     const petg = plate(undefined, { ...nozzle(0.4), material: { ...DEFAULT_MATERIAL, name: 'PETG' } });
-    const built = await said(petg.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 10.5 }));
-    expect(built).toContain('The arm bends 1.89 % at its root as the catch snaps in, within the 3.5 %, what printed PETG takes for one snap-in (70 % of its yield strain).');
+    expect(await said(petg.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 10.5 }))).toContain('length 10.5: the arm bends 1.9 % at its root as the catch snaps in, more than the 1 % PartBuddy allows printed PETG');
+    const built = await said(petg.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 18.1 }));
+    expect(built).toContain('The arm bends 0.6 % at its root as the catch snaps in, within the 1 %, what an arm takes printed standing (70 % of the 1.5 % at which upright bars broke), under the 3.5 % printed PETG takes lying.');
     expect(built).not.toContain('taken apart often');
-    expect(await said(petg.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 9.9 }))).toContain('For a part taken apart often keep under 2.1 % (60 % of that, Bayer)');
-    // Lying as designed, nothing is said of standing.
-    expect(await said(petg.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, normal: [1, 0, 0], length: 12 }))).toContain('Keep the part lying as designed, with the arm flat.');
+    expect(await said(petg.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, length: 14.2 }))).toContain('For a part taken apart often keep under 0.6 % (60 % of that, Bayer)');
+    // Standing or lying as designed, the same is said: the arm is held to what it takes standing either way.
+    expect(built).toContain("The arm is sized to hold printed standing too, where it bends across its layers: upright test bars of PLA, ABS and PC broke at 1.5 to 2 % without yielding, bent or pulled (Ultimaker data sheets), so it is held to 1 % whichever way the part lies.");
+    expect(await said(petg.tools.callTool('partbuddy_block', { block: 'snapFit', ...up, normal: [1, 0, 0], length: 14.2 }))).toContain("The arm is sized to hold printed standing too, where it bends across its layers: upright test bars of PLA, ABS and PC broke at 1.5 to 2 % without yielding, bent or pulled (Ultimaker data sheets), so it is held to 1 % whichever way the part lies.");
   });
 
   it('builds no block on a part a joint has moved from where it rests, and lets every other joint be (S1)', async () => {

@@ -6,7 +6,7 @@ import type { FitPrinter } from '../../shared/designFit';
 import { CLEARANCE, NUT, NUT_DIN_FLATS, THREAD_ALLOWANCE, headRoom, pilotHole, printedThread, screwDiameter } from '../../shared/screwSizes';
 import { drawnHole, fitClearance, heldSaid, holeRoom, unmeasuredSaid, type ToolPrinter } from '../../shared/toolFit';
 import { KNOB, knobClearance, KNOB_CLEARANCE_MOST, KNOB_SHAFTS, knobFlat, knobFlutes, knobInsert, knobProblem, knobSteps, type KnobShaft } from '../../shared/knob';
-import { ROOT_LEAST, SNAP_OFTEN, SNAP_ROOT, TAPPED_FROM, limitWords, snapLimit, standsUpright, uprightSaid } from '../../shared/mechanisms';
+import { ROOT_LEAST, SNAP_OFTEN, SNAP_ROOT, TAPPED_FROM, limitWords, snapLimit, uprightSaid } from '../../shared/mechanisms';
 import { MAGNET, MAGNET_HOLDS, MAGNET_MORE, PRESS_INTERFERENCE, PRESS_RANGE, magnetPocket, magnetRoom, magnetProblem, magnetSteps, magnetStock, type MagnetHold } from '../../shared/magnet';
 import { KEYHOLE, WALL, WALL_MORE, WOOD_SCREWS, WOOD_SCREW_UNDER, countersinkDepth, keyholeDepth, keyholeProblem, keyholeRoof, ROOF_LEAN, keyholeSteps, keyholeStock, wallSizes, woodScrewSteps, woodScrewStock, type WoodScrew } from '../../shared/wallMount';
 import { componentOf } from '../solidcraft/actions';
@@ -215,8 +215,7 @@ const strainSaid = (block: Extract<FeatureBlock, { block: 'snapFit' }>, printer:
   const strain = snapStrain(block);
   const limit = snapLimit(printer.material);
   const often = strain > limit.often ? ` For a part taken apart often keep under ${String(limit.often)} % (${String(Math.round(SNAP_OFTEN * 100))} % of that, Bayer): make the arm longer or thinner, or the catch shallower.` : '';
-  const upright = standsUpright(block.normal) ? 'As designed it stands upright: where the part allows, lay the part so that the arm lies flat.' : 'Keep the part lying as designed, with the arm flat.';
-  return ` The arm bends ${mm(strain)} % at its root as the catch snaps in, within the ${limitWords(limit)}.${often} ${uprightSaid('the arm', upright)}`;
+  return ` The arm bends ${mm(strain)} % at its root as the catch snaps in, within the ${limitWords(limit)}.${often} ${uprightSaid('the arm')}`;
 };
 
 /**

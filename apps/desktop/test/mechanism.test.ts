@@ -1692,13 +1692,14 @@ describe('snap hooks with their windows (standards)', () => {
     expect(spec).toMatchObject({ up: [0, 0, 1], toward: [0, 2, 0], wall: 2, name: 'Snap hook' });
     const steps = snapSteps(spec);
     expect(steps.map((step) => step.command)).toEqual(['sketch.create', 'sketch.line', 'solid.extrude', 'sketch.create', 'sketch.line', 'solid.extrude', 'plastic.snap_fit', 'plastic.snap_fit']);
-    // The window's lower edge lies 0.2 mm under the catch (12 − 1.5 above the face); x × y points into the wall.
+    // The arm is 12.4 mm long, to bend within 1 % (snapHook: √(150 · 1.5 · 0.6 / 1) + 0.75 = 12.37, up to 12.4).
+    // The window's lower edge lies 0.2 mm under the catch (12.4 − 1.5 above the face); x × y points into the wall.
     // The cut starts at the arm's face, 0.2 mm before the wall, and goes that much further.
-    expect(steps[0]?.params.plane).toEqual({ origin: [20, 19.8, 14.3], x_dir: [-1, 0, 0], y_dir: [0, 0, 1] });
+    expect(steps[0]?.params.plane).toEqual({ origin: [20, 19.8, 14.7], x_dir: [-1, 0, 0], y_dir: [0, 0, 1] });
     expect(steps[1]?.params).toEqual({ points: [[-2.8, 0], [2.8, 0], [2.8, 2.2], [-2.8, 2.2]], closed: true });
     expect(steps[2]?.params).toMatchObject({ distance: '2.2 mm', operation: 'cut', targets: ['Cover'], name: 'Snap hook 1 □' });
-    expect(steps[3]?.params.plane).toMatchObject({ origin: [32, 19.8, 14.3] });
-    expect(steps[6]?.params).toEqual({ position: [20, 19.8, 4], direction: [0, 0, 1], hook: [0, 1, 0], length: '12 mm', thickness: '1.5 mm', width: '5 mm', catch_depth: '0.8 mm', catch_length: '1.5 mm', body: 'Base' });
+    expect(steps[3]?.params.plane).toMatchObject({ origin: [32, 19.8, 14.7] });
+    expect(steps[6]?.params).toEqual({ position: [20, 19.8, 4], direction: [0, 0, 1], hook: [0, 1, 0], length: '12.4 mm', thickness: '1.5 mm', width: '5 mm', catch_depth: '0.8 mm', catch_length: '1.5 mm', body: 'Base' });
     expect(steps[7]?.params).toMatchObject({ position: [32, 19.8, 4] });
     expect(SNAP).toEqual({ length: 12, thickness: 1.5, width: 5, catch: 0.8, catchLength: 1.5, gap: 0.2, side: 0.3, seat: 0.2, air: 0.5 });
   });
@@ -1735,14 +1736,14 @@ describe('snap hooks with their windows (standards)', () => {
   it('measures the wall at each hook before it cuts a window: thickness, face, height and width (audit N-mechanik-11, W23)', async () => {
     const good = await built(cover());
     expect(good.isError).toBe(false);
-    expect(good.text).toContain("an arm 12 mm long, 1.5 mm thick and 5 mm wide, 0.2 mm off the wall, with a catch 0.8 mm deep that reaches 0.6 mm over the window's edge.");
-    expect(good.text).toContain('(the arm bends 0.6 mm, about 1.1 % strain at the root)');
+    expect(good.text).toContain("an arm 12.4 mm long, 1.5 mm thick and 5 mm wide, 0.2 mm off the wall, with a catch 0.8 mm deep that reaches 0.6 mm over the window's edge (on the 0.4 mm nozzle in PLA: an arm of two lines at the least, a catch of the narrowest line a slicer lays, and long enough to hold printed standing too).");
+    expect(good.text).toContain('(the arm bends 0.6 mm, about 1 % strain at the root)');
     // Two lines (0.9 mm) or four layers (0.8 mm), whichever is more, all round: how the part lies to print is not known (BC-11 review).
-    expect(good.text).toContain('PartBuddy measured that wall at each hook first: 2 mm thick behind from and whole round the window, from 9.4 to 13.4 mm above the foot and 7.4 mm wide.');
-    expect(good.text).toContain('That strain is within the 2 %, what printed PLA takes for one snap-in (70 % of its yield strain).');
+    expect(good.text).toContain('PartBuddy measured that wall at each hook first: 2 mm thick behind from and whole round the window, from 9.8 to 13.8 mm above the foot and 7.4 mm wide.');
+    expect(good.text).toContain('That strain is within the 1 %, what an arm takes printed standing (70 % of the 1.5 % at which upright bars broke), under the 2 % printed PLA takes lying; for a cover taken off often keep under 0.6 % (60 % of that, Bayer).');
     // Review of BC-17 S5: the hooks' roots are sharp, where Bayer's formula assumes a radius.
-    expect(good.text).toContain("The arms meet their foot in a sharp edge (SolidCraft's hook has no radius, and one beside the wall would run into it), where the formula assumes a round one: count about 2.1 % there (a sharp root about 2 times as strained, Bayer), more than those 2 %: print a test piece first, or use PETG.");
-    expect(good.text).toContain("Printed standing, an arm bends across its layers, and upright test bars of PLA, ABS and PC broke at 1.5 to 2 % without yielding, bent or pulled (Ultimaker data sheets). As designed the arms stand upright: where the part allows, lay Base so that they lie flat.");
+    expect(good.text).toContain("The arms meet their foot in a sharp edge (SolidCraft's hook has no radius, and one beside the wall would run into it), where the formula assumes a round one: count about 2 % there (a sharp root about 2 times as strained, Bayer), more than those 1 %: print a test piece first.");
+    expect(good.text).toContain('Each arm is sized to hold printed standing too, where it bends across its layers: upright test bars of PLA, ABS and PC broke at 1.5 to 2 % without yielding, bent or pulled (Ultimaker data sheets), so it is held to 1 % whichever way the part lies.');
     expect(good.cut).toBe(true);
     // A wall of 4 mm said to be 2: the window would have been a pocket (harness snap-wall-said-2-is-4).
     const thick = await built(cover({ thick: 4 }));
@@ -1753,15 +1754,15 @@ describe('snap hooks with their windows (standards)', () => {
     expect((await built(cover({ thick: 1.99 }))).isError).toBe(false);
     const thin = await built(cover({ thick: 1.6 }));
     expect(thin.text).toContain("Cover's wall at hook 1 (from [20,20,4]) is not 2 mm thick behind from: through the middle of the window, from 0.1 mm behind from, only 1.5 of 1.8 mm are plastic.");
-    // A wall 10 mm high ends 0.2 mm into the window (harness snap-low-wall); the bar over it needs 13.4 mm above the foot.
-    const low = await built(cover({ top: 14.5 }));
+    // A wall 10.4 mm high ends 0.2 mm into the window (as in harness snap-low-wall); the bar over it needs 13.8 mm above the foot.
+    const low = await built(cover({ top: 14.9 }));
     expect(low).toMatchObject({ isError: true, cut: false });
-    expect(low.text).toContain("Cover's wall at hook 1 (from [20,20,4]) does not stand whole round the window, which goes from 10.3 to 12.5 mm above the foot: it needs 0.9 mm of wall under and over it (from 9.4 to 13.4 mm above the foot) and 0.9 mm beside it (7.4 mm wide in all), its face at most 0.1 mm behind from; over the window only 0 of 7.4 mm are plastic.");
+    expect(low.text).toContain("Cover's wall at hook 1 (from [20,20,4]) does not stand whole round the window, which goes from 10.7 to 12.9 mm above the foot: it needs 0.9 mm of wall under and over it (from 9.8 to 13.8 mm above the foot) and 0.9 mm beside it (7.4 mm wide in all), its face at most 0.1 mm behind from; over the window only 0 of 7.4 mm are plastic.");
     // As high as the bar needs passes; ending short of the rod, which lies half its width inside the bar's edge, does not.
-    expect((await built(cover({ top: 4 + 13.4 }))).isError).toBe(false);
-    expect((await built(cover({ top: 4 + 13.39 }))).text).toContain('over the window only');
+    expect((await built(cover({ top: 4 + 13.8 }))).isError).toBe(false);
+    expect((await built(cover({ top: 4 + 13.79 }))).text).toContain('over the window only');
     // The face standing in the arm's way, and the second hook at the end of a wall too short for its window's posts.
-    expect((await built(cover({ face: 19.8 }))).text).toContain('Cover stands in front of from at hook 1 (from [20,20,4]): in the 0.2 mm the arm keeps off the wall, up to 12 mm above the foot,');
+    expect((await built(cover({ face: 19.8 }))).text).toContain('Cover stands in front of from at hook 1 (from [20,20,4]): in the 0.2 mm the arm keeps off the wall, up to 12.4 mm above the foot,');
     expect((await built(cover({ long: 35 }))).text).toContain("Cover's wall at hook 2 (from [32,20,4]) does not stand whole round the window");
     expect((await built(cover({ long: 35.8 }))).isError).toBe(false);
     // Two windows keep two lines of wall between them: 5.6 + 0.9 mm from middle to middle.
@@ -1780,7 +1781,7 @@ describe('snap hooks with their windows (standards)', () => {
     // The cover's wall standing on the base's top, where the hooks' feet are (z = 4).
     const onBase: Box = [[0, 20, 4], [40, 22, 24.5]];
     const wall = String((await withMechanismTool(boxWorld({ ...cover(), Cover: [onBase] }), () => 0.4, keep).callTool(MECHANISM_TOOL, args)).content[0]?.text);
-    expect(wall).toContain('Cover prints on its parting face, the face where it meets Base, which is set as its print face, in place of any it had. PartBuddy does not set a print face for Base: its arms stand out of its parting face, so it cannot lie on that face, and laid on the face opposite they would stand upright. Printed standing, an arm bends');
+    expect(wall).toContain('Cover prints on its parting face, the face where it meets Base, which is set as its print face, in place of any it had. PartBuddy does not set a print face for Base: its arms stand out of its parting face, so it cannot lie on that face, and laid on the face opposite they would stand upright. Each arm is sized to hold printed standing too');
     expect(faces).toEqual([['Cover', 'F[20,21,4]']]);
     // Review of BC-28, S2: a wall 0.5 mm over the feet's face is not laid on, whatever its bottom measures.
     expect(String((await withMechanismTool(boxWorld(cover()), () => 0.4, keep).callTool(MECHANISM_TOOL, args)).content[0]?.text)).toContain('Cover was not laid on its parting face, the face where it meets Base (Cover reaches 0.5 mm past the face where the two meet on that side: a spigot, a peg or a step stands out of it)');
@@ -1800,9 +1801,9 @@ describe('snap hooks with their windows (standards)', () => {
 
   it('takes the bars and posts round the window from the nozzle and the layer of the profile', async () => {
     // Nozzle 0.6 with 0.3 mm layers: two lines (1.35 mm) are more than four layers (1.2 mm), all round.
-    expect((await built(cover(), {}, 0.6, 0.3)).text).toContain('whole round the window, from 8.95 to 13.85 mm above the foot and 8.3 mm wide.');
+    expect((await built(cover(), {}, 0.6, 0.3)).text).toContain('whole round the window, from 9.35 to 14.25 mm above the foot and 8.3 mm wide.');
     // Four layers of 0.3 mm on a 0.25 mm nozzle: 1.2 mm, more than two lines (0.56).
-    expect(snapNeeds(snapOf(args, 0.25) as SnapSpec, { nozzle: 0.25, layer: 0.3 })).toEqual({ low: 9.1, high: 13.7, wide: 8, bar: 1.2, post: 1.2 });
+    expect(snapNeeds(snapOf(args, 0.25) as SnapSpec, { nozzle: 0.25, layer: 0.3 })).toEqual({ low: 9.5, high: 14.1, wide: 8, bar: 1.2, post: 1.2 });
     // A hook lying (standing out of a side face): the same all round.
     const spec = snapOf({ ...args, from: [4, 20, 10], to: [4, 22, 10], up: [1, 0, 0], more: [] }) as SnapSpec;
     const rods: { name: string; base: number[]; axis: number[]; height: number }[] = [];
@@ -1812,7 +1813,8 @@ describe('snap hooks with their windows (standards)', () => {
       return upstream.callTool(name, call, id);
     } };
     expect(await snapTrial(probed, spec, { nozzle: 0.4, layer: 0.2 }, undefined)).toBeNull();
-    expect(rods.find((rod) => rod.name.endsWith('under'))).toMatchObject({ base: [4 + 10.3 - 0.9 + 0.1, 20.2, 10 - 2.8 - 0.9], axis: [0, 0, 1], height: 7.4 });
+    // The bar under the window: from 4 + 10.7 − 0.9 + 0.1 = 13.9 (written out, as the sum rounds to 13.899…).
+    expect(rods.find((rod) => rod.name.endsWith('under'))).toMatchObject({ base: [13.9, 20.2, 10 - 2.8 - 0.9], axis: [0, 0, 1], height: 7.4 });
   });
 
   it('builds nothing when the wall could not be measured', async () => {
@@ -2035,13 +2037,14 @@ describe('a snap latch outside a box (standards)', () => {
     // Sketch x runs out of the wall and y up; the profiles run along the wall from one edge of the latch to the other.
     expect(steps[0]?.params.plane).toEqual({ origin: [26, 0, 20], x_dir: [0, -1, 0], y_dir: [0, 0, 1] });
     expect(steps[2]?.params).toMatchObject({ distance: '12 mm', operation: 'join' });
-    // The bead: a ridge 1.2 mm high with 45° faces, its crest 10.2 mm under the joint, rooted 0.5 mm in the wall.
-    expect(steps[1]?.params.points).toEqual([[-0.5, -9], [0, -9], [1.2, -10.2], [0, -11.4], [-0.5, -11.4]]);
+    // The lever is 14.7 mm, not the standard's 12, to bend within 1 % (latchArm: 0.8 + √(150 · 1.6 · 0.8 / 1) = 14.66, up to 14.7).
+    // The bead: a ridge 1.2 mm high with 45° faces, its crest 12.9 mm under the joint, rooted 0.5 mm in the wall.
+    expect(steps[1]?.params.points).toEqual([[-0.5, -11.7], [0, -11.7], [1.2, -12.9], [0, -14.1], [-0.5, -14.1]]);
     expect(steps[3]?.params.plane).toMatchObject({ origin: [25, 0, 20] });
     expect(steps[7]?.params).toMatchObject({ distance: '10 mm', operation: 'join' });
     // The arm: a 45° slope out of the lid's wall, 1.6 mm thick and 1.5 mm off the wall, the hook's crest 0.4 mm off it
     // and 0.8 mm under the bead's, so its upper face lies on the bead's lower one without play, then 2 mm of tab.
-    expect(steps[4]?.params).toEqual({ points: [[-0.5, 8.1], [0, 8.1], [3.1, 5], [3.1, -14.1], [1.5, -14.1], [1.5, -12.1], [0.4, -11], [1.5, -9.9], [1.5, 0.2]] });
+    expect(steps[4]?.params).toEqual({ points: [[-0.5, 8.1], [0, 8.1], [3.1, 5], [3.1, -16.8], [1.5, -16.8], [1.5, -14.8], [0.4, -13.7], [1.5, -12.6], [1.5, 0.2]] });
     // Audit MV-11: the arm's inner face meets the root's underside in a radius of half its thickness, not a sharp corner;
     // the three curves end where the next one starts, so they close (the radius ends 0.2 mm above the joint).
     expect(steps[5]?.params).toEqual({ center: [0.7, 0.2], start: [1.5, 0.2], end: [0.7, 1] });
@@ -2080,12 +2083,13 @@ describe('a snap latch outside a box (standards)', () => {
   it('measures both walls before it builds, and says what it measured and the root\'s radius (audit N-mechanik-10, R50, MV-11)', async () => {
     const good = await latched(closed());
     expect(good).toMatchObject({ isError: false, built: true });
-    expect(good.text).toContain('Built the latch "Latch": an arm 10 mm wide and 1.6 mm thick grows out of the wall of Lid (the lid), hangs 1.5 mm off the wall over the joint and snaps with its hook under a bead 1.2 mm high on Box (the box); the two overlap by 0.8 mm on 45° faces, and the arm meets its root in a 0.8 mm radius.');
-    expect(good.text).toContain("(about 1.5 % strain at the arm's root)");
-    // Audit R31, H-21: the layers with a source, and that the latch's arm never lies flat.
-    expect(good.text).toContain("Printed standing, the arm bends across its layers, and upright test bars of PLA, ABS and PC broke at 1.5 to 2 % without yielding, bent or pulled (Ultimaker data sheets). Lying it would be within the 2 %, what printed PLA takes for one snap-in (70 % of its yield strain), but no way of printing the lid lays it flat: print a test piece first.");
+    expect(good.text).toContain('Built the latch "Latch": an arm 10 mm wide and 1.6 mm thick grows out of the wall of Lid (the lid), hangs 1.5 mm off the wall over the joint and snaps with its hook under a bead 1.2 mm high on Box (the box); the two overlap by 0.8 mm on 45° faces, and the arm meets its root in a 0.8 mm radius (on the 0.4 mm nozzle: an arm of two lines at the least, 14.7 mm from its root to the hook).');
+    expect(good.text).toContain("(about 1 % strain at the arm's root)");
+    // Audit R31, H-21, N-nach-7: the layers with a source, and that the latch's arm, which never lies flat, is sized for that.
+    expect(good.text).toContain('The arm is sized to hold printed standing too, where it bends across its layers: upright test bars of PLA, ABS and PC broke at 1.5 to 2 % without yielding, bent or pulled (Ultimaker data sheets), so it is held to 1 % whichever way the part lies. No way of printing the lid lays the arm flat, so its lever is as long as that needs.');
+    expect(good.text).not.toContain('print a test piece');
     expect(good.text).not.toContain('about half the strain');
-    expect(good.text).toContain('PartBuddy measured both walls first: flat and plastic 0.5 mm deep across the latch, on Lid from 1 to 8.1 mm above the joint and on Box from 1 to 14.1 mm below it.');
+    expect(good.text).toContain('PartBuddy measured both walls first: flat and plastic 0.5 mm deep across the latch, on Lid from 1 to 8.1 mm above the joint and on Box from 1 to 16.8 mm below it.');
     // A lid 6 mm high: the arm's root stood 2.1 mm over its top (harness latch-lid-6); 8.1 mm passes, a hair less not.
     const short = await latched(closed({ lid: 6 }));
     expect(short).toMatchObject({ isError: true, built: false });
@@ -2094,10 +2098,10 @@ describe('a snap latch outside a box (standards)', () => {
     expect((await latched(closed({ lid: 8.05 }))).isError).toBe(true);
     // A box 10 mm high: the bead and the arm hung under its floor (harness latch-box-10).
     const shallow = await latched(closed({ joint: 10 }), { from: [20, 0, 10], to: [20, -5, 10] });
-    expect(shallow.text).toContain('Not built: Box (the box) is not plastic 0.5 mm deep behind its outer face at from, from 1 to 14.1 mm below the joint across 12 mm, where the bead goes into it and the arm hangs (the least found is 9 of 13.1 mm). Make Box at least 14.1 mm high there');
-    expect((await latched(closed({ joint: 14.1 }), { from: [20, 0, 14.1], to: [20, -5, 14.1] })).isError).toBe(false);
+    expect(shallow.text).toContain('Not built: Box (the box) is not plastic 0.5 mm deep behind its outer face at from, from 1 to 16.8 mm below the joint across 12 mm, where the bead goes into it and the arm hangs (the least found is 9 of 15.8 mm). Make Box at least 16.8 mm high there');
+    expect((await latched(closed({ joint: 16.8 }), { from: [20, 0, 16.8], to: [20, -5, 16.8] })).isError).toBe(false);
     // A lid that stands 1 mm out over the box, and one narrower than the latch.
-    expect((await latched(closed({ lidFront: -1 }))).text).toContain("Not built: Lid stands out of the wall's plane at from: 0.15 mm in front of it, from 14.1 mm below the joint to 8.1 mm above it, up to 8.1 mm of the way are plastic");
+    expect((await latched(closed({ lidFront: -1 }))).text).toContain("Not built: Lid stands out of the wall's plane at from: 0.15 mm in front of it, from 16.8 mm below the joint to 8.1 mm above it, up to 8.09 mm of the way are plastic");
     // The latch's edge rod (0.2 mm across) reaches 25 mm: the wall must reach it whole (review of BC-11: 24.95 passed only on the rod's axis).
     expect((await latched(closed({ lidLong: 24.95 }))).text).toContain('Not built: Lid (the lid) is not plastic 0.5 mm deep');
     expect((await latched(closed({ lidLong: 25.01 }))).isError).toBe(false);
@@ -2113,10 +2117,10 @@ describe('a snap latch outside a box (standards)', () => {
     expect(MECHANISM_GUIDANCE).toContain('a lid on a hinge prints with its box and is held by kind closure instead');
     const [tool] = (await withMechanismTool(boxWorld({}), () => 0.4).listTools()).filter((entry) => entry.name === MECHANISM_TOOL);
     // Audit R50: the reach comes from latchReach(), not typed into the text.
-    expect(tool?.description).toContain("on a 0.4 mm nozzle the lid's from 1 to 8.1 mm above the joint, the box's from 1 to 14.1 mm below it (on a coarser nozzle the arm is thicker and needs more: the answer says).");
+    expect(tool?.description).toContain("on a 0.4 mm nozzle in PLA the lid's from 1 to 8.1 mm above the joint, the box's from 1 to 16.8 mm below it (on a coarser nozzle the arm is thicker and needs more: the answer says).");
     expect(tool?.description).toContain('A lid on a print-in-place hinge prints with its box, where hook and bead would fuse: use closure there.');
     expect(tool?.description).not.toContain("Opposite the lid's hinge");
-    expect(tool?.description).toContain('which goes from 10.3 to 12.5 mm above the foot and is 5.6 mm wide');
+    expect(tool?.description).toContain('which goes from 10.7 to 12.9 mm above the foot and is 5.6 mm wide');
   });
 
   it('builds nothing when the walls could not be measured', async () => {
@@ -2137,15 +2141,15 @@ describe('a snap latch outside a box (standards)', () => {
       ['lid 0', [24.9, 0.4, 21], 7.1],
       ['lid 1', [20, 0.4, 21], 7.1],
       ['lid 2', [15.1, 0.4, 21], 7.1],
-      ['box 0', [25.9, 0.4, 5.9], 13.1],
-      ['box 1', [20, 0.4, 5.9], 13.1],
-      ['box 2', [14.1, 0.4, 5.9], 13.1],
-      ['front 0 0', [25.9, -0.15, 5.9], 22.2],
-      ['front 0 1', [25.9, -0.15, 5.9], 22.2],
-      ['front 1 0', [20, -0.15, 5.9], 22.2],
-      ['front 1 1', [20, -0.15, 5.9], 22.2],
-      ['front 2 0', [14.1, -0.15, 5.9], 22.2],
-      ['front 2 1', [14.1, -0.15, 5.9], 22.2],
+      ['box 0', [25.9, 0.4, 3.2], 15.8],
+      ['box 1', [20, 0.4, 3.2], 15.8],
+      ['box 2', [14.1, 0.4, 3.2], 15.8],
+      ['front 0 0', [25.9, -0.15, 3.2], 24.9],
+      ['front 0 1', [25.9, -0.15, 3.2], 24.9],
+      ['front 1 0', [20, -0.15, 3.2], 24.9],
+      ['front 1 1', [20, -0.15, 3.2], 24.9],
+      ['front 2 0', [14.1, -0.15, 3.2], 24.9],
+      ['front 2 1', [14.1, -0.15, 3.2], 24.9],
     ]);
   });
 });
@@ -2370,65 +2374,72 @@ describe('the print profile in the mechanism tool (audit BC-16)', () => {
   it('sizes snap hooks and the latch to the nozzle instead of refusing them, at the boundary (W15 rest, BC-16)', () => {
     const printer = (nozzle: number) => ({ nozzle, layer: 0.2 });
     // Two lines of 0.66 mm are 1.49, under the 1.5 mm arm; of 0.67 mm 1.51. The narrowest line of 0.78 mm is 0.8, of 0.79 0.81.
-    expect(snapHook(printer(0.66))).toEqual(SNAP);
-    expect(snapHook(printer(0.67))).toMatchObject({ thickness: 1.51, catch: 0.8, gap: 0.2, length: 12 });
+    // Every arm is long enough to bend 0.6 mm within 1 % (UPRIGHT_STRAIN): √(150 · 1.5 · 0.6 / 1) + 0.75 = 12.37, up to 12.4;
+    // 1.51 thick, 12.41 up to 12.5.
+    expect(snapHook(printer(0.66))).toEqual({ ...SNAP, length: 12.4 });
+    expect(snapHook(printer(0.67))).toMatchObject({ thickness: 1.51, catch: 0.8, gap: 0.2, length: 12.5 });
     expect(snapHook(printer(0.78))).toMatchObject({ catch: 0.8, gap: 0.2 });
     expect(snapHook(printer(0.79))).toMatchObject({ catch: 0.81, gap: 0.21 });
-    // On 0.8 mm: arm 1.8, catch 0.82, standing 0.22 off the wall, so it still bends 0.6 mm (SNAP_CATCH in actions.ts holds).
+    // On 0.8 mm: arm 1.8, catch 0.82, standing 0.22 off the wall, so it still bends 0.6 mm (SNAP_CATCH in actions.ts holds);
+    // √(150 · 1.8 · 0.6 / 1) + 0.75 = 13.48, up to 13.5 long. The deeper catch does not move the window, only the length does.
     const coarse = snapHook(printer(0.8));
-    expect(coarse).toMatchObject({ thickness: 1.8, catch: 0.82, gap: 0.22, length: 12 });
+    expect(coarse).toMatchObject({ thickness: 1.8, catch: 0.82, gap: 0.22, length: 13.5 });
     expect(Math.round((coarse.catch - coarse.gap) * 1000) / 1000).toBe(snapHold());
-    expect(snapWindow(coarse)).toEqual(snapWindow());
-    // On 2 mm: 4.5 thick, a catch of 2.02, and 150 · 4.5 · 0.6 / 2 % gives a lever of 14.23, 15 mm with the catch's half.
+    expect(snapWindow(coarse)).toEqual(snapWindow({ ...SNAP, length: coarse.length }));
+    // On 2 mm: 4.5 thick, a catch of 2.02, and 150 · 4.5 · 0.6 / 1 % gives a lever of 20.12, 20.9 mm with the catch's half.
     const wide = snapHook(printer(2));
-    expect(wide).toMatchObject({ thickness: 4.5, catch: 2.02, length: 15 });
-    expect(snapStrain({ length: wide.length, thickness: wide.thickness, catchDepth: snapHold(), catchLength: wide.catchLength })).toBeLessThanOrEqual(2);
-    expect(snapStrain({ length: wide.length - 0.1, thickness: wide.thickness, catchDepth: snapHold(), catchLength: wide.catchLength })).toBeGreaterThan(2);
+    expect(wide).toMatchObject({ thickness: 4.5, catch: 2.02, length: 20.9 });
+    expect(snapStrain({ length: wide.length, thickness: wide.thickness, catchDepth: snapHold(), catchLength: wide.catchLength })).toBeLessThanOrEqual(1);
+    expect(snapStrain({ length: wide.length - 0.1, thickness: wide.thickness, catchDepth: snapHold(), catchLength: wide.catchLength })).toBeGreaterThan(1);
     const snap = snapOf({ kind: 'snap', fixed: 'Base', moving: 'Cover', from: [0, 20, 2], to: [-1, 20, 2] }, 0.8) as SnapSpec;
     expect(snap.hook).toEqual(coarse);
-    expect(snapSteps(snap).at(-1)?.params).toMatchObject({ position: [0.22, 20, 2], thickness: '1.8 mm', catch_depth: '0.82 mm', length: '12 mm' });
+    expect(snapSteps(snap).at(-1)?.params).toMatchObject({ position: [0.22, 20, 2], thickness: '1.8 mm', catch_depth: '0.82 mm', length: '13.5 mm' });
     // The latch: 1.6 mm holds two lines up to 0.71 mm (1.6), not on 0.72 (1.62); its root's radius half the arm, kept 0.2 mm above the joint.
-    expect(latchArm(printer(0.71))).toEqual(LATCH);
-    expect(latchArm(printer(0.72))).toMatchObject({ thick: 1.62, root: 0.81, foot: 1.01, lever: 12 });
+    // The lever bends 0.8 mm within 1 % (UPRIGHT_STRAIN) from where the radius starts: 0.8 + √(150 · 1.6 · 0.8 / 1) = 14.66, up to 14.7;
+    // 0.81 + 13.94 up to 14 for 1.62.
+    expect(latchArm(printer(0.71))).toEqual({ ...LATCH, lever: 14.7 });
+    expect(latchArm(printer(0.72))).toMatchObject({ thick: 1.62, root: 0.81, foot: 1.01, lever: 14.81 });
     const latch = latchOf({ kind: 'latch', fixed: 'Box', moving: 'Lid', from: [0, 20, 10], to: [-1, 20, 10] }, 0.8) as LatchSpec;
-    expect(latch.arm).toMatchObject({ thick: 1.8, root: 0.9, foot: 1.1, lever: 12 });
-    expect(latchStrain(latch.arm)).toBeCloseTo((150 * 1.8 * 0.8) / 11.1 ** 2, 9);
-    expect(latchReach(latch.arm)).toEqual({ above: 8.3, below: 14 });
+    // 1.8 thick: 0.9 + √(150 · 1.8 · 0.8 / 1) = 15.6, and the box needs 15.6 − 1.1 + 1.1 + 2 below the joint.
+    expect(latch.arm).toMatchObject({ thick: 1.8, root: 0.9, foot: 1.1, lever: 15.6 });
+    expect(latchStrain(latch.arm)).toBeCloseTo((150 * 1.8 * 0.8) / 14.7 ** 2, 9);
+    expect(latchReach(latch.arm)).toEqual({ above: 8.3, below: 17.6 });
     // The profile still closes: the arc ends where the root's underside starts.
     const curves = latchSteps(latch).filter((step) => step.command.startsWith('sketch.')).slice(-3);
     expect(curves.map((step) => step.command)).toEqual(['sketch.line', 'sketch.arc.center_point', 'sketch.line']);
     expect(curves[1]?.params).toEqual({ center: [0.6, 0.2], start: [1.5, 0.2], end: [0.6, 1.1] });
-    // On 1 mm the arm of 2.25 bends 2.28 % on a lever of 12: lengthened to 12.825 it bends 1.98 %.
+    // On 1 mm the arm of 2.25 bends 2.28 % on a lever of 12: lengthened to 1.125 + 16.5 = 17.625 it bends 0.99 %.
     const long = latchArm(printer(1));
-    expect(long).toMatchObject({ thick: 2.25, root: 1.125, lever: 12.825 });
-    expect(latchStrain(long)).toBeLessThanOrEqual(2);
-    expect(latchStrain({ ...long, lever: 12.725 })).toBeGreaterThan(2);
+    expect(long).toMatchObject({ thick: 2.25, root: 1.125, lever: 17.625 });
+    expect(latchStrain(long)).toBeLessThanOrEqual(1);
+    expect(latchStrain({ ...long, lever: 17.525 })).toBeGreaterThan(1);
   });
 
   it('holds snap hooks and the latch to what the profile\'s material takes, from two sources each (audit MV-12, S-13)', () => {
-    // PLA: 70 % of 2.9 % (Prusament; Ultimaker 3.4); PETG of 5.1 % (Prusament; Ultimaker 5.9); PC capped at Bayer's 4 % (Ultimaker 5.9).
-    expect(snapLimit()).toMatchObject({ strain: 2, often: 1.2, type: 'PLA', known: true });
-    expect(snapLimit({ name: 'PLA Matte' })).toMatchObject({ strain: 2, type: 'PLA', known: true });
-    expect(snapLimit({ name: 'Prusament PETG Galaxy Black' })).toMatchObject({ strain: 3.5, often: 2.1, type: 'PETG', known: true });
-    expect(snapLimit({ name: 'pc blend' })).toMatchObject({ strain: 4, often: 2.4, type: 'PC', known: true });
+    // Lying, PLA: 70 % of 2.9 % (Prusament; Ultimaker 3.4); PETG of 5.1 % (Prusament; Ultimaker 5.9); PC capped at Bayer's 4 %
+    // (Ultimaker 5.9). Any arm is held to the 1 % it takes standing (UPRIGHT_STRAIN, N-nach-7), and 60 % of that often.
+    expect(snapLimit()).toMatchObject({ strain: 1, often: 0.6, lying: 2, type: 'PLA', known: true });
+    expect(snapLimit({ name: 'PLA Matte' })).toMatchObject({ strain: 1, lying: 2, type: 'PLA', known: true });
+    expect(snapLimit({ name: 'Prusament PETG Galaxy Black' })).toMatchObject({ strain: 1, often: 0.6, lying: 3.5, type: 'PETG', known: true });
+    expect(snapLimit({ name: 'pc blend' })).toMatchObject({ strain: 1, often: 0.6, lying: 4, type: 'PC', known: true });
     // Several types in a name: the lowest. None, or a fibre-filled one: PLA's, said as such.
-    expect(snapLimit({ name: 'PETG PLA' })).toMatchObject({ strain: 2, type: 'PLA' });
-    for (const name of ['ABS', 'PA (Nylon)', 'TPU 95A', 'PC-ABS']) expect(snapLimit({ name }), name).toMatchObject({ strain: 2, type: 'PLA', known: false, fibre: false, name });
+    expect(snapLimit({ name: 'PETG PLA' })).toMatchObject({ lying: 2, type: 'PLA' });
+    for (const name of ['ABS', 'PA (Nylon)', 'TPU 95A', 'PC-ABS']) expect(snapLimit({ name }), name).toMatchObject({ strain: 1, lying: 2, type: 'PLA', known: false, fibre: false, name });
     // Fibres (review of BC-17 S1): never the base type's value, but half of PLA's, said as an own choice.
     for (const name of ['PETG CF', 'Bambu PETG CF', 'PETG-CF', 'PLA-CF', 'Prusament PC Blend Carbon Fiber', 'PA6-GF25', 'Fiberon PETG-rCF08', 'XT-CF20', 'PA12 fibre', 'Glass Fiber PETG'])
       expect(snapLimit({ name }), name).toMatchObject({ strain: 1, often: 0.6, known: false, fibre: true, name });
     // Second review S3: colours and brands are no fibres.
-    expect(snapLimit({ name: 'Fiberlogy Easy PLA' })).toMatchObject({ fibre: false, known: true, type: 'PLA', strain: 2 });
+    expect(snapLimit({ name: 'Fiberlogy Easy PLA' })).toMatchObject({ fibre: false, known: true, type: 'PLA', lying: 2 });
     expect(snapLimit({ name: 'Fiberlogy FiberSilk' })).toMatchObject({ fibre: false, known: false });
     expect(snapLimit({ name: 'PLA Glass Blue' })).toMatchObject({ fibre: false, type: 'PLA' });
-    expect(snapLimit({ name: 'Sunlu PETG Glass' })).toMatchObject({ fibre: false, type: 'PETG', strain: 3.5 });
+    expect(snapLimit({ name: 'Sunlu PETG Glass' })).toMatchObject({ fibre: false, type: 'PETG', lying: 3.5 });
     expect(snapLimit({ name: 'PETG Carbon Black' })).toMatchObject({ fibre: false, type: 'PETG' });
     expect(limitWords(snapLimit({ name: 'PETG CF' }))).toBe("1 %: PETG CF is fibre-filled, and fibres lower what a plastic takes (Bayer: moulded PC with glass 2 to 2.2 % against 4 % without); with no value for it PartBuddy holds it to 50 % of PLA's, its own choice");
     expect(snapLimit({ name: 'PETG Galaxy' })).toMatchObject({ fibre: false, type: 'PETG' });
-    expect(limitWords(snapLimit({ name: 'ABS' }))).toBe("2 %: no allowed strain is known for ABS, so PartBuddy holds it to PLA's, the lowest it knows");
-    // PETG lets the 2 mm nozzle's hook stay shorter than PLA does.
-    expect(snapHook({ nozzle: 2, layer: 0.2 }, { name: 'PETG' }).length).toBe(12);
-    expect(snapHook({ nozzle: 2, layer: 0.2 }, { name: 'ABS' }).length).toBe(15);
+    expect(limitWords(snapLimit({ name: 'ABS' }))).toBe("1 %, what an arm takes printed standing (70 % of the 1.5 % at which upright bars broke), under the 2 % printed PLA takes lying (no allowed strain is known for ABS, so PartBuddy holds it to PLA's)");
+    // Standing holds every material to the same 1 %: PETG's hook on the 2 mm nozzle is as long as ABS's.
+    expect(snapHook({ nozzle: 2, layer: 0.2 }, { name: 'PETG' }).length).toBe(20.9);
+    expect(snapHook({ nozzle: 2, layer: 0.2 }, { name: 'ABS' }).length).toBe(20.9);
   });
 
   it('says what a kind does not read, and nothing where all is read (W15)', () => {

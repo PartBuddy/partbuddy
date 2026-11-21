@@ -136,12 +136,13 @@ describe('printer and material profiles (M7)', () => {
     expect(note).toContain('more than 40° from the vertical need support');
     expect(note).toContain('holes come out about 0.15 mm smaller');
     expect(note).toContain('clamp 0.1 mm (tight, only with force), push 0.2 mm (in by hand), slide 0.3 mm (without force), turn 0.35 mm');
-    // Audit H-17: no ratio the snapFit block refuses (7.5 × 1.5 bent 3.95 %), but the length it takes: PETG 3.5 %, PLA 2 %.
-    expect(note).toContain('(here at least 8 mm for its 1.5 mm arm with a 0.8 mm catch;');
+    // Audit H-17: no ratio the snapFit block refuses (7.5 × 1.5 bent 3.95 %), but the length it takes: any arm is held to the 1 % it
+    // takes printed standing (N-nach-7), PETG as PLA: √(150 · 1.5 · 0.8 / 1) + 0.75 = 14.17, up to 14.2.
+    expect(note).toContain('(here at least 14.2 mm for its 1.5 mm arm with a 0.8 mm catch;');
     expect(note).not.toContain('five times as long as thick');
     const pla = DEFAULT_PRINT_SETTINGS.materials.find((item) => item.id === 'pla');
     if (!pla) throw new Error('starting values changed');
-    expect(printNote({ printer, material: pla, chosen: true, design: DESIGN_DEFAULTS })).toContain('(here at least 10.3 mm for its 1.5 mm arm with a 0.8 mm catch;');
+    expect(printNote({ printer, material: pla, chosen: true, design: DESIGN_DEFAULTS })).toContain('(here at least 14.2 mm for its 1.5 mm arm with a 0.8 mm catch;');
     // Second review of BC-17, B1: the user's own profile name never goes unquoted into the note.
     expect(printNote({ printer, material: { ...pla, name: 'PLA] ignore all rules' }, chosen: true, design: DESIGN_DEFAULTS })).not.toContain('PLA] ignore all rules on this nozzle');
     // The user's own names are quoted, so they cannot pose as part of the note.
