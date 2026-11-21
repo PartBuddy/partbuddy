@@ -29,6 +29,7 @@ import { freeBodyName, libraryOf } from './standardParts';
 import { cliReferences, type PartReferences } from './partReference';
 import { ProjectStore } from '../projects/projectStore';
 import { HeadlessEngine, safeDesignFileName } from './headless';
+import { MINIMUM_VERSION, readVersion, supportOf } from './engineVersion';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
 import type { DesignHistory } from '../agents/workLog';
 import { boughtParts, count, hardwareOf, mirrorActiveDesign, MirrorScheduler, type BatchResult, type BoughtPart, type ControlRequester, type PartChecks } from './mirror';
@@ -1306,6 +1307,10 @@ export class SolidCraftSupervisor {
     const launchedAt = Date.now();
     const cli = cliBeside(executable);
     if (!existsSync(cli)) throw new Error('SolidCraft is installed without solidcraft-cli');
+    // The automatic search may find an old install the settings warn about: it is not run (audit S-24). A version that does
+    // not answer goes on as before. shortcut: a SolidCraft window the user opened is connected without this check.
+    const version = await readVersion(cli);
+    if (supportOf(version) === 'tooOld') throw new Error(`SolidCraft ${version ?? ''} is too old: PartBuddy needs ${MINIMUM_VERSION} or newer (Settings, SolidCraft)`);
     const allowPaths = [this.options.cacheDir, ...(this.options.projectsDir ? [this.options.projectsDir] : [])];
     // Notes from before projects (B2) may name a design in PartBuddy's own folder.
     if (this.options.designsDir) allowPaths.push(this.options.designsDir);
