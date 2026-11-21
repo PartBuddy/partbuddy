@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.9](https://github.com/PartBuddy/partbuddy/compare/v0.3.8...v0.3.9) (2026-11-21)
+
+
+### Bug Fixes
+
+* allow code mode's execute so opencode can reach partbuddy's tools ([#514](https://github.com/PartBuddy/partbuddy/issues/514)) ([33b448a](https://github.com/PartBuddy/partbuddy/commit/33b448a3c8732793fd7fc6143cda9cdcab96f0b4))
+
 ## [0.3.8](https://github.com/PartBuddy/partbuddy/compare/v0.3.7...v0.3.8) (2026-11-19)
 
 
