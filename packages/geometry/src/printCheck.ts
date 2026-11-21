@@ -118,6 +118,8 @@ export type PrintFinding =
   | { kind: 'fused'; severity: FindingSeverity; bodies: string[] }
   /** Bodies that are open shells (SolidCraft's surface bodies): no solid to print. */
   | { kind: 'open'; severity: FindingSeverity; bodies: string[] }
+  /** Bodies the mirror brought without faces: size, walls, overhangs and bed contact are not checked for them (audit D47). */
+  | { kind: 'noFaces'; severity: FindingSeverity; bodies: string[] }
   /** Bodies whose print face is no flat face of them any more (renamed or changed since it was set): checked without it (audit H-29). */
   | { kind: 'faceLost'; severity: FindingSeverity; bodies: string[] }
   | { kind: 'feature'; severity: FindingSeverity; feature: string; message: string }
@@ -902,6 +904,9 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
 
   // A surface body has no volume to fill: nothing else about it is worth a finding.
   const shells = bodies.filter((body) => body.model.table.faces.length > 0);
+  // Not expected (a mesh body mirrors one face), but never read as checked (audit D47).
+  const faceless = bodies.filter((body) => body.model.table.faces.length === 0);
+  if (faceless.length > 0) findings.push({ kind: 'noFaces', severity: 'warn', bodies: faceless.map((body) => body.name) });
   const open = shells.filter((body) => body.model.openEdges > 0);
   if (open.length > 0) findings.push({ kind: 'open', severity: 'block', bodies: open.map((body) => body.name) });
   // A model that carries no count is taken as closed, not dropped from the check.

@@ -85,6 +85,8 @@ function line(finding: Finding, nozzle: number): string {
       return `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(', ')} print as one piece and touch: they fuse where they touch, so the mechanism between them does not move. Leave a gap between them there.`;
     case 'open':
       return `- ${tag}: ${finding.bodies.map((body) => `body ${JSON.stringify(body)}`).join(', ')} is an open surface, not a closed solid: it has no volume, so nothing of it prints. Close it into a solid, or remove it if it only helped to build.`;
+    case 'noFaces':
+      return `- ${tag}: ${finding.bodies.map((body) => `body ${JSON.stringify(body)}`).join(', ')} came without faces, so its size, walls, overhangs and bed contact are NOT checked. Look at it yourself (model.faces) before you call the part done.`;
     case 'faceLost':
       return finding.bodies.length === 1
         ? `- ${tag}: the print face of body ${JSON.stringify(finding.bodies[0])} is no flat face of it any more (renamed or changed since it was set), so it is not checked lying on it (but as designed, or on the print face of a body it prints in one piece with). Set it again (body.print_face) where it should lie.`
