@@ -831,18 +831,40 @@ export class SolidCraftSupervisor {
 
   /** A function block (F1) on trial for the ghost, like an action. */
   async previewBlock(given: FeatureBlock, printer?: ToolPrinter): Promise<ActionPreview> {
-    const block = await this.boldBlock(given);
+    // Each step's time, said when the whole took more than a second (audit N-nach-5: a text ghost took 30 s, cause not known).
+    const times: string[] = [];
+    const timed = async <T>(what: string, work: () => Promise<T>): Promise<T> => {
+      const started = performance.now();
+      try {
+        return await work();
+      } finally {
+        times.push(`${what} ${String(Math.round(performance.now() - started))} ms`);
+      }
+    };
+    const started = performance.now();
+    const block = await timed('font', () => this.boldBlock(given));
     return this.trial('block preview', async () => {
-      const placed = await this.centredBlock(block);
-      const { steps, unmeasured } = await this.actions.blockSteps(placed, await this.sketchOf(placed), (line) => this.options.log(line), printer);
-      // A snap fit's root radius, tried on its own: the form says when it comes out smaller or not at all (review of BC-17 S4).
-      const root = placed.block === 'snapFit' ? { applied: await this.actions.rootOf(placed, steps), wanted: snapRoot(placed) } : undefined;
-      const preview = await this.actions.previewSteps(placed.block === 'snapFit' && root?.applied ? [...steps, ...rootFillet(placed)] : steps, blockBodies(placed));
-      // The panel shows a short reason; the log keeps SolidCraft's own words.
-      if (!preview.ok) this.options.log(`${block.block} preview refused: ${preview.error}`);
-      // A cut whose reach could not be measured goes through all: the panel says so (audit W2).
-      return preview.ok ? { ...preview, ...(unmeasured ? { unmeasured: true as const } : {}), ...(root ? { root } : {}) } : preview;
+      times.push(`queued ${String(Math.round(performance.now() - started))} ms`);
+      try {
+        return await this.blockPreview(block, timed, printer);
+      } finally {
+        const took = performance.now() - started;
+        if (took > 1000) this.options.log(`${block.block} preview took ${String(Math.round(took))} ms: ${times.join(', ')}`);
+      }
     });
+  }
+
+  private async blockPreview(block: FeatureBlock, timed: <T>(what: string, work: () => Promise<T>) => Promise<T>, printer?: ToolPrinter): Promise<ActionPreview> {
+    const placed = await timed('centre', () => this.centredBlock(block));
+    const sketch = await timed('sketch name', () => this.sketchOf(placed));
+    const { steps, unmeasured } = await timed('steps', () => this.actions.blockSteps(placed, sketch, (line) => this.options.log(line), printer));
+    // A snap fit's root radius, tried on its own: the form says when it comes out smaller or not at all (review of BC-17 S4).
+    const root = placed.block === 'snapFit' ? { applied: await timed('root', () => this.actions.rootOf(placed, steps)), wanted: snapRoot(placed) } : undefined;
+    const preview = await timed('trial', () => this.actions.previewSteps(placed.block === 'snapFit' && root?.applied ? [...steps, ...rootFillet(placed)] : steps, blockBodies(placed)));
+    // The panel shows a short reason; the log keeps SolidCraft's own words.
+    if (!preview.ok) this.options.log(`${block.block} preview refused: ${preview.error}`);
+    // A cut whose reach could not be measured goes through all: the panel says so (audit W2).
+    return preview.ok ? { ...preview, ...(unmeasured ? { unmeasured: true as const } : {}), ...(root ? { root } : {}) } : preview;
   }
 
   /** A logo's or text's sketch name, one no other has: it can be moved on its own later, and SolidCraft 0.44 refuses a name twice. */
