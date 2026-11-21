@@ -1329,6 +1329,8 @@ describe('the screw joint (standards)', () => {
       expect(String(piloted.content[0]?.text)).toMatch(/at \[20, 20, 10\] Base has [\d.]+ mm of plastic where 7\.3 mm are needed \(the mean over a width of 4\.02 mm, under the hole/);
       expect(sent.some((batch) => batch.includes('solid.hole'))).toBe(false);
       expect(screwStock(screwOf(joint) as ScrewSpec).fixed[0]).toMatchObject({ hole: 0, diameter: 8, core: 4.02, depth: 6.8 });
+      // A modelled thread is measured too, 2.5 diameters and a millimetre deep with a seat's wall (audit W18).
+      expect(screwStock({ ...(screwOf(joint) as ScrewSpec), size: 'M6', thread: 'tapped' }).fixed[0]).toMatchObject({ hole: 0, diameter: 12.6, core: 6.02, depth: 16.1 });
     });
 
     /**

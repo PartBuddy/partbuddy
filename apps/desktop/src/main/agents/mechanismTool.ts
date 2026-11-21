@@ -1760,13 +1760,14 @@ export function screwStock(spec: ScrewSpec): { moving: Stock[]; fixed: Stock[] }
           return { at, base: at.map((value, k) => r3(value + (axis[k] ?? 0) * FACE_DROP)) as Vec3, axis, diameter, depth: r3(recess.depth - FACE_DROP), from: FACE_DROP, hole: 0, core: drawnHole(CLEARANCE_NORMAL[spec.size], spec.material), slack: ((Math.PI * diameter ** 2) / 4) * CURVED_FACE };
         })
       : [],
-    fixed:
-      spec.thread === 'insert' && insert
-        ? entries.map((at) => {
-            const meet = at.map((value, k) => r3(value + (delta[k] ?? 0))) as Vec3;
-            return { ...seatStock({ block: 'insertSeat', body: spec.fixed, point: meet, size: spec.size, diameter: insert.diameter, depth: insert.length + 1 }, meet, axis), hole: 0 };
-          })
-        : [],
+    fixed: entries.map((at) => {
+      const meet = at.map((value, k) => r3(value + (delta[k] ?? 0))) as Vec3;
+      if (spec.thread === 'insert' && insert) return { ...seatStock({ block: 'insertSeat', body: spec.fixed, point: meet, size: spec.size, diameter: insert.diameter, depth: insert.length + 1 }, meet, axis), hole: 0 };
+      // A modelled thread, 2.5 diameters and a millimetre deep (screwSteps), with the wall a seat has round and under it (audit W18).
+      const thread = Number(spec.size.slice(1));
+      const diameter = r3(thread + 2 * seatWall(spec.size));
+      return { at: meet, base: meet.map((value, k) => r3(value + (axis[k] ?? 0) * FACE_DROP)) as Vec3, axis, diameter, depth: r3(thread * 2.5 + 1 - FACE_DROP + SEAT_UNDER), from: FACE_DROP, hole: 0, core: r3(thread + 0.02) };
+    }),
   };
 }
 
@@ -2039,7 +2040,7 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     const warnings = await build(site, spec, screwSteps(spec), `Give from on the outer face of ${spec.moving} and to on the face where it meets ${spec.fixed}.`, false, async () => {
       for (const [body, rooms, need] of [
         [spec.moving, stock.moving, `the ${room} for the head is ${String(recess?.diameter)} mm wide${sink > 0 ? ` and ${String(recess?.depth)} mm deep, sunk ${String(sink)} mm deeper so that a standard length fits,` : ''} and must lie wholly inside ${spec.moving}: move the screw at least ${String(round2((recess?.diameter ?? 0) / 2))} mm away from its edges and other cuts, or use head none`],
-        [spec.fixed, stock.fixed, `the seat of an ${spec.size} insert needs ${String(seatWall(spec.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it. Thicken ${spec.fixed} there, move the screw away from edges and other cuts, or put a boss there`],
+        [spec.fixed, stock.fixed, `the ${spec.thread === 'tapped' ? `modelled ${spec.size} thread` : `seat of an ${spec.size} insert`} needs ${String(seatWall(spec.size))} mm of plastic round it and ${String(SEAT_UNDER)} mm under it. Thicken ${spec.fixed} there, move the screw away from edges and other cuts, or put a boss there`],
       ] as const) {
         if (rooms.length === 0) continue;
         const short = await shortOf(upstream, body, rooms, callId, (mm3) => (measured.fell = Math.max(measured.fell, mm3)));
