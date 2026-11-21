@@ -1,14 +1,4 @@
-# Vollaudit – Befunde
-
-Index aller Befunde. Ist, Soll, Quelle und Nachstellschritt stehen in der genannten Datei unter „Befunde“.
-Status: `offen` · `Dublette von X` · `widerlegt (Grund)` · `gemessen` (in Phase 4 bestätigt) · `behoben PR #n, nachgemessen`.
-Ab hier von Hand gepflegt (nicht neu erzeugen, sonst geht der Status verloren). Dubletten sind bisher nur bei Schwere A abgeglichen.
-Statische Befunde sind bis zur Messung in Phase 4 Verdacht; „(V)“ markiert, was der Prüfer selbst so genannt hat.
-
-Stand der Erzeugung: 349 Befunde – A 30, B 195, C 124 (vor Dubletten-Abgleich).
-
-## Schwere A (30)
-
+teilweise: designVisibility wartet jetzt auf den Assistenten (fix/lock-export-while-assistant-works); Kanalliste in PRUEFLISTE.md offen (Doku)
 | Kennung | Datei | Fundstelle | Ist (gekürzt) | Status |
 |---|---|---|---|---|
 | D1 | 01-inventur-druck-export-ui | G/printCheck.ts:261-280, 310-319; M/print/printCheckNote.ts:23 | Breite und Tiefe werden über **alle** Körper gemeinsam genommen („Width and depth of all bodies together“), in der Lage, in der sie konstruiert (bzw. um den Ursprung gedreht) sind. Zwei kleine Teile, die 300 mm ausein… | behoben, nachgemessen 13.11. main a6e52eb (04-messung-druckpruefung) · vorher: behoben PR #353 (gemergt), nachgemessen 0.40.1 · in Arbeit: Subagent, Zweig fix/print-check-audit · vorher: gemessen rc.4: bestätigt (04-messung-druckpruefung) |

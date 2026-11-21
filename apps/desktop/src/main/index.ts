@@ -944,6 +944,8 @@ if (!app.requestSingleInstanceLock()) {
       return undefined;
     });
     bridge.handle(invokeChannels.designExport, async ({ format }) => {
+      // What the file holds must not change under it, nor the design halfway through a turn (audit D23).
+      assistantIdle();
       const name = safeDesignFileName(supervisor.currentRevision()?.designName ?? '');
       // Exports go to the project's own "exports" folder (B2).
       const project = supervisor.projectFile();
@@ -980,6 +982,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     // The sharing package (F5): everything Printables or MakerWorld asks for, in one new folder.
     bridge.handle(invokeChannels.designShare, async () => {
+      assistantIdle();
       const design = await supervisor.saveNow();
       if (!design || !projectStore.holds(design)) throw new Error('the design has no project yet');
       const name = safeDesignFileName(supervisor.currentRevision()?.designName ?? basename(design, '.sc'));
@@ -1472,6 +1475,7 @@ if (!app.requestSingleInstanceLock()) {
     // too: with parts printed as one piece PartBuddy writes the file and lays them itself (audit G1).
     bridge.handle(invokeChannels.designSlicers, () => supervisor.slicers());
     bridge.handle(invokeChannels.designSendToSlicer, async ({ slicer }) => {
+      assistantIdle();
       // As the export: the faces read from the design as it is now (review of BC-04, K1).
       await supervisor.saveNow();
       await readSavedFaces().catch((error: unknown) => {
@@ -1588,6 +1592,8 @@ if (!app.requestSingleInstanceLock()) {
       return undefined;
     });
     bridge.handle(invokeChannels.designVisibility, async (command) => {
+      // Visibility decides what is mirrored, checked and exported, like a change of the design (audit G7).
+      assistantIdle();
       await supervisor.visibility(command);
       return undefined;
     });
