@@ -256,6 +256,15 @@ export const BOLD_FONT = 'Arial';
 type Step = { command: string; params: Record<string, unknown> };
 
 /**
+ * Whether a nut pocket opens downwards as designed (its face leans under 45° from facing straight down), so its roof
+ * prints as a bridge. shortcut: as designed along -Z; a print face that turns the part is not looked at.
+ */
+export function nutTrapOpensDown(block: { normal: Point }): boolean {
+  const length = Math.hypot(...block.normal) || 1;
+  return block.normal[2] / length < -Math.SQRT1_2;
+}
+
+/**
  * The SolidCraft commands of a block, in one batch: one feature, or a sketch and its feature. A
  * logo's sketches are named `sketch` (default `SVG-Logo <name>`), so it can be moved later (drawingPlacement.ts).
  */
@@ -273,12 +282,20 @@ export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly
     case 'nutTrap': {
       const length = Math.hypot(...block.normal) || 1;
       const bottom = block.point.map((value, i) => round6(value - ((block.normal[i] ?? 0) / length) * block.depth)) as Point;
+      const hole = drawnHole(CLEARANCE_NORMAL[block.size], printer.material);
+      // Audit T30: opening downwards, the pocket's roof is a bridge, and with the hole in it the bridge has no ends to hang
+      // on round the hole. One layer is left over the hole (a sacrificial bridge), pushed through with the screw after
+      // printing. Measured with SolidCraft 0.45: the disc fills just that layer of the hole, the part stays closed.
+      const bridge: Step[] = nutTrapOpensDown(block)
+        ? [{ command: 'solid.cylinder', params: { diameter: mm(hole + 0.4), height: mm(printer.layer), base: bottom, axis: block.normal.map((value) => round6(-value / length) || 0), operation: 'join', targets: [block.body] } }]
+        : [];
       return [
         { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false } },
         // shortcut: the hole allowance is read on round holes; a hexagon is taken to shrink as much across its flats. Measure a pocket on the hole plate if nuts bind.
         { command: 'sketch.polygon.circumscribed', params: { center: [0, 0], radius: drawnHole(block.flats, printer.material) / 2, sides: 6 } },
         { command: 'solid.extrude', params: { distance: mm(-block.depth), operation: 'cut', targets: [block.body] } },
-        { command: 'solid.hole', params: { position: bottom, diameter: mm(drawnHole(CLEARANCE_NORMAL[block.size], printer.material)), ...(through?.[0] ? { depth: mm(Math.max(through[0] - block.depth, 0.01)) } : {}), targets: [block.body] } },
+        { command: 'solid.hole', params: { position: bottom, diameter: mm(hole), ...(through?.[0] ? { depth: mm(Math.max(through[0] - block.depth, 0.01)) } : {}), targets: [block.body] } },
+        ...bridge,
       ];
     }
     case 'slot': {

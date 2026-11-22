@@ -426,7 +426,11 @@ describe('a cut through goes through the wall at its point alone (audit W2, T4, 
     const thick = box({ wall: 4 });
     const fits = await thick.tools.callTool('partbuddy_block', { block: 'nutTrap', ...side, normal: [-1, 0, 0] });
     expect(thick.built('solid.hole')).toEqual([expect.objectContaining({ position: [2.8, 20, 15], depth: '2.2 mm' })]);
-    expect(String(fits.content[0]?.text)).toContain("The wall is 4 mm thick there, as measured on trial: 1.2 mm of it stay under the nut. Lying open downwards, the pocket's roof is a bridge with the hole in it, and lying on its side its top is an overhang: PartBuddy did not check either");
+    expect(String(fits.content[0]?.text)).toContain("The wall is 4 mm thick there, as measured on trial: 1.2 mm of it stay under the nut. Lying on its side, the pocket's top is an overhang PartBuddy did not check");
+    // T30: opening downwards, one layer stays over the screw hole, so the pocket's roof prints as one bridge.
+    const down = stepsOf({ block: 'nutTrap', body: 'Plate', point: [10, 10, 0], normal: [0, 0, -1], size: 'M3', flats: 5.8, depth: 2.6 });
+    expect(down.at(-1)).toEqual({ command: 'solid.cylinder', params: { diameter: '3.95 mm', height: '0.2 mm', base: [10, 10, 2.6], axis: [0, 0, 1], operation: 'join', targets: ['Plate'] } });
+    expect(stepsOf({ block: 'nutTrap', body: 'Plate', point: [10, 10, 6], normal: [0, 0, 1], size: 'M3', flats: 5.8, depth: 2.6 }).at(-1)?.command).toBe('solid.hole');
   });
 });
 

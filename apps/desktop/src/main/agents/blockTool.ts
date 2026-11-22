@@ -1,6 +1,6 @@
 import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 
-import { BLOCK_SIZES, DEFAULT_PRINTER, nutCorners, nutFlatsOfFit, ENTRY_CHAMFER, INSERT, ON_FACE, blockLimit, bossFillet, limitSaid, raisedBlock, rootOutcome, rootSteps, snapRoot, SNAP_ROOT_NAME, TEXT_STROKE, cutsThrough, strokesKnown, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, tapDrill, textDepth, textStroke, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { BLOCK_SIZES, DEFAULT_PRINTER, nutCorners, nutTrapOpensDown, nutFlatsOfFit, ENTRY_CHAMFER, INSERT, ON_FACE, blockLimit, bossFillet, limitSaid, raisedBlock, rootOutcome, rootSteps, snapRoot, SNAP_ROOT_NAME, TEXT_STROKE, cutsThrough, strokesKnown, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, tapDrill, textDepth, textStroke, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
 import type { FitPrinter } from '../../shared/designFit';
 import { CLEARANCE, NUT, NUT_DIN_FLATS, THREAD_ALLOWANCE, headRoom, pilotHole, printedThread, screwDiameter } from '../../shared/screwSizes';
@@ -1001,7 +1001,10 @@ function measuredSaid(block: FeatureBlock, wall: number | null | undefined, rim:
     }
     case 'nutTrap': {
       const under = typeof wall === 'number' ? ` The wall is ${mm(wall)} mm thick there, as measured on trial: ${mm(wall - block.depth)} mm of it stay under the nut.` : ` PartBuddy could not measure the wall there (${unmeasured}): check that the pocket does not come out on the far side.`;
-      return `${under} Lying open downwards, the pocket's roof is a bridge with the hole in it, and lying on its side its top is an overhang: PartBuddy did not check either; print the part with the pocket opening upwards where it allows.`;
+      // T30: opening downwards it keeps one layer over the hole (stepsOf); on its side its top still overhangs.
+      return nutTrapOpensDown(block)
+        ? `${under} It opens downwards, so its roof prints as a bridge: PartBuddy left one layer (${mm(printer.layer)} mm) over the screw hole there, so the bridge holds; tell the user to push it through with the screw or a drill after printing.`
+        : `${under} Lying on its side, the pocket's top is an overhang PartBuddy did not check: print the part with the pocket opening upwards where it allows.`;
     }
     case 'lip':
       return typeof rim === 'number'
