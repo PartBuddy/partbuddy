@@ -112,7 +112,7 @@ function line(finding: Finding, nozzle: number): string {
     case 'leftOut':
       return finding.rolledBack
         ? `- ${tag}: the timeline is rolled back: ${names(finding.features)} come after its marker, so they are not in the part as checked and exported. Roll it forward (timeline.roll_to) unless that is meant.`
-        : `- ${tag}: ${names(finding.features)} ${finding.features.length === 1 ? 'is' : 'are'} suppressed, so not in the part as checked and exported; a suppressed feature that failed is not fixed. Unsuppress it, or delete it if it is not wanted.`;
+        : `- ${tag}: ${names(finding.features)} ${finding.features.length === 1 ? 'is' : 'are'} suppressed, so not in the part as checked and exported; a suppressed feature that failed is not fixed. Switching it on again is the user's choice in the timeline: tell them, or delete it if it is not wanted.`;
     case 'posed':
       return `- ${tag}: joint ${JSON.stringify(finding.joint)} stands at ${String(finding.value)} ${finding.unit}, not at 0 as designed; the design is exported and checked as it stands. Drive it back with joint.drive unless that is meant.`;
   }

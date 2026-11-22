@@ -92,7 +92,9 @@ describe('tool policy: command groups are an allow list', () => {
     expect(reasonOf('execute', { command: 'timeline.move_many', params: { features: ['Base'], position: 4, active: false } })).toContain('moves features in the history');
     expect(step('Timeline.Move_Many', { features: ['Base'], position: 0 }).allow).toBe(false);
     // Neighbours that change nothing PartBuddy cannot show stay; folders keep the order.
-    for (const command of ['timeline.suppress', 'timeline.rollback', 'timeline.move_to_group', 'occurrence.copy', 'occurrence.ground', 'parameters.list']) {
+    // H-03 (Manuel 2026-11-22): suppressing is the user's choice; going back in the history stays for edits.
+    expect(reasonOf('execute', { command: 'timeline.suppress', params: { feature: 'Extrude1', suppressed: true } })).toContain("the user's choice in the timeline");
+    for (const command of ['timeline.rollback', 'timeline.move_to_group', 'occurrence.copy', 'occurrence.ground', 'parameters.list']) {
       expect(execute(command, { feature: 'Extrude1' }), command).toEqual({ allow: true });
     }
     expect(execute('parameters.add', { name: 'wand', expression: '2 mm', comment: '[Gehäuse] Wand' })).toEqual({ allow: true });
