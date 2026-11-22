@@ -693,7 +693,7 @@ export class SolidCraftSupervisor {
    * the user reads in the text of the action. What it changed is measured before and after and logged (audit S-28):
    * a part SolidCraft does not read as planes and cylinders stays a faceted solid.
    */
-  async convertMesh(body: string): Promise<void> {
+  async convertMesh(body: string): Promise<number | null> {
     const measure = () =>
       this.requester()
         .request<BatchResult>('engine.batch', { commands: [{ command: 'inspect.measure', params: { bodies: [body] } }], rollback: false }, 60_000)
@@ -706,6 +706,7 @@ export class SolidCraftSupervisor {
     const [v0, v1] = [before?.volume_mm3, after?.volume_mm3];
     const change = typeof v0 === 'number' && typeof v1 === 'number' && v0 > 0 ? `volume ${v0.toFixed(1)} → ${v1.toFixed(1)} mm³ (${(((v1 - v0) / v0) * 100).toFixed(3)} %)` : 'volume not measured';
     this.options.log(`converted the mesh "${body}" within ${MESH_TOLERANCE}: ${change}, faces ${JSON.stringify(after?.face_types ?? null)}`);
+    return typeof v0 === 'number' && typeof v1 === 'number' && v0 > 0 ? ((v1 - v0) / v0) * 100 : null;
   }
 
   /**

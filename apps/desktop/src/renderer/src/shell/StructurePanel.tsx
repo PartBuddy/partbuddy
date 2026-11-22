@@ -40,7 +40,7 @@ function EyeToggle({ name, visible, onToggle }: { name: string; visible: boolean
  * repair for parts from STEP or IGES, so they and modelled parts get nothing.
  */
 function ConvertButton({ body }: { body: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const setNotice = useStudio((s) => s.setNotice);
   const [busy, setBusy] = useState(false);
   const label = t('structure.convert', { name: body });
@@ -49,7 +49,8 @@ function ConvertButton({ body }: { body: string }) {
     void platform()
       .design.convertMesh(body)
       .then((result) => {
-        if (result.ok) setNotice({ tone: 'success', text: t('structure.convertDone', { name: body }) });
+        // The volume's change, so a conversion that lost or added material shows (audit S-28).
+        if (result.ok) setNotice({ tone: 'success', text: t('structure.convertDone', { name: body }) + (result.change === undefined ? '' : ` ${t('structure.convertChange', { change: new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2, signDisplay: 'exceptZero' }).format(result.change) })}`) });
         else if (result.reason === 'openMesh') setNotice({ tone: 'danger', text: t('structure.openMesh', { name: body }) });
         else setNotice({ tone: 'danger', text: t('actions.failed', { detail: result.detail.slice(0, 200) }) });
       })

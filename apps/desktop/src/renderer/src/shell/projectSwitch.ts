@@ -10,7 +10,7 @@ import { useStudio } from '../state/store';
  * shows as a notice. Shared by the project menu and the start page (B2, B3).
  */
 export function useProjectSwitch(): (work: () => Promise<unknown>) => void {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return useCallback(
     (work: () => Promise<unknown>) => {
       void beforeProjectSwitch()
@@ -22,13 +22,15 @@ export function useProjectSwitch(): (work: () => Promise<unknown>) => void {
           if (typeof result === 'object' && result !== null && 'imported' in result && result.imported === true) {
             // A mesh has no sizes to change: the notice says how to go on and stays until it is read (usability U-14).
             const mesh = 'mesh' in result && result.mesh === true;
-            useStudio.getState().setNotice(mesh ? { tone: 'info', text: t('project.importedMesh') } : { tone: 'success', text: t('project.imported') });
+            // Its size as it came in, so a file in the wrong unit shows at once (audit D44).
+            const size = 'size' in result && Array.isArray(result.size) ? ` ${t('project.importedSize', { size: (result.size as number[]).map((value) => new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 1 }).format(value)).join(' × ') })}` : '';
+            useStudio.getState().setNotice(mesh ? { tone: 'info', text: t('project.importedMesh') + size } : { tone: 'success', text: t('project.imported') });
           }
         })
         .catch((error: unknown) => {
           useStudio.getState().setNotice({ tone: 'danger', text: t('project.failed', { detail: (error as Error).message.slice(0, 200) }) });
         });
     },
-    [t],
+    [t, i18n.language],
   );
 }

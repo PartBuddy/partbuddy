@@ -1312,15 +1312,16 @@ if (!app.requestSingleInstanceLock()) {
       const kind = checkImportFile(file);
       // Always a copy, also of a design inside the project folder: importing never moves the original.
       let target: string;
+      let size: [number, number, number] | null = null;
       if (kind === 'design') target = projectStore.importDesign(file);
       else if (kind === 'package') target = await importPackage(file, projectStore);
       else {
         // The new design is made before the switch, so a file SolidCraft cannot read leaves the open project as it is.
         target = projectStore.newDesignFile(importName(file));
         try {
-          const size = await supervisor.designFromFile(file, kind, target);
+          size = await supervisor.designFromFile(file, kind, target);
           const unit = kind === 'mesh' ? await askUnit(file, size) : null;
-          if (unit) await supervisor.designFromFile(file, kind, target, unit);
+          if (unit) size = await supervisor.designFromFile(file, kind, target, unit);
         } catch (error) {
           rmSync(dirname(target), { recursive: true, force: true });
           throw error;
@@ -1328,7 +1329,7 @@ if (!app.requestSingleInstanceLock()) {
       }
       await switchProject(() => Promise.resolve(target));
       log(kind === 'design' ? 'imported a design into a new project' : `made a new project from a ${kind} file`);
-      return { opened: true, imported: true, ...(kind === 'mesh' ? { mesh: true as const } : {}) };
+      return { opened: true, imported: true, ...(kind === 'mesh' ? { mesh: true as const, ...(size ? { size } : {}) } : {}) };
     });
     // Tolerance assistant: test pieces for the printer in the settings draft, built beside the open design.
     const testPiecesDesign = async ({ nozzle, layer, holeShrink }: { nozzle: number; layer: number; holeShrink?: number | undefined }) => {
@@ -1514,9 +1515,12 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.designRepair, async ({ body }) => {
       assistantIdle();
       try {
-        await steps.recordUser(describeUserAction({ kind: 'convertMesh', body }), () => supervisor.convertMesh(body));
+        let change = null as number | null;
+        await steps.recordUser(describeUserAction({ kind: 'convertMesh', body }), async () => {
+          change = await supervisor.convertMesh(body);
+        });
         log('converted a mesh body to faces');
-        return { ok: true };
+        return change === null ? { ok: true } : { ok: true, change };
       } catch (error) {
         const detail = (error as Error).message.replace(/^\S+ failed: /, '').slice(0, 500);
         if (/must be closed/i.test(detail)) return { ok: false, reason: 'openMesh', detail };

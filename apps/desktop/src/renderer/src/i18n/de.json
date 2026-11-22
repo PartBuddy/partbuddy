@@ -782,6 +782,7 @@
     "convert": "{name} in Flächen umwandeln",
     "convertHint": "Baut das Netz auf 0,05 mm genau als bearbeitbare Flächen nach: ebene und runde Flächen, die SolidCraft erkennt, als echte Flächen, alles andere als Facetten. Geht bei geschlossenen Netzen.",
     "convertDone": "{name} hat jetzt bearbeitbare Flächen, auf 0,05 mm genau nach dem Netz; was SolidCraft nicht als eben oder rund erkennt, bleibt facettiert.",
+    "convertChange": "Volumen: {change} %.",
     "openMesh": "{name} ist nicht geschlossen, deshalb kann SolidCraft es nicht in Flächen umwandeln. Exportieren geht trotzdem; kleine Löcher repariert der Slicer selbst.",
     "standardPart": "Normteil",
     "bodiesTitle": "Körper",
@@ -1424,7 +1425,8 @@
     "exportPackage": "Als Datei exportieren …",
     "exportedPackage": "Das Projekt ist als .partbuddy-Datei gespeichert, mit Chat, Versionen und Skizzen.",
     "trashed": "„{name}“ liegt im Papierkorb auf der Startseite und lässt sich dort wiederherstellen.",
-    "importedMesh": "Die Datei ist jetzt ein neues Projekt (das Original bleibt unverändert). Ein Netz aus STL, 3MF oder OBJ hat keine Maße zum Ändern: Sag dem Assistenten, was anders sein soll, oder wandle es in der Struktur mit „In Flächen umwandeln“ um."
+    "importedMesh": "Die Datei ist jetzt ein neues Projekt (das Original bleibt unverändert). Ein Netz aus STL, 3MF oder OBJ hat keine Maße zum Ändern: Sag dem Assistenten, was anders sein soll, oder wandle es in der Struktur mit „In Flächen umwandeln“ um.",
+    "importedSize": "Größe: {size} mm."
   },
   "home": {
     "title": "Projekte",
