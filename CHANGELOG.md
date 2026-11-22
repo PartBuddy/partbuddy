@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.11](https://github.com/PartBuddy/partbuddy/compare/v0.3.10...v0.3.11) (2026-11-22)
+
+
+### Bug Fixes
+
+* **deps:** update ai sdk ([#562](https://github.com/PartBuddy/partbuddy/issues/562)) ([e446a83](https://github.com/PartBuddy/partbuddy/commit/e446a83bf8673f4d403863c46b021809b27499f8))
+* **deps:** update dependency @tabler/icons-react to v3.52.0 ([#555](https://github.com/PartBuddy/partbuddy/issues/555)) ([5e349cc](https://github.com/PartBuddy/partbuddy/commit/5e349cc7172b317ea1215193a4947bf12fd3c81f))
+* **deps:** update dependency dockview-react to v8.9.0 ([#556](https://github.com/PartBuddy/partbuddy/issues/556)) ([5a51d96](https://github.com/PartBuddy/partbuddy/commit/5a51d96f8bcd9f43c8dd8fdacc7bc38b0a56ee19))
+* **deps:** update dependency i18next to v27.1.2 ([#557](https://github.com/PartBuddy/partbuddy/issues/557)) ([48017a4](https://github.com/PartBuddy/partbuddy/commit/48017a4bebf821d41c7b96e3f153437387de7ee8))
+* **deps:** update dependency react-hotkeys-hook to v5.4.0 ([#558](https://github.com/PartBuddy/partbuddy/issues/558)) ([f0e3bb1](https://github.com/PartBuddy/partbuddy/commit/f0e3bb1c16790dffe229ddc682be6dc692d3d62e))
+* **home:** the renamed open project keeps its "open now" mark ([#567](https://github.com/PartBuddy/partbuddy/issues/567)) ([22f3f5d](https://github.com/PartBuddy/partbuddy/commit/22f3f5dea4f4c4da47a81126691a03e444a4b534))
+* **mechanism:** number the hinge steps a closure makes again ([#563](https://github.com/PartBuddy/partbuddy/issues/563)) ([3df83d1](https://github.com/PartBuddy/partbuddy/commit/3df83d140bbfbc04f62b663d7c05e4c32efb5671))
+* **structure:** the hidden eye takes no room, so a body keeps its name ([#566](https://github.com/PartBuddy/partbuddy/issues/566)) ([6f0b776](https://github.com/PartBuddy/partbuddy/commit/6f0b77680e08d847a67ca5c866845a5b0280095a))
+* **ui:** use spacing steps Tailwind generates, so the toast sits above the timeline ([#565](https://github.com/PartBuddy/partbuddy/issues/565)) ([e0381c8](https://github.com/PartBuddy/partbuddy/commit/e0381c815d2b990f322536d1a6b9a79eddc837ac))
+
+
+### Performance
+
+* **mechanism:** shorten the tool description by 41 % ([#564](https://github.com/PartBuddy/partbuddy/issues/564)) ([1b5f77d](https://github.com/PartBuddy/partbuddy/commit/1b5f77de194ffd168a0ffaab164b7e421d6bb64b))
+
 ## [0.3.10](https://github.com/PartBuddy/partbuddy/compare/v0.3.9...v0.3.10) (2026-11-22)
 
 
