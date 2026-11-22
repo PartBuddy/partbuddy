@@ -20,7 +20,7 @@
     "@react-three/drei": "10.7.9",
     "@react-three/fiber": "9.8.2",
     "@tabler/icons-react": "3.50.0",
-    "dockview-react": "8.8.3",
+    "dockview-react": "8.9.0",
     "fflate": "0.8.3",
     "i18next": "27.0.1",
     "i18next-icu": "2.7.0",
