@@ -42,6 +42,8 @@ export function useFindingText(): (finding: PrintFinding) => string {
         return t('check.finding.roundBedEdge', { area: number.format(finding.area), limit: finding.limit, chamfer: Math.min(45, finding.limit) });
       case 'smallHole':
         return t('check.finding.smallHole', { count: finding.holes, diameter: number.format(finding.diameter), minimum: number.format(finding.minimum) });
+      case 'thinPin':
+        return t('check.finding.thinPin', { count: finding.pins, diameter: number.format(finding.diameter), minimum: number.format(finding.minimum) });
       case 'sharpEdge':
         return t('check.finding.sharpEdge', { count: finding.edges, length: number.format(finding.length), radii: finding.bodies.map((body) => `${number.format(body.radius)} mm (${body.body})`).join(', ') });
       case 'edgeRadii':

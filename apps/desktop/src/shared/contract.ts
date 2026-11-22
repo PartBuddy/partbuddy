@@ -1202,12 +1202,12 @@ export const DESIGN_DEFAULTS: DesignRules = { rounding: true, printInPlace: true
  * on unless turned off. The names are `PrintHint` of the geometry package. After them the design hints (Manuel, 2026-11-14):
  * how the part looks and holds, each also off while the design rule it belongs to is off (`HINT_RULE`).
  */
-export const PRINT_HINTS = ['smallHole', 'narrowGap', 'sharpEdge', 'edgeRadii', 'rootCorner', 'shallowSlope', 'shellCorner'] as const;
+export const PRINT_HINTS = ['smallHole', 'thinPin', 'narrowGap', 'sharpEdge', 'edgeRadii', 'rootCorner', 'shallowSlope', 'shellCorner'] as const;
 export type PrintHintName = (typeof PRINT_HINTS)[number];
-const HINTS_ON = { smallHole: true, narrowGap: true, sharpEdge: true, edgeRadii: true, rootCorner: true, shallowSlope: true, shellCorner: true };
+const HINTS_ON = { smallHole: true, thinPin: true, narrowGap: true, sharpEdge: true, edgeRadii: true, rootCorner: true, shallowSlope: true, shellCorner: true };
 const on = () => z.boolean().catch(true).default(true);
 // Not strict, and each value falls back to on: a hint of a newer or older PartBuddy must not lose the printers and materials (BC-24 review).
-export const printHintsSchema = z.object({ smallHole: on(), narrowGap: on(), sharpEdge: on(), edgeRadii: on(), rootCorner: on(), shallowSlope: on(), shellCorner: on() }).catch(HINTS_ON);
+export const printHintsSchema = z.object({ smallHole: on(), thinPin: on(), narrowGap: on(), sharpEdge: on(), edgeRadii: on(), rootCorner: on(), shallowSlope: on(), shellCorner: on() }).catch(HINTS_ON);
 export type PrintHints = z.infer<typeof printHintsSchema>;
 export const HINT_DEFAULTS: PrintHints = HINTS_ON;
 /** The design rule a design hint checks: turned off for the part, the hint is not looked for either (the assistant was told not to). */
@@ -1283,6 +1283,7 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('overhang'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('roundBedEdge'), severity: findingSeveritySchema, area: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('smallHole'), severity: findingSeveritySchema, holes: z.number().int().positive().max(100_000), diameter: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('thinPin'), severity: findingSeveritySchema, pins: z.number().int().positive().max(100_000), diameter: mmValue, minimum: mmValue, places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('narrowGap'), severity: findingSeveritySchema, gap: mmValue, minimum: mmValue, area: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('shellCorner'), severity: findingSeveritySchema, corners: z.number().int().positive().max(100_000), thickness: mmValue, wall: mmValue, radius: mmValue, inner: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('shallowSlope'), severity: findingSeveritySchema, faces: z.number().int().positive().max(100_000), area: finite.nonnegative(), angle: range(0, 90), step: finite.nonnegative(), limit: range(0, 90), places: findingPlacesSchema }).strict(),

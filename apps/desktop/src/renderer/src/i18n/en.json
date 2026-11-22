@@ -1262,6 +1262,10 @@
         "label": "Holes under 2 mm",
         "hint": "Says where a hole is narrower than 2 mm: it closes up or comes out well under size, so drill it out after printing. A hint, never a block."
       },
+      "thinPin": {
+        "label": "Pins under 3 mm",
+        "hint": "Says where a pin or post is thinner than 3 mm: it prints as wall lines only and breaks off easily. Where one must hold, a bought pin in a printed hole is better. A hint, never a block."
+      },
       "narrowGap": {
         "label": "Slots that print closed",
         "hint": "Says where two walls of one part come closer than one nozzle (at least 0.3 mm): an engraved stroke, a kerf or a slit between letters prints closed there. A hint, never a block."
@@ -1341,6 +1345,7 @@
       "blockedFree": "{joint}: {a} and {b} touch at {at} – the joint has no limit that way and stops there",
       "posed": "{joint} stands at {value}, not as designed – the part is exported and checked the way it stands",
       "smallHole": "{count, plural, one {A hole under {minimum} mm across ({diameter} mm)} other {# holes under {minimum} mm across, the smallest {diameter} mm}}: holes that small close up or come out under size – drill them out after printing",
+      "thinPin": "{count, plural, one {A pin under {minimum} mm across ({diameter} mm)} other {# pins under {minimum} mm across, the thinnest {diameter} mm}}: pins that thin break off easily – make them thicker or use a bought pin",
       "narrowGap": "Slots down to {gap} mm, under the {minimum} mm that stay open with this nozzle: the walls beside them squeeze together and close them",
       "sharpEdge": "{count, plural, one {A sharp edge} other {# sharp edges}} ({length} mm) on bodies with no rounded or chamfered outer edge at all: the design rules round seen outer edges by the size of the part, on a plate at most half its thickness – here {radii}",
       "edgeRadii": "Outer edges rounded with {count} different radii ({radii} mm): the design rules use at most {most} per part, so the rounds match",
