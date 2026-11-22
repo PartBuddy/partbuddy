@@ -12,7 +12,7 @@ import type { ToolMaterial } from '../src/shared/toolFit';
 const PP: ToolMaterial = { holeShrink: 0.3, clearance: { clamp: 0.1, push: 0.2, slide: 0.3, turn: 0.35 } };
 const PETG: ToolMaterial = { holeShrink: 0.15, clearance: { clamp: 0.1, push: 0.2, slide: 0.3, turn: 0.35 } };
 import { minimumFloor } from '@partbuddy/geometry';
-import { barrelLeast, barrelWalls, beadHigh, LIP, rilleFor, RILLE_DEPTH, hingeDiameter, hingeLies, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, TOGETHER_KEY, type LatchSpec, type PegSpec, type SnapSpec, screwFit, screwLengths, screwSink, screwWindow, sinkMost, underHead, pegFloor, pegProblem, screwProblem, screwSteps, slideOver, slideProblem, slideRoof, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, slideSteps, snapHold, snapProblem, snapSteps, snapWindow, latchReach, latchStrain, latchSteps, LATCH, latchArm, limitWords, snapHook, snapLimit, snapStrain, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
+import { barrelLeast, barrelWalls, beadHigh, lipBead, LIP, rilleFor, RILLE_DEPTH, hingeDiameter, hingeLies, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, TOGETHER_KEY, type LatchSpec, type PegSpec, type SnapSpec, screwFit, screwLengths, screwSink, screwWindow, sinkMost, underHead, pegFloor, pegProblem, screwProblem, screwSteps, slideOver, slideProblem, slideRoof, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, slideSteps, snapHold, snapProblem, snapSteps, snapWindow, latchReach, latchStrain, latchSteps, LATCH, latchArm, limitWords, snapHook, snapLimit, snapStrain, pegLength, pegSteps, PEG, SNAP, type HingeSpec, type LidSpec, type LipSpec, type ScrewSpec, type SlideSpec } from '../src/shared/mechanisms';
 
 const spec: HingeSpec = { fixed: 'Base', moving: 'Flap', from: [42, 0, 3], to: [42, 30, 3], diameter: 6, gap: 0.4, knuckles: 3, name: 'Hinge' };
 
@@ -1003,19 +1003,29 @@ describe('the snap closure of a lid (G3)', () => {
   it('makes the bead four layers high where that is more than 1 mm, its rille as much wider and no deeper (audit N-nach-8)', () => {
     // Half the nozzle as the layer: 1 mm on 0.25 and 0.4 as before, 1.2 mm on 0.6 (the check said 1 < 1.2 mm), 1.6 mm on 0.8.
     expect([0.25, 0.4, 0.6, 0.8].map((nozzle) => beadHigh(nozzle / 2))).toEqual([1, 1, 1.2, 1.6]);
-    for (const nozzle of [0.25, 0.4, 0.6, 0.8]) {
-      const high = beadHigh(nozzle / 2);
+    // Audit T42, W36: the room is the slide fit (PLA 0.25, PETG 0.3, more on a wider nozzle); the catch stays 0.25 mm.
+    for (const nozzle of [0.25, 0.4, 0.6, 0.8]) for (const room of [0.25, 0.3, 0.375, 0.5]) {
+      const { clear, bead: out, high } = lipBead({ layer: nozzle / 2, clear: room });
+      expect(out - clear).toBeCloseTo(LIP.bead - LIP.clear, 6);
       expect(high).toBeGreaterThanOrEqual(minimumFloor(nozzle / 2));
-      const { diameter, back } = rilleFor(high);
-      // As far past the lip's face as for the 1 mm bead: the wall behind it stays as thick.
-      expect(diameter / 2 - back).toBeCloseTo(LIP.rille / 2, 2);
-      expect(diameter / 2 - back - LIP.clear).toBeCloseTo(RILLE_DEPTH, 2);
+      // The 45° flanks leave a crest.
+      expect(high / 2 - (out - 0.05)).toBeGreaterThan(0);
+      const { diameter, back } = rilleFor(high, out);
+      // 0.2 mm past the crest: as deep into the box's wall whatever the room, so the wall behind it stays as thick.
+      expect(diameter / 2 - back - clear).toBeCloseTo(RILLE_DEPTH, 2);
       // In the box's wall, from its plane to the crest, the rille clears the bead's profile (flat to 0.05 mm, then 45°) by 0.2 mm.
-      for (let d = LIP.clear; d <= LIP.bead + 1e-9; d += 0.05) {
+      for (let d = clear; d <= out + 1e-9; d += 0.05) {
         const bead = high / 2 - Math.max(0, d - 0.05);
         expect(Math.sqrt((diameter / 2) ** 2 - (back + d) ** 2) - bead).toBeGreaterThanOrEqual(0.2 - 0.005);
       }
     }
+    // PLA's room changes nothing: the bead and rille of before.
+    expect(lipBead({ layer: 0.2 })).toEqual({ clear: 0.25, bead: 0.5, high: 1 });
+    expect(lipBead({ layer: 0.2, clear: 0.1 })).toEqual({ clear: 0.25, bead: 0.5, high: 1 });
+    // PETG (slide 0.3): the lip 0.3 clear, the bead 0.55 out and 1.1 high, so it still catches 0.25 mm.
+    const petg = lipOf({ fixed: 'Box', moving: 'Lid', from: [2, 2, 20], to: [58, 38, 20], up: [0, 0, -1], side: 'y-' }, 0.4, 0.2, 0.3);
+    expect(petg).toMatchObject({ clear: 0.3 });
+    expect(lipSteps(petg as LipSpec).find((step) => step.params.name === 'Closure ●')?.params).toMatchObject({ width: '0.55 mm', height: '1.1 mm' });
     expect(rilleFor(1)).toEqual({ diameter: LIP.rille, back: 0 });
     // Built on 0.6 mm with 0.3 mm layers: the bead 1.2 mm high round 2.5 mm under the rim, its rille 1.614 mm wide, the axis 0.107 mm further in.
     const steps = lipSteps({ ...lid, nozzle: 0.6, layer: 0.3 });
@@ -1102,7 +1112,7 @@ describe('the snap closure of a lid (G3)', () => {
     };
     const built = await withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'closure', fixed: 'Box', moving: 'Lid', from: [2, 2, 20], to: [58, 38, 20], up: [0, 0, -1], side: 'y-' });
     expect(built.isError).toBeUndefined();
-    expect(built.content[0]).toMatchObject({ text: expect.stringContaining("Built the closure \"Closure\" between Box (the box) and Lid (the lid): a lip 1.4 mm thick and 4 mm high inside the lid, 0.25 mm clear of the box's wall, a bead 1 mm high that snaps 0.25 mm into a rille") as string });
+    expect(built.content[0]).toMatchObject({ text: expect.stringContaining("Built the closure \"Closure\" between Box (the box) and Lid (the lid): a lip 1.4 mm thick and 4 mm high inside the lid, 0.25 mm clear of the box's wall (the material's slide fit), a bead 1 mm high that snaps 0.25 mm into a rille") as string });
     // The trial of the box gave no answer here: the answer says what to keep instead.
     expect(built.content[0]).toMatchObject({ text: expect.stringContaining("PartBuddy could not try Box's wall: keep it straight where the lip goes in, and at least 1.35 mm thick behind the rille.") as string });
     // The timeline read for a hinge in the lid (#446) comes first; with none, nothing more is asked but the parameters the lid's box may follow.
