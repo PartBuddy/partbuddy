@@ -195,13 +195,18 @@ export function PrintCheckChip() {
   const lacking = useLackingLines()(check?.unmeasured ?? []);
   const bodyList = useBodyList();
   const connected = useStudio((s) => s.connection.state === 'connected');
+  const structure = useStudio((s) => (s.model.status === 'ready' ? s.model.structure : null));
+  // Hidden bodies are left out of check and export (audit D24); a hidden thin wall must not read as a plain green.
+  const hidden = structure?.bodies.filter((body) => !body.visible && !structure.standardParts?.includes(body.name)).map((body) => body.name) ?? [];
+  // A part SolidCraft still builds is left out until the mirror says what it is: no green before (audit N-nach-4).
+  const building = (structure?.pendingParts?.length ?? 0) > 0;
   // "Checking" shows only when it lasts; the export asks all the same (review of #367).
-  const checking = useLate(check?.measuring === true);
+  const checking = useLate(check?.measuring === true || building);
   const status = check?.result.status ?? 'ready';
   const findings = check?.result.findings ?? [];
   // Green only once all is measured (audit X-1): until then, or when a measure failed, the light says so.
   const open = status !== 'ready' ? null : checking ? 'measuring' : lacking.length > 0 ? 'unmeasured' : null;
-  const label = open ? t(`check.status.${open}`) : t(`check.status.${status}`, { count: findings.length });
+  const label = open ? t(`check.status.${open}`) : status === 'ready' && hidden.length > 0 ? t('check.status.readyHidden', { count: hidden.length }) : t(`check.status.${status}`, { count: findings.length });
   // Read out are the states it ends in, not "checking" after every step.
   const [said, setSaid] = useState('');
   if (check && !check.measuring && said !== label) setSaid(label);
@@ -266,6 +271,11 @@ export function PrintCheckChip() {
             {check.unchecked && check.unchecked.length > 0 ? (
               <p className="px-2 text-sm text-text-muted" data-testid="print-check-unchecked">
                 {t('check.unchecked', { bodies: bodyList(check.unchecked) })}
+              </p>
+            ) : null}
+            {hidden.length > 0 ? (
+              <p className="px-2 text-sm text-text-muted" data-testid="print-check-hidden">
+                {t('check.hidden', { bodies: bodyList(hidden) })}
               </p>
             ) : null}
             <p className="px-2 text-xs text-text-muted">{t('check.basis')}</p>

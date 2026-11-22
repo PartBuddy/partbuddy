@@ -1289,7 +1289,8 @@
       "warn": "{count, plural, one {# Hinweis} other {# Hinweise}}",
       "block": "Nicht druckbereit",
       "measuring": "Prüft noch",
-      "unmeasured": "Nicht vollständig geprüft"
+      "unmeasured": "Nicht vollständig geprüft",
+      "readyHidden": "Druckbereit, {count} ausgeblendet"
     },
     "none": "Keine Probleme gefunden: Das Teil passt in den Bauraum, die Wände sind dick genug, nichts neigt sich über den Überhangwinkel.",
     "noneSoFar": "Bisher keine Probleme gefunden.",
@@ -1297,6 +1298,7 @@
     "measuring": "Die Prüfung läuft noch. Überschneidungen, zu enge Spalte oder ein blockiertes Gelenk können noch dazukommen.",
     "unmeasured": "Nicht oder nicht vollständig gemessen: {what}. Befunde dazu können fehlen.",
     "unchecked": "Nicht auf Abstände geprüft (Netzkörper): {bodies}",
+    "hidden": "Ausgeblendet, darum weder geprüft noch exportiert: {bodies}",
     "measure": {
       "clearance": "die Abstände zwischen den Teilen",
       "joints": "die Wege der Gelenke"

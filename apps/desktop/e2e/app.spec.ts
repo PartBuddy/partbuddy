@@ -1971,7 +1971,7 @@ test('a material from the catalog becomes an ordinary profile with its starting 
 });
 
 test('the ready-to-print light follows the printer, points at its findings and asks before a red export (M7)', async () => {
-  const { app } = await connectedApp();
+  const { app, fake: solidcraft } = await connectedApp();
   const { page } = app;
   const light = page.getByTestId('print-check');
   // The light comes with the first check of the mirrored part, later on a busy runner.
@@ -1982,6 +1982,19 @@ test('the ready-to-print light follows the printer, points at its findings and a
   await expect(page.getByTestId('print-check-export')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('print-check-panel')).toBeHidden();
+
+  // A hidden body is neither checked nor exported: the light says so, the panel names it (audit D24).
+  solidcraft.bodies = ['CableClip', 'Spacer'];
+  solidcraft.hidden.add('Spacer');
+  solidcraft.change();
+  await expect(light).toHaveText('Ready to print, 1 hidden', { timeout: 15_000 });
+  await light.click();
+  await expect(page.getByTestId('print-check-hidden')).toHaveText('Hidden, so neither checked nor exported: Spacer');
+  await page.keyboard.press('Escape');
+  solidcraft.hidden.delete('Spacer');
+  solidcraft.bodies = ['CableClip'];
+  solidcraft.change();
+  await expect(light).toHaveText('Ready to print', { timeout: 15_000 });
 
   // A printer too small for the 64 mm clip turns it red.
   await page.getByTestId('settings').click();
