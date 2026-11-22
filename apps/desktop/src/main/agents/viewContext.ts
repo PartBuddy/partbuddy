@@ -195,14 +195,14 @@ export function withViewTool(
   upstream: UpstreamTools,
   state: () => ViewState | null,
   notes: () => ViewNotes | null = () => null,
-  check: () => string | null = () => null,
+  check: () => string | null | Promise<string | null> = () => null,
 ): UpstreamTools {
   return {
     instructions: () => upstream.instructions(),
     listTools: async () => [...(await upstream.listTools()), viewTool],
     callTool: async (name, args, callId): Promise<ToolResult> => {
       if (name === VIEW_TOOL) {
-        return { content: [{ type: 'text', text: describeView(state(), notes()) }, { type: 'text', text: check() ?? NO_CHECK_VIEW }] };
+        return { content: [{ type: 'text', text: describeView(state(), notes()) }, { type: 'text', text: (await check()) ?? NO_CHECK_VIEW }] };
       }
       return upstream.callTool(name, args, callId);
     },

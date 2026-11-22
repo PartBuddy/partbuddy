@@ -65,7 +65,7 @@ import { readVersion } from './solidcraft/engineVersion';
 import { safeDesignFileName } from './solidcraft/headless';
 import { longPath, SolidCraftSupervisor } from './solidcraft/supervisor';
 import { ChatArchive } from './chat/chatArchive';
-import { CHECK_PENDING, CHECK_PENDING_VIEW, CheckTold, printCheckNote, withCheckOfChange } from './print/printCheckNote';
+import { CHECK_PENDING, CHECK_PENDING_VIEW, CheckTold, printCheckNote, settledCheck, withCheckOfChange } from './print/printCheckNote';
 import { templatePrintFaces, templateSteps } from '../shared/templates';
 import { testPieceSteps } from '../shared/testPieces';
 import { sketchNote } from './agents/sketchNote';
@@ -416,7 +416,9 @@ if (!app.requestSingleInstanceLock()) {
       return `${note}\n[PartBuddy: hidden, so not checked, not exported and not sent to the slicer: ${hidden.slice(0, 20).join(', ')}${hidden.length > 20 ? ` and ${String(hidden.length - 20)} more` : ''}. Show a body (browser.visibility) to have it checked and printed.]`;
     };
     // The check as partbuddy_view shows it: a check of an older revision is still catching up.
-    const checkForView = () => {
+    const checkForView = async () => {
+      // A model told "still running" gave up and left the part unfinished (practice run 2026-11-22): wait for it here.
+      await settledCheck(() => ({ report: printCheck, revision: supervisor.currentRevision()?.revision }));
       if (!printCheck) return null;
       if (printCheck.revision !== supervisor.currentRevision()?.revision) return CHECK_PENDING_VIEW;
       return withHidden(printCheckNote(printCheck, true));

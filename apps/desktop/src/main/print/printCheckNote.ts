@@ -293,6 +293,18 @@ export const CHECK_PENDING_VIEW = '[PartBuddy: the ready-to-print check of the l
  */
 export const CHECK_WAIT_MS = 3000;
 export const CHECK_FULL_MS = 1500;
+/** How long partbuddy_view waits for a check still running: the clearance of a print-in-place box and lid took 24 s (practice run 2026-11-22). */
+export const VIEW_WAIT_MS = 30_000;
+
+/** Waits until the check has caught up with the design's revision and finished measuring, or `waitMs` passed; no check at all returns at once. */
+export async function settledCheck(current: () => { report: PrintCheckReport | null; revision: number | undefined }, waitMs = VIEW_WAIT_MS): Promise<void> {
+  const until = Date.now() + waitMs;
+  for (;;) {
+    const { report, revision } = current();
+    if (!report || (report.revision === revision && !report.measuring) || Date.now() >= until) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
 
 /** What PartBuddy holds right now: the revision the mirror last delivered and the check last reported. */
 export interface CheckState {
