@@ -60,7 +60,7 @@ export function Toast() {
   const danger = notice?.tone === 'danger';
   return (
     // The live region stays mounted so screen readers announce every new text.
-    <div role={danger ? 'alert' : 'status'} className="pointer-events-none absolute inset-x-0 bottom-14 z-30 flex justify-center px-3">
+    <div role={danger ? 'alert' : 'status'} className="pointer-events-none absolute inset-x-0 bottom-7 z-30 flex justify-center px-3">
       {notice ? (
         <div
           key={notice.text}
@@ -72,7 +72,7 @@ export function Toast() {
           ) : notice.tone === 'info' ? (
             <IconInfoCircle className="mt-px size-icon-sm shrink-0 text-accent" aria-hidden />
           ) : <IconCircleCheck className="mt-px size-icon-sm shrink-0 text-success" aria-hidden />}
-          <span className="min-w-0 py-0.5" data-testid="notice">
+          <span className="min-w-0 py-px" data-testid="notice">
             {notice.text}
           </span>
           {notice.action ? (

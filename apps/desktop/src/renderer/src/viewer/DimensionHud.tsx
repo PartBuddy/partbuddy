@@ -105,7 +105,7 @@ function DockHint() {
   if (seen) return null;
   return (
     // One short closable line, so the actions stay in view (audit N-12).
-    <div className="flex items-center gap-1 rounded-md bg-accent-subtle py-0.5 pr-0.5 pl-2 text-xs text-text" role="note" data-testid="dock-hint">
+    <div className="flex items-center gap-1 rounded-md bg-accent-subtle py-px pr-px pl-2 text-xs text-text" role="note" data-testid="dock-hint">
       <span className="flex-1">{t('hud.firstHint')}</span>
       <IconButton
         label={t('hud.firstHintOk')}
@@ -429,7 +429,7 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
           <TextArea
             rows={1}
             placeholder={t('hud.wishExample')}
-            className={`${textAreaClass} max-h-24 min-h-control-sm resize-none [field-sizing:content]`}
+            className={`${textAreaClass} max-h-[6rem] min-h-control-sm resize-none [field-sizing:content]`}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
                 event.preventDefault();

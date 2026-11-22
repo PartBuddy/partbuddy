@@ -425,7 +425,7 @@ function FailureCard({ item, retry }: { item: Extract<ConversationItem, { kind: 
       </p>
       <p className="text-sm text-text-muted">{reasonText}</p>
       {raw ? (
-        <p className="max-h-16 overflow-hidden text-xs break-words text-text-subtle" data-testid="turn-reason">
+        <p className="max-h-[4rem] overflow-hidden text-xs break-words text-text-subtle" data-testid="turn-reason">
           {raw}
         </p>
       ) : null}
@@ -787,7 +787,7 @@ export function AssistantPanel() {
         <AssistantSetup />
       </div>
       <div ref={list} {...handlers} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="chat-list">
-      <div ref={content} className="cs-chat-list flex flex-col gap-2 p-3 pb-12">
+      <div ref={content} className="cs-chat-list flex flex-col gap-2 p-3 pb-7">
         {items.length === 0 && (status.state === 'ready' || busy) ? (
           // A way in for an empty chat (polish round 1): examples fill the input, they do not send.
           <div className="flex flex-col gap-2 pt-4" data-testid="chat-start">

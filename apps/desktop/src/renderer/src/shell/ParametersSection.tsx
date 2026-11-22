@@ -147,7 +147,7 @@ function ParameterRow({ parameter, body, busy, level, width }: { parameter: Desi
               onFocus={(event) => {
                 event.currentTarget.select();
               }}
-              className={`h-control-sm w-full min-w-0 px-0.5 text-right text-sm tabular-nums ${fieldBox}`}
+              className={`h-control-sm w-full min-w-0 px-px text-right text-sm tabular-nums ${fieldBox}`}
               onKeyDown={(event) => {
                 event.stopPropagation();
                 if (event.key === 'Enter') {
@@ -174,7 +174,7 @@ function ParameterRow({ parameter, body, busy, level, width }: { parameter: Desi
           </TextField>
         ) : (
           <span className={`shrink-0 truncate text-right ${parameter.error ? 'text-danger' : ''}`} style={{ width }} title={title || undefined}>
-            {parameter.editable ? null : <span className="mr-0.5 text-xs text-text-subtle" aria-hidden>ƒ</span>}
+            {parameter.editable ? null : <span className="mr-px text-xs text-text-subtle" aria-hidden>ƒ</span>}
             {format(parameter.value)}
             {suffixOf(parameter)}
             {/* The head names the unit once; a screen reader hears it with each value. */}
