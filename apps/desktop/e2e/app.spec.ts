@@ -1556,6 +1556,8 @@ test('every connection state explains itself', async () => {
   await fake.start();
   await lookAgain(page);
   await expect(page.getByTestId('connection-status')).toHaveAttribute('data-revision', '1');
+  // The mesh comes after the revision: stopped before it arrived, there was no model to keep (CI under load, PR #543).
+  await expect(page.getByTestId('mesh-summary')).toContainText('41 faces', { timeout: 15_000 });
 
   await fake.stop();
   await expect(page.getByText('The connection to SolidCraft was lost')).toBeVisible();
