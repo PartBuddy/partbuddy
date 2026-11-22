@@ -11,7 +11,7 @@ import { DESIGN_DEFAULTS, printCheckReportSchema, type PartPrint } from '../src/
 describe('the ready-to-print check as the assistant reads it (M7)', () => {
   it('says what it looked at when nothing was found, and what it did not (audit R3)', () => {
     const clean = printCheckNote({ status: 'ready', findings: [], nozzle: 0.4, revision: 1 });
-    expect(clean).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, rounded edges on the bed, holes under 2 mm, slots under one nozzle, area on the bed for the height,');
+    expect(clean).toContain('nothing found in what it checks (build volume, wall and floor thickness, overhang angle, rounded edges on the bed, holes under 2 mm, pins and posts under 3 mm, slots under one nozzle, area on the bed for the height,');
     expect(clean).toContain('Not checked: strength and layer direction under load, the fits and hole allowances you chose,');
     // No verdict the model could hand on as "ready to print".
     expect(clean).not.toMatch(/ready to print[,.]/);
@@ -115,7 +115,7 @@ describe('the ready-to-print check as the assistant reads it (M7)', () => {
     const report = reportOf({ status: 'ready', findings: [] }, 0.4, 1, [], { off: ['smallHole'] });
     expect(printCheckReportSchema.safeParse(report).success).toBe(true);
     const note = printCheckNote(report);
-    expect(note).toContain('rounded edges on the bed, slots under one nozzle, area on the bed');
+    expect(note).toContain('rounded edges on the bed, pins and posts under 3 mm, slots under one nozzle, area on the bed');
     expect(note).toContain("Turned off in PartBuddy's print settings or with the design rules, so not looked for: holes under 2 mm.");
     expect(printCheckNote(reportOf({ status: 'ready', findings: [] }, 0.4, 1))).not.toContain('Turned off');
   });

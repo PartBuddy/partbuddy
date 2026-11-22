@@ -1262,6 +1262,10 @@
         "label": "Bohrungen unter 2 mm",
         "hint": "Zeigt Bohrungen, die schmaler als 2 mm sind: Sie wachsen zu oder werden deutlich zu klein, also nach dem Druck aufbohren. Nur ein Hinweis, nie eine Sperre."
       },
+      "thinPin": {
+        "label": "Zapfen unter 3 mm",
+        "hint": "Zeigt Zapfen und Säulen, die dünner als 3 mm sind: Sie drucken nur als Wandlinien und brechen leicht ab. Wo einer halten muss, ist ein gekaufter Stift im gedruckten Loch besser. Nur ein Hinweis, nie eine Sperre."
+      },
       "narrowGap": {
         "label": "Schlitze, die zuwachsen",
         "hint": "Zeigt, wo zwei Wände eines Teils näher als eine Düsenbreite (mindestens 0,3 mm) beieinander liegen: Eine gravierte Linie, ein Schnitt oder ein Spalt zwischen Buchstaben druckt dort zu. Nur ein Hinweis, nie eine Sperre."
@@ -1341,6 +1345,7 @@
       "blockedFree": "{joint}: {a} und {b} stoßen bei {at} aneinander – das Gelenk hat in diese Richtung keine Grenze und bleibt dort stehen",
       "posed": "{joint} steht auf {value}, nicht wie konstruiert – exportiert und geprüft wird diese Stellung",
       "smallHole": "{count, plural, one {Eine Bohrung unter {minimum} mm ({diameter} mm)} other {# Bohrungen unter {minimum} mm, die kleinste {diameter} mm}}: So kleine Bohrungen wachsen zu oder werden zu klein – nach dem Druck aufbohren",
+      "thinPin": "{count, plural, one {Ein Zapfen unter {minimum} mm ({diameter} mm)} other {# Zapfen unter {minimum} mm, der dünnste {diameter} mm}}: So dünne Zapfen brechen leicht ab – dicker machen oder einen Stift einsetzen",
       "narrowGap": "Schlitze bis {gap} mm, unter den {minimum} mm, die mit dieser Düse offen bleiben: Die Wände daneben drücken sich zusammen und schließen sie",
       "sharpEdge": "{count, plural, one {Eine scharfe Kante} other {# scharfe Kanten}} ({length} mm) an Körpern ganz ohne gerundete oder gefaste Außenkante: Die Gestaltungsregeln runden sichtbare Außenkanten nach Teilgröße, an Platten höchstens bis zur halben Dicke – hier {radii}",
       "edgeRadii": "Außenkanten mit {count} verschiedenen Radien ({radii} mm): Die Gestaltungsregeln nehmen höchstens {most} Radien je Teil, damit die Rundungen zusammenpassen",

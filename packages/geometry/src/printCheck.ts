@@ -36,7 +36,7 @@ export interface PrintCheckProfile {
  * The hints of BC-24: yellow only, each one switched off in the print settings on its own (Manuel, 2026-11-13). The design
  * hints (`withDesign`, Manuel 2026-11-14) say how the part looks and holds, not whether it prints.
  */
-export type PrintHint = 'smallHole' | 'narrowGap' | DesignHint;
+export type PrintHint = 'smallHole' | 'thinPin' | 'narrowGap' | DesignHint;
 export type DesignHint = 'sharpEdge' | 'edgeRadii' | 'rootCorner' | 'shallowSlope' | 'shellCorner';
 
 export interface PrintCheckBody {
@@ -90,6 +90,7 @@ export type PrintFinding =
   | ({ kind: 'roundBedEdge'; severity: FindingSeverity; area: number; limit: number } & Located)
   /** Holes under `minimum` across (BC-24, S12): how many, and the diameter of the smallest. */
   | ({ kind: 'smallHole'; severity: FindingSeverity; holes: number; diameter: number; minimum: number } & Located)
+  | ({ kind: 'thinPin'; severity: FindingSeverity; pins: number; diameter: number; minimum: number } & Located)
   /** Slots between two walls of one body under `minimum` wide (BC-24): `gap` the narrowest, over `area` of wall. */
   | ({ kind: 'narrowGap'; severity: FindingSeverity; gap: number; minimum: number; area: number } & Located)
   /**
@@ -319,6 +320,12 @@ function coaxial(a: FaceInfo | undefined, b: FaceInfo | undefined): number | nul
  */
 export const SMALLEST_HOLE = 2;
 
+/**
+ * The thinnest pin or post that holds (audit MG-25, yardstick S28): 1 mm prints, 3 mm holds (Q16), under 5 mm a pin is
+ * only wall lines (Q1). Under this one a bought pin in a printed hole is the better way. A hint, never a block.
+ */
+export const SMALLEST_PIN = 3;
+
 /** A hole goes round: the widest angle round its axis with no corner of its faces is under this (a quarter turn). */
 const HOLE_GAP = Math.PI / 2;
 
@@ -331,22 +338,37 @@ const HOLE_GAP = Math.PI / 2;
  * are sorted per hole. Exported for its speed test.
  * shortcut: only exact cylinders: a hole drawn as a polygon, or in a mesh imported as such, is not found.
  */
-export function smallHoles({ model }: PrintCheckBody): { tally: FaceTally; holes: number } {
+export function smallHoles(body: PrintCheckBody): { tally: FaceTally; holes: number } {
+  return roundOnes(body, true, SMALLEST_HOLE);
+}
+
+/**
+ * The pins and posts of one body under SMALLEST_PIN across (MG-25, S28): as {@link smallHoles}, but cylinders the material
+ * lies inside of, going all the way round and at least as long as they are thick (a rounded edge goes a quarter turn,
+ * a disc or a boss is shorter). Returns the tally and the number of pins in `holes`.
+ */
+export function thinPins(body: PrintCheckBody): { tally: FaceTally; holes: number } {
+  return roundOnes(body, false, SMALLEST_PIN);
+}
+
+/** Whole round cylinders under `below` across, hollow ones (holes) or solid ones (pins). */
+function roundOnes({ model }: PrintCheckBody, hollow: boolean, below: number): { tally: FaceTally; holes: number } {
   const faces = model.table.faces;
   const tally = new FaceTally(faces.length);
   const index = model.geometry.index?.array;
   const positions = model.geometry.getAttribute('position').array;
-  const small = (face: FaceInfo | undefined) => !!face?.cylinder && face.cylinder.radius * 2 < SMALLEST_HOLE - EPSILON;
+  const small = (face: FaceInfo | undefined) => !!face?.cylinder && face.cylinder.radius * 2 < below - EPSILON;
   if (!index || !faces.some(small)) return { tally, holes: 0 };
   const triangles = new Map<number, number[]>();
-  const hollow = new Set<number>();
+  // Per face whether the material lies round it, read on its first triangle with a normal.
+  const side = new Map<number, boolean>();
   for (let t = 0; t < index.length / 3; t += 1) {
     const face = model.triangleFaces[t] ?? 0;
     if (!small(faces[face])) continue;
     const own = triangles.get(face) ?? [];
-    if (!hollow.has(face)) {
+    if (!side.has(face)) {
       const { normal, centroid } = triangle(positions, index, t);
-      if (normal && hollowAt(model, t, normal, centroid)) hollow.add(face);
+      if (normal) side.set(face, hollowAt(model, t, normal, centroid));
     }
     own.push(t);
     triangles.set(face, own);
@@ -356,7 +378,8 @@ export function smallHoles({ model }: PrintCheckBody): { tally: FaceTally; holes
   // shortcut: a value lying on a rounding step splits one hole in two groups, each less than round; key with a tolerance if one turns up.
   const groups = new Map<string, number[]>();
   const key = (n: number) => String(Math.round(n * 1000) || 0);
-  for (const face of hollow) {
+  for (const [face, inside] of side) {
+    if (inside !== hollow) continue;
     const cylinder = faces[face]?.cylinder;
     if (!cylinder) continue;
     const axis = new Vector3(...cylinder.axis).normalize();
@@ -960,6 +983,14 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       const found = locate(parts, holes.map((body) => body.tally), 0);
       const count = holes.reduce((sum, body) => sum + body.holes, 0);
       if (count > 0) findings.push({ kind: 'smallHole', severity: 'warn', holes: count, diameter: round(found.extreme), minimum: SMALLEST_HOLE, places: found.places, box: found.box });
+    }
+    // Pins and posts under 3 mm (MG-25): a hint. Bodies printed as one piece are left out: a print-in-place hinge's own pin turns, it carries no load.
+    if (!profile.off?.includes('thinPin')) {
+      const loose = parts.filter((body) => body.group === undefined);
+      const pins = loose.map(thinPins);
+      const found = locate(loose, pins.map((body) => body.tally), 0);
+      const count = pins.reduce((sum, body) => sum + body.holes, 0);
+      if (count > 0) findings.push({ kind: 'thinPin', severity: 'warn', pins: count, diameter: round(found.extreme), minimum: SMALLEST_PIN, places: found.places, box: found.box });
     }
 
     // Bodies that touch fall apart in the slicer, each laid onto the bed by itself. Bodies printed as one piece stay

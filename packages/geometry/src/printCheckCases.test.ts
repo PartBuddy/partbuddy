@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import type { FaceInfo, FaceTable } from './faceTable';
@@ -210,6 +210,20 @@ describe('small holes (BC-24, S12)', () => {
       // Whatever the nozzle: a hole under 2 mm closes up at any of them.
       expect(one(checkPrint([body], { ...PLA, nozzle: 0.6 }).findings, 'smallHole')?.holes, what).toBe(want === 'none' ? undefined : want[0]);
     }
+  });
+
+  // Reads every fixture: a loaded runner took over the 5 s default once.
+  it('finds a pin under 3 mm, and no hole, fillet or slot as one (audit MG-25)', { timeout: 30_000 }, () => {
+    // Every SolidCraft body the tests hold, of every set with its faces.
+    const sets = new Set(readdirSync(fixture).filter((file) => file.endsWith('.faces.json')).map((file) => file.slice(0, -'.faces.json'.length)));
+    const names = readdirSync(fixture).filter((file) => file.endsWith('.3mf') && sets.has(file.slice(0, file.indexOf('-')))).map((file) => [file.slice(0, file.indexOf('-')), file.slice(file.indexOf('-') + 1, -4)] as const)
+      .filter(([set, name]) => name in (JSON.parse(readFileSync(new URL(`${set}.faces.json`, fixture), 'utf8')) as Record<string, unknown>));
+    const pins = Object.fromEntries(names.map(([set, name]) => [name, one(checkPrint([solidcraft(set, name)], PLA).findings, 'thinPin')?.pins ?? 0]));
+    expect(Object.entries(pins).filter(([, count]) => count > 0)).toEqual([['Pin15', 1]]);
+    expect(one(checkPrint([solidcraft('detail', 'Pin15')], PLA).findings, 'thinPin')).toMatchObject({ severity: 'warn', pins: 1, diameter: 1.5, minimum: 3, places: [{ body: 'Pin15' }] });
+    // Turned off in the print settings, or printed as one piece with its neighbour (a print-in-place hinge's pin turns), it is not looked for.
+    expect(one(checkPrint([solidcraft('detail', 'Pin15')], { ...PLA, off: ['thinPin'] }).findings, 'thinPin')).toBeUndefined();
+    expect(one(checkPrint([{ ...solidcraft('detail', 'Pin15'), group: 'Hinge' }], PLA).findings, 'thinPin')).toBeUndefined();
   });
 
   it('takes no pocket shallower than it is wide for a hole: a dice pip is a dimple (BC-24 review)', () => {
