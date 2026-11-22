@@ -115,6 +115,7 @@ const PARITY: Record<InvokeChannel, Parity> = {
   [invokeChannels.designRenameBody]: { command: 'body.rename' },
   [invokeChannels.designInsert]: { reason: FILES },
   [invokeChannels.designRepair]: { command: 'mesh.convert' },
+  [invokeChannels.designRepairBody]: { command: 'body.repair' },
   [invokeChannels.designGoToStep]: { reason: 'the work log is PartBuddy’s own history; the assistant steps back with undo' },
   [invokeChannels.designDimensions]: { reason: READ },
   [invokeChannels.designProbeParameter]: { reason: PREVIEW },

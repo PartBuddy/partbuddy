@@ -1512,6 +1512,21 @@ if (!app.requestSingleInstanceLock()) {
       log('seated a standard part');
       return { body };
     });
+    bridge.handle(invokeChannels.designRepairBody, async ({ body }) => {
+      assistantIdle();
+      try {
+        let closed = false;
+        await steps.recordUser(describeUserAction({ kind: 'repairBody', body }), async () => {
+          closed = await supervisor.repairBody(body);
+        });
+        log(`repaired an imported part, closed: ${String(closed)}`);
+        return { ok: true, closed };
+      } catch (error) {
+        const detail = (error as Error).message.replace(/^\S+ failed: /, '').slice(0, 500);
+        log(`repair of an imported part refused: ${detail}`);
+        return { ok: false, detail };
+      }
+    });
     bridge.handle(invokeChannels.designRepair, async ({ body }) => {
       assistantIdle();
       try {
