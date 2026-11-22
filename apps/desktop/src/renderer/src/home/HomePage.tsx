@@ -114,7 +114,8 @@ export function HomePage() {
     return () => {
       live = false;
     };
-  }, [api, loads]);
+  // A rename of the open project returns before SolidCraft has reopened it: load again with its new document.
+  }, [api, loads, connection.documentId]);
   const failed = (error: unknown) => {
     useStudio.getState().setNotice({ tone: 'danger', text: t('project.failed', { detail: (error as Error).message.slice(0, 200) }) });
   };
