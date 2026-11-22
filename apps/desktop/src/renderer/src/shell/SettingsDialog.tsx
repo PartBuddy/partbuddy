@@ -428,7 +428,7 @@ function GeneralSection() {
             onChange={(next) => {
               void platform().settings.setApp({ key: 'gpuPreference', value: next }).then(setApp);
             }}
-            className="w-64"
+            className="w-[16rem]"
             testId="settings-gpu-preference"
           />
         </Setting>

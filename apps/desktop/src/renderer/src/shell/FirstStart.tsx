@@ -81,7 +81,7 @@ export function FirstStart() {
                     disabled={n >= index}
                     aria-current={n === index ? 'step' : undefined}
                     onClick={() => setIndex(n)}
-                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 outline-none focus-visible:focus-ring ${n === index ? 'bg-accent-subtle font-semibold text-accent-text' : n < index ? 'text-text hover:bg-surface-hover' : 'text-text-subtle'}`}
+                    className={`flex items-center gap-1 rounded-full px-2 py-px outline-none focus-visible:focus-ring ${n === index ? 'bg-accent-subtle font-semibold text-accent-text' : n < index ? 'text-text hover:bg-surface-hover' : 'text-text-subtle'}`}
                   >
                     <span className="tabular-nums">{n + 1}</span>
                     {t(`firstStart.step.${name}`)}
