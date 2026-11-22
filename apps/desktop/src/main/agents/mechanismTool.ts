@@ -1977,17 +1977,17 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     let tried: Awaited<ReturnType<typeof closureTrial>> | undefined;
     // #446: the closure follows the parameters as its points were given, or as the lid's box moves; with a hinge only where that follows too.
     const sized = await closureFollow(site, spec, takes);
-    const warnings = await build(site, spec, [...lipSteps(sized ?? spec), ...remade], spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`, false, async () => {
+    // The lid's part of a hinge that follows is made again, and its joint was kept on a face of it that is gone: kept again
+    // on the new one in the same batch, so no revision has a joint on a missing face (practice run 2026-11-22: the check's
+    // sweep of that revision failed with "joint origin: the face … no longer exists" while the closure was tried).
+    const again = hinges.filter((hinge) => hinge.follow.some(Boolean));
+    const [listing] = again.length > 0 ? await run([{ command: 'component.list', params: {} }]) : [];
+    const occurrence = again.length > 0 ? occurrenceOf(listing, lid) : null;
+    const rekept: Step[] = occurrence ? again.map((hinge) => ({ command: 'joint.edit', params: { joint: hinge.name, [hinge.keep.side]: { occurrence, circle: hinge.keep.circle, x: hinge.keep.x } } })) : [];
+    const warnings = await build(site, spec, [...lipSteps(sized ?? spec), ...remade, ...rekept],spec.flat ? `Give from and to as opposite corners of the inner room of ${spec.fixed} on the face of ${spec.moving} towards it, so the lip stands on the plate.` : `Give from and to as opposite corners of the inner room of ${spec.moving} at its rim, so the lip lies on its wall.`, false, async () => {
       tried = await closureTrial(upstream, spec, nozzle, callId).catch(() => undefined);
       if (tried?.problem) throw new Error(tried.problem);
     });
-    // The lid's part of a hinge that follows was made again, and its joint was kept on a face of it that is gone: kept again on the new one.
-    const again = hinges.filter((hinge) => hinge.follow.some(Boolean));
-    if (again.length > 0) {
-      const [listing] = await run([{ command: 'component.list', params: {} }]);
-      const occurrence = occurrenceOf(listing, lid);
-      if (occurrence) await run(again.map((hinge) => ({ command: 'joint.edit', params: { joint: hinge.name, [hinge.keep.side]: { occurrence, circle: hinge.keep.circle, x: hinge.keep.x } } })));
-    }
     const box = tried
       ? ` PartBuddy tried ${spec.fixed}'s wall where the lid closes: the lip goes in, and the wall with the catch is at least ${String(behind)} mm thick behind the rille.${tried.back.length > 0 ? ` At the lid's ${tried.back.join(', ')} wall${tried.back.length > 1 ? 's' : ''} ${spec.fixed}'s wall stands back from the lid's, so the lip does not centre the lid there.` : ''}`
       : ` PartBuddy could not try ${spec.fixed}'s wall: keep it straight where the lip goes in, and at least ${String(behind)} mm thick behind the rille.`;
