@@ -145,6 +145,8 @@ export const REFUSED_COMMANDS: Record<string, string> = {
   'edit.repeat': WINDOW_REASON,
   // audit S-26: state PartBuddy does not show.
   'timeline.add': 'puts in a recorded feature as raw data, which PartBuddy cannot check (it may hold a file to import). Build the feature with its own command instead.',
+  // Audit H-03, decided by Manuel 2026-11-22: a feature that fails is mended, not switched off out of the check's sight; rollback and roll_to stay for edits.
+  'timeline.suppress': "switches a feature off, and the print check no longer sees what it was meant to build. Whether a feature is left out is the user's choice in the timeline: mend a failing one or ask the user.",
   'timeline.reorder': REORDER_REASON,
   'timeline.reorder_many': REORDER_REASON,
   // Measured with 0.40.1: {features: ["Base"], position: 4, active: false} put Base behind the marker, 2 bodies became 1.
