@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.3.10](https://github.com/PartBuddy/partbuddy/compare/v0.3.9...v0.3.10) (2026-11-22)
+
+
+### Features
+
+* hint at pins and posts under 3 mm in the print check ([#542](https://github.com/PartBuddy/partbuddy/issues/542)) ([90e7b60](https://github.com/PartBuddy/partbuddy/commit/90e7b60be9ad60cd9ecfb61228f136d21c7a55e7))
+* repair an open imported part from the structure tree ([#538](https://github.com/PartBuddy/partbuddy/issues/538)) ([1c8e5b9](https://github.com/PartBuddy/partbuddy/commit/1c8e5b98badfadc8c38e7862a346b24a6b878968))
+
+
+### Bug Fixes
+
+* do not run a solidcraft older than the minimum ([#523](https://github.com/PartBuddy/partbuddy/issues/523)) ([17e100c](https://github.com/PartBuddy/partbuddy/commit/17e100cb5803ea2ef1e1730c25bb04e60809542c))
+* give a snap closure's lip the material's slide fit as its room ([#539](https://github.com/PartBuddy/partbuddy/issues/539)) ([7f66d52](https://github.com/PartBuddy/partbuddy/commit/7f66d52c938ea8871ce5c683d98479bbf5b7aa47))
+* grow the least gap of a guide and a screw lid with a wider nozzle ([#533](https://github.com/PartBuddy/partbuddy/issues/533)) ([0f0384a](https://github.com/PartBuddy/partbuddy/commit/0f0384ae34c50a4642acf2fd4224edb7b65079bc))
+* lay a part without the bed margin when the plate view leaves it off ([#527](https://github.com/PartBuddy/partbuddy/issues/527)) ([a20be8e](https://github.com/PartBuddy/partbuddy/commit/a20be8e9cca380133636e497d4de497a4939a87b))
+* leave one layer over the screw hole of a nut pocket that opens down ([#543](https://github.com/PartBuddy/partbuddy/issues/543)) ([ed07237](https://github.com/PartBuddy/partbuddy/commit/ed0723773cb2555813460563d461504b9650016c))
+* let only the user switch a feature off in the timeline ([#537](https://github.com/PartBuddy/partbuddy/issues/537)) ([ba80abe](https://github.com/PartBuddy/partbuddy/commit/ba80abeb2f0d99e5f75be40fb543476e6d41fbc6))
+* measure the plastic round a modelled thread before drilling it ([#524](https://github.com/PartBuddy/partbuddy/issues/524)) ([7546f97](https://github.com/PartBuddy/partbuddy/commit/7546f97cb130bdc32610cfba9650703332f09839))
+* no ready verdict while a measure failed or the check is behind ([#522](https://github.com/PartBuddy/partbuddy/issues/522)) ([a22ce42](https://github.com/PartBuddy/partbuddy/commit/a22ce4272111370a305ed118a024543e75f7ef91))
+* say a body without faces is not checked instead of reading ready ([#520](https://github.com/PartBuddy/partbuddy/issues/520)) ([c9bb22a](https://github.com/PartBuddy/partbuddy/commit/c9bb22abcec73efc8456940d7846c73e9a93ca19))
+* say at a coupled joint that it is coupled in the view only ([#546](https://github.com/PartBuddy/partbuddy/issues/546)) ([361c1a1](https://github.com/PartBuddy/partbuddy/commit/361c1a18f416fd628178d0d1ed36806a493cf3b9))
+* say what the fit comb and the overhang staircase do not measure ([#545](https://github.com/PartBuddy/partbuddy/issues/545)) ([2b4df77](https://github.com/PartBuddy/partbuddy/commit/2b4df77e51a6e58fe82a5e90b01d48efb97b859c))
+* show a mesh's size after import and the volume change of a conversion ([#535](https://github.com/PartBuddy/partbuddy/issues/535)) ([5e6e6b5](https://github.com/PartBuddy/partbuddy/commit/5e6e6b57c6cca0b7b37dbed0ca32fc0802380758))
+* size snap and latch arms to hold printed standing ([#529](https://github.com/PartBuddy/partbuddy/issues/529)) ([083b7af](https://github.com/PartBuddy/partbuddy/commit/083b7afc11ccd7493fc25e48db2b6b38cf3ee298))
+* tell the assistant how to mark its own print-in-place joint ([#544](https://github.com/PartBuddy/partbuddy/issues/544)) ([2fda932](https://github.com/PartBuddy/partbuddy/commit/2fda9320cf18640edd50090aecd9f4a5d5a69ab2))
+* tell the assistant the printer's own error is not in unmeasured fits ([#534](https://github.com/PartBuddy/partbuddy/issues/534)) ([2f2811e](https://github.com/PartBuddy/partbuddy/commit/2f2811ed73ad50a75b976084d6d1524013a35b4e))
+* tell the assistant when a resized standard part grew into its hole ([#541](https://github.com/PartBuddy/partbuddy/issues/541)) ([28fb58c](https://github.com/PartBuddy/partbuddy/commit/28fb58ce67623a8cb477564b44d19100b76d6532))
+* the light names hidden bodies and waits for parts still being built ([#532](https://github.com/PartBuddy/partbuddy/issues/532)) ([1e1a2ca](https://github.com/PartBuddy/partbuddy/commit/1e1a2caa47aaaea17f974c3b336462c268af4572))
+* wait for the assistant before export, sharing, slicer and visibility ([#519](https://github.com/PartBuddy/partbuddy/issues/519)) ([e1e5675](https://github.com/PartBuddy/partbuddy/commit/e1e567555988f8f1d5a1b8c57653ec10f292c4e7))
+* warn of sharp fins under 30 degrees as thin walls ([#530](https://github.com/PartBuddy/partbuddy/issues/530)) ([9be55e9](https://github.com/PartBuddy/partbuddy/commit/9be55e908d955b01e51b4c3e12cf3d1194df0a35))
+
+
+### Performance
+
+* log the time of each step of a slow block preview ([#528](https://github.com/PartBuddy/partbuddy/issues/528)) ([98e8bf6](https://github.com/PartBuddy/partbuddy/commit/98e8bf65be9f465cec3f166e29bdbeea17254b00))
+
 ## [0.3.9](https://github.com/PartBuddy/partbuddy/compare/v0.3.8...v0.3.9) (2026-11-21)
 
 
