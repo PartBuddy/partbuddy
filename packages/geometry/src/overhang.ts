@@ -103,6 +103,7 @@ export interface OverhangInput {
  * side, or narrower than two more, TreeSupport.cpp), and they hold: thread flanks, the nose of a
  * snap fit, a lip.
  */
+// 1.125: a line of 112.5 % of the nozzle, the widest slicer default (lineWidth in designFit.ts names the sources, audit D37).
 export function smallOverhangReach(nozzle: number): number {
   return Math.round(4 * 1.125 * nozzle * 100) / 100;
 }

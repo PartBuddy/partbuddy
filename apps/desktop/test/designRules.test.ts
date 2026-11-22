@@ -335,10 +335,10 @@ describe('sizes fitted to nozzle and layer', () => {
     const pla = { id: 'pla', name: 'PLA', overhang: 45, holeShrink: 0.15, clearance: { clamp: 0.05, push: 0.15, slide: 0.25, turn: 0.3 } };
     const note = (nozzle: number, layer: number) => printNote({ printer: { id: 'p', name: 'P', bed: [256, 256, 256], nozzle, layer }, material: pla, chosen: true, design: DESIGN_DEFAULTS });
     const sentence = 'brought to this nozzle, they grow with a nozzle wider than 0.4 mm and never go under their 0.4 mm values on a finer one';
-    expect(note(0.2, 0.1)).toContain(`clamp 0.05 mm (tight, only with force), push 0.15 mm (in by hand), slide 0.25 mm (without force), turn 0.3 mm (turns freely), the material's values (not measured with the tolerance pieces; ${sentence}).`);
-    expect(note(0.6, 0.3)).toContain(`clamp 0.075 mm (tight, only with force), push 0.225 mm (in by hand), slide 0.375 mm (without force), turn 0.45 mm (turns freely), the material's values (not measured with the tolerance pieces; ${sentence}).`);
+    expect(note(0.2, 0.1)).toContain(`clamp 0.05 mm (tight, only with force), push 0.15 mm (in by hand), slide 0.25 mm (without force), turn 0.3 mm (turns freely), the material's values (not measured with the tolerance pieces, so the printer's own error of 0.2–0.5 mm is not in them; ${sentence}).`);
+    expect(note(0.6, 0.3)).toContain(`clamp 0.075 mm (tight, only with force), push 0.225 mm (in by hand), slide 0.375 mm (without force), turn 0.45 mm (turns freely), the material's values (not measured with the tolerance pieces, so the printer's own error of 0.2–0.5 mm is not in them; ${sentence}).`);
     // On the nozzle the values stand for they are used as read, so the sentence would only lengthen the note.
-    expect(note(0.4, 0.2)).toContain("turn 0.3 mm (turns freely), the material's values (not measured with the tolerance pieces).");
+    expect(note(0.4, 0.2)).toContain("turn 0.3 mm (turns freely), the material's values (not measured with the tolerance pieces, so the printer's own error of 0.2–0.5 mm is not in them).");
   });
 
   it('makes a size marked in nozzles that many print-in-place gaps, so a gap never narrows on a fine nozzle (BC-14 review S3)', () => {
