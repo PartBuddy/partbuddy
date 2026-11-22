@@ -19,7 +19,7 @@
     "dist:mac": "electron-vite build && electron-builder --mac --publish never"
   },
   "dependencies": {
-    "@ai-sdk/openai": "4.0.111",
+    "@ai-sdk/openai": "4.0.118",
     "@modelcontextprotocol/client": "2.4.0",
     "@modelcontextprotocol/server": "2.4.0",
     "@napi-rs/keyring": "2.1.2",
