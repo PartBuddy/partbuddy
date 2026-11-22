@@ -1467,6 +1467,7 @@ describe('the screw lid (standards)', () => {
     const args = { kind: 'lid', fixed: 'Jar', moving: 'Lid', from: [10, 20, 50], diameter: 60 };
     expect(lidOf(args, 0.4)).toMatchObject({ centre: [10, 20, 50], starts: 1, gap: 0.3, name: 'Thread' });
     expect(lidOf(args, 0.6)).toMatchObject({ gap: 0.45 });
+    expect(lidOf({ ...args, gap: 0.3 }, 0.8)).toBe('gap must be 0.4–0.6 mm');
     expect(lidOf({ ...args, diameter: undefined }, 0.4)).toContain('are needed');
     expect(describeToolCall('partbuddy_mechanism', { kind: 'lid', moving: 'Jar lid' })).toEqual([{ key: 'screwLid', values: { name: 'Jar lid' } }]);
   });
@@ -2012,6 +2013,9 @@ describe('a plugged connection (standards)', () => {
     expect(String(pressed.content[0]?.text)).toContain("0.1 mm clear, 0.2 mm over the rail's head (whole layers of 0.2 mm)");
     expect(String((await withMechanismTool(upstream([]), () => 0.4).callTool('partbuddy_mechanism', { kind: 'plug', shape: 'dovetail', fixed: 'Left', moving: 'Right', from: [0, 15, 4], to: [40, 15, 4], gap: 0.09 })).content[0]?.text)).toBe('Not built: gap must be 0.1–1 mm');
     expect(slideOf({ fixed: 'Left', moving: 'Right', from: [0, 15, 4], to: [40, 15, 4], gap: 0.1 }, 0.4)).toBe('gap must be 0.2–1 mm');
+    // W10, MV-03: the 0.2 mm floor grows with a nozzle over 0.4, as the lines spread: 0.2 on an 0.8 mm nozzle fuses.
+    expect(slideOf({ fixed: 'Left', moving: 'Right', from: [0, 15, 4], to: [40, 15, 4], gap: 0.3 }, 0.8)).toBe('gap must be 0.4–1 mm');
+    expect(slideOf({ fixed: 'Left', moving: 'Right', from: [0, 15, 4], to: [40, 15, 4], gap: 0.3 }, 0.6)).toMatchObject({ gap: 0.3 });
   });
 });
 
