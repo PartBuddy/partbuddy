@@ -1226,7 +1226,7 @@
       "opened": "In {name} geöffnet.",
       "exportFailed": "Die Prüfkörper konnten nicht erzeugt werden. Läuft SolidCraft?",
       "combTitle": "Passungskamm",
-      "comb": "Steck den Stift in die Löcher und wähle je Passung die kleinste Stufe, die passt.",
+      "comb": "Steck den Stift in die Löcher und wähle je Passung die kleinste Stufe, die passt. Der Stift ist 6 mm dick: Deutlich größere Bohrungen brauchen oft etwas mehr Spiel.",
       "fitRule": {
         "clamp": "Klemmt fest (nur mit Druck)",
         "push": "Lässt sich von Hand stecken",
@@ -1240,6 +1240,7 @@
       "holesSmall": "Passt der Messschieber nicht hinein (etwa bei {size} mm), den dicksten Bohrer suchen, dessen Schaft hineingeht, und den Schaft messen. Immer oberhalb der Fase am unteren Rand messen.",
       "hole": "Ø {size} mm",
       "overhangTitle": "Überhang-Treppe",
+      "overhangHint": "Die Treppe zeigt in eine Richtung. Kühlt dein Drucker nur von einer Seite, druck sie ein zweites Mal um 90° gedreht und nimm die schlechtere Stufe.",
       "overhang": "Steilste Stufe mit sauberer Unterseite",
       "preview": "So ändert sich {material}:",
       "value": "Wert",

@@ -1226,7 +1226,7 @@
       "opened": "Opened in {name}.",
       "exportFailed": "The test pieces could not be made. Is SolidCraft running?",
       "combTitle": "Fit comb",
-      "comb": "Put the pin into the holes and pick for each fit the smallest step that fits.",
+      "comb": "Put the pin into the holes and pick for each fit the smallest step that fits. The pin is 6 mm thick: much larger holes often need a little more room.",
       "fitRule": {
         "clamp": "Clamps tight (only with force)",
         "push": "Pushes in by hand",
@@ -1240,6 +1240,7 @@
       "holesSmall": "Where the caliper does not fit in (such as at {size} mm), find the thickest drill bit whose shank goes in and measure the shank. Always measure above the chamfer at the bottom edge.",
       "hole": "Ø {size} mm",
       "overhangTitle": "Overhang staircase",
+      "overhangHint": "The staircase faces one way. If your printer cools from one side only, print it a second time turned by 90° and take the worse step.",
       "overhang": "Steepest step with a clean underside",
       "preview": "This is how {material} changes:",
       "value": "Value",
