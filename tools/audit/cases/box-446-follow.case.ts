@@ -36,6 +36,9 @@ test('box 446: hinge and closure follow the heights', async () => {
     expect(closure.isError).toBe(false);
     expect(hinge.text).toContain('It follows the parameters');
     expect(closure.text).toContain('It follows the parameters');
+    // The joint is kept again on the lid's remade bore in the batch that remakes it: no revision holds a joint on a missing face.
+    const rekept = audit.sent.find((batch) => batch.commands.some((step) => step.command === 'joint.edit'));
+    expect(rekept?.commands.some((step) => String((step.params as { name?: unknown }).name ?? '').startsWith('Lid hinge'))).toBe(true);
     expect(changed.text).toContain('PartBuddy ran the hinges that follow the parameters through again');
     expect((clash as { count?: unknown }).count).toBe(0);
     // The joint's axis went up with the rims, from 20 to 25 mm.
