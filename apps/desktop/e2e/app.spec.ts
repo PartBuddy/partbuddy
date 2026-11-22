@@ -1096,7 +1096,7 @@ test('a gear\'s mate follows its driver in the panel, the playback and what is k
   const row = (name: string) => panel.getByTestId('joint-value').filter({ has: page.getByRole('slider', { name, exact: true }) });
   const shown = (name: string) => async () => Number(await row(name).getAttribute('data-shown'));
   // The mate says whom it follows, cannot be taken, and has no play button; one value plays, so there is no "play all".
-  const mate = panel.getByRole('slider', { name: 'Large axle (follows Small axle)' });
+  const mate = panel.getByRole('slider', { name: 'Large axle (follows Small axle, coupled in the view only)' });
   await expect(mate).toBeDisabled();
   await expect(panel.getByTestId('joint-play')).toHaveCount(1);
   await expect(panel.getByTestId('joint-play-all')).toHaveCount(0);
@@ -1105,7 +1105,7 @@ test('a gear\'s mate follows its driver in the panel, the playback and what is k
   await expect.poll(async () => Math.abs(await shown('Small axle')()), { timeout: 30_000 }).toBeGreaterThan(10);
   await panel.getByTestId('joint-play').click();
   const driver = await shown('Small axle')();
-  expect(await shown('Large axle (follows Small axle)')()).toBeCloseTo(-0.5 * driver, 1);
+  expect(await shown('Large axle (follows Small axle, coupled in the view only)')()).toBeCloseTo(-0.5 * driver, 1);
   await page.getByTestId('viewer').screenshot({ path: test.info().outputPath('gear-paused.png') });
   expect(fake.joints.map((joint) => joint.values[0]?.value)).toEqual([0, 0]);
   // Kept, only the driver is driven; SolidCraft moves the mate along.
