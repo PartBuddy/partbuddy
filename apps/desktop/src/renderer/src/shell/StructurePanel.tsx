@@ -27,8 +27,8 @@ function EyeToggle({ name, visible, onToggle }: { name: string; visible: boolean
       isSelected={visible}
       onChange={onToggle}
       excludeFromTabOrder
-      // Shown on hover, focus and selection; always for a hidden item, like a CAD browser.
-      className={`${tool} ${visible ? 'invisible group-hover/row:visible group-focus-visible/row:visible group-aria-selected/row:visible' : ''}`}
+      // Shown on hover, focus and selection, always for a hidden item, like a CAD browser; otherwise it takes no room, so the name keeps it.
+      className={`${tool} ${visible ? 'hidden! group-hover/row:inline-flex! group-focus-visible/row:inline-flex! group-aria-selected/row:inline-flex!' : ''}`}
     >
       {visible ? <IconEye className="size-icon-sm" aria-hidden /> : <IconEyeOff className="size-icon-sm" aria-hidden />}
     </ToggleButton>
