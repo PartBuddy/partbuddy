@@ -231,6 +231,8 @@ export function ToleranceAssistant({
                 </fieldset>
                 <fieldset className="flex flex-col gap-2">
                   <legend className="text-sm font-medium text-text">{t('print.tolerance.overhangTitle')}</legend>
+                  {/* Audit T57: the staircase leans one way; a fan on one side prints the other way worse. */}
+                  <p className="text-xs text-text-subtle">{t('print.tolerance.overhangHint')}</p>
                   <SelectField
                     label={t('print.tolerance.overhang')}
                     value={readings.overhang === null ? NONE : String(readings.overhang)}
