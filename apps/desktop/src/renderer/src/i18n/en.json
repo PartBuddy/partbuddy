@@ -1289,7 +1289,8 @@
       "warn": "{count, plural, one {# warning} other {# warnings}}",
       "block": "Not ready to print",
       "measuring": "Checking",
-      "unmeasured": "Not fully checked"
+      "unmeasured": "Not fully checked",
+      "readyHidden": "Ready to print, {count} hidden"
     },
     "none": "No problems found: the part fits the build volume, the walls are thick enough, nothing leans past the overhang angle.",
     "noneSoFar": "No problems found so far.",
@@ -1297,6 +1298,7 @@
     "measuring": "The check is still running. Overlaps, gaps that are too tight or a blocked joint may still turn up.",
     "unmeasured": "Not measured, or not all of it: {what}. Findings there may be missing.",
     "unchecked": "Not checked for gaps (mesh bodies): {bodies}",
+    "hidden": "Hidden, so neither checked nor exported: {bodies}",
     "measure": {
       "clearance": "the gaps between the parts",
       "joints": "the travel of the joints"
