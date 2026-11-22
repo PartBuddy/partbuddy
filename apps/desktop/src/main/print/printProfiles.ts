@@ -303,7 +303,8 @@ export function designLines(design: DesignRules, printer: FitPrinter, material: 
   const room = Object.values(material.clearance).every((value) => value >= 0)
     ? 'Each is room, never an interference.'
     : 'A value below zero is an interference: the part is that much larger than its seat, per side.';
-  const measured = material.measuredNozzle === undefined ? 'not measured with the tolerance pieces' : 'measured with the tolerance pieces';
+  // Audit MG-32: print services give ± 0.2–0.5 mm for desktop FDM (printerCatalog.ts); only the tolerance pieces take the user's printer in.
+  const measured = material.measuredNozzle === undefined ? "not measured with the tolerance pieces, so the printer's own error of 0.2–0.5 mm is not in them" : 'measured with the tolerance pieces';
   // On the nozzle the values stand for they are used as read (scaleClearance), so only another nozzle needs the sentence.
   const scaled = printer.nozzle === (material.measuredNozzle ?? CLEARANCE_NOZZLE) ? '' : `; brought to this nozzle, they grow with a nozzle wider than ${mm(CLEARANCE_NOZZLE)} and never go under their ${mm(CLEARANCE_NOZZLE)} values on a finer one`;
   const off = (Object.keys(RULE_NAMES) as DesignRule[]).filter((rule) => !design[rule]);

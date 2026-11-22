@@ -168,7 +168,7 @@ export function thinnestLine(nozzle: number): number {
   return Math.round((nozzle + 0.02) * 1000) / 1000;
 }
 
-/** Two extrusion lines of the nozzle: the thinnest wall that prints solid. */
+/** Two extrusion lines of the nozzle: the thinnest wall that prints solid. 112.5 %: the widest slicer default (lineWidth in designFit.ts names them, audit D37). */
 export function minimumWall(nozzle: number): number {
   return Math.round(nozzle * 2 * 1.125 * 100) / 100;
 }

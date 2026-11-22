@@ -281,7 +281,7 @@ describe('every number of the rule text comes from the code (audit BC-05)', () =
     expect(pressed).toContain('clamp -0.05 mm (tight, only with force)');
     expect(pressed).toContain('A value below zero is an interference');
     expect(pressed).not.toContain('never an interference');
-    expect(note).toContain("turn 0.3 mm (turns freely), the material's values (not measured with the tolerance pieces).");
+    expect(note).toContain("turn 0.3 mm (turns freely), the material's values (not measured with the tolerance pieces, so the printer's own error of 0.2–0.5 mm is not in them).");
     expect(noteFor(0.4, 0.2, { ...pla, measuredNozzle: 0.4 })).toContain("the material's values (measured with the tolerance pieces).");
     // The allowance grows with the diameter above the hole plate (audit MG-26): PLA 0.15 on 10 mm is 0.35 on 50 mm.
     expect(note).toContain("holes come out about 0.15 mm smaller in diameter from 3 to 10 mm (measured with the tolerance pieces' hole plate) and about 0.35 mm at 50 mm, growing evenly in between");
