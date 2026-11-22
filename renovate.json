@@ -25,6 +25,11 @@
       "description": "3D viewer libraries move together",
       "matchPackageNames": ["three", "@types/three", "@react-three/{/,}**", "three-mesh-bvh", "camera-controls", "postprocessing"],
       "groupName": "3D viewer"
+    },
+    {
+      "description": "ai and @ai-sdk/* share provider types and must move together",
+      "matchPackageNames": ["ai", "@ai-sdk/{/,}**"],
+      "groupName": "AI SDK"
     }
   ]
 }
