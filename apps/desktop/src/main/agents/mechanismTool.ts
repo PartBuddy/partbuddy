@@ -1092,7 +1092,15 @@ export async function builtHinges(run: Run, lid: string, evaluate: (expressions:
         if (Array.isArray(step.params.targets) && step.params.targets.includes(lid)) kept.push(...sketch, step);
         sketch = [];
       }
-      out.push({ name, from: base, to, steps: follow.some(Boolean) ? followSteps(kept, follow).steps : kept, follow, keep: fixed === lid ? { side: 'a', circle: faces.fixed, x: faces.x } : { side: 'b', circle: faces.moving, x: faces.x } });
+      // SolidCraft 0.45 refuses a second sketch or feature of a name (run of 2026-11-22: "another feature is called
+      // `Lid hinge △`"): what is made again gets a number, as freeName gives one.
+      const again = (step: Step): Step => {
+        if (typeof step.params.name !== 'string') return step;
+        let n = 2;
+        while (named.some((entry) => entry.name === `${String(step.params.name)} (${String(n)})`)) n += 1;
+        return { ...step, params: { ...step.params, name: `${step.params.name} (${String(n)})` } };
+      };
+      out.push({ name, from: base, to, steps: (follow.some(Boolean) ? followSteps(kept, follow).steps : kept).map(again), follow, keep: fixed === lid ? { side: 'a', circle: faces.fixed, x: faces.x } : { side: 'b', circle: faces.moving, x: faces.x } });
     }
     return out.filter((hinge) => hinge.steps.length > 0);
   } catch {

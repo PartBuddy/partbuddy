@@ -2573,14 +2573,17 @@ describe('the line and the hinge found from the design (issue 446)', () => {
     expect(found).toMatchObject({ name: 'Lid hinge', from: [0, 60.4, 20], to: [26.4, 60.4, 20] });
     // The rooms of the box's knuckles, the lid's knuckle, the bore, and the roof over it with its sketch; nothing of the box.
     expect(found?.steps.filter((step) => !step.command.startsWith('sketch.')).map((step) => [step.params.name, step.params.operation, (step.params.targets as string[])[0]])).toEqual([
-      ['Lid hinge 1 ·', 'cut', 'Lid'],
-      ['Lid hinge 3 ·', 'cut', 'Lid'],
-      ['Lid hinge 2', 'join', 'Lid'],
-      ['Lid hinge ○', 'cut', 'Lid'],
-      ['Lid hinge △', 'cut', 'Lid'],
-      ...(found?.steps.some((step) => String(step.params.name).endsWith('▬')) ? [['Lid hinge 2 ▬', 'cut', 'Lid']] : []),
+      ['Lid hinge 1 · (2)', 'cut', 'Lid'],
+      ['Lid hinge 3 · (2)', 'cut', 'Lid'],
+      ['Lid hinge 2 (2)', 'join', 'Lid'],
+      ['Lid hinge ○ (2)', 'cut', 'Lid'],
+      ['Lid hinge △ (2)', 'cut', 'Lid'],
+      ...(found?.steps.some((step) => String(step.params.name).endsWith('▬ (2)')) ? [['Lid hinge 2 ▬ (2)', 'cut', 'Lid']] : []),
     ]);
-    expect(found?.steps.filter((step) => !step.command.startsWith('sketch.'))).toEqual(expect.arrayContaining(inLid.filter((step) => !step.command.startsWith('sketch.'))));
+    // SolidCraft refuses a name twice: made again, each step gets a number (run of 2026-11-22).
+    const numbered = (step: Step) => ({ ...step, params: { ...step.params, name: `${String(step.params.name)} (2)` } });
+    expect(found?.steps.filter((step) => !step.command.startsWith('sketch.'))).toEqual(expect.arrayContaining(inLid.filter((step) => !step.command.startsWith('sketch.')).map(numbered)));
+    expect(found?.steps.filter((step) => step.command === 'sketch.create').every((step) => String(step.params.name).endsWith(' (2)'))).toBe(true);
     expect(await builtHinges(() => Promise.reject(new Error('no')), 'Lid')).toEqual([]);
     expect(await builtHinges((commands) => Promise.resolve(commands.map(() => ({ timeline: [{ id: 1, name: 'Box block' }] }))), 'Lid')).toEqual([]);
     // A hinge between two other bodies is not the lid's.
@@ -2598,7 +2601,7 @@ describe('the line and the hinge found from the design (issue 446)', () => {
     const spec = lipOf({ ...args, hinge_from: [0, 60.4, 20], hinge_to: [26.4, 60.4, 20] });
     if (typeof spec === 'string') throw new Error(spec);
     const [found] = await builtHinges((commands) => Promise.resolve(commands.map(timeline)), 'Lid');
-    const steps = sent.find((batch) => batch.some((step) => step.params.name === 'Lid hinge ○'));
+    const steps = sent.find((batch) => batch.some((step) => step.params.name === 'Lid hinge ○ (2)'));
     expect(steps?.filter((step) => step.command !== 'component.activate')).toEqual([...lipSteps(spec), ...(found?.steps ?? [])]);
     // A lid that sits closed on its box (lip down) takes no line, but its part of the hinge is still made again.
     const closed = String((await withMechanismTool(tool(timeline), () => 0.4).callTool('partbuddy_mechanism', { ...args, from: [1.8, 1.8, 20], to: [24.6, 58.2, 20], up: [0, 0, -1] })).content[0]?.text);
