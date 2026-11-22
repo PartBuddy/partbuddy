@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { LID, LIP, WEB, beadHigh, hangs, hingeDiameter, hingeLies, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideOver, slideProblem, slideRoof, slideSteps, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, snapFrame, snapHold, snapHook, snapLimit, snapProblem, snapSteps, snapStrain, snapWindow, limitWords, uprightSaid, latchArm, latchFrame, latchProblem, latchReach, latchSteps, latchStrain, LATCH, SNAP_OFTEN, SHARP_ROOT, pegBore, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, followSteps, followed, type Follow, type Size, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
+import { LID, LIP, WEB, beadHigh, gapFloor, hangs, hingeDiameter, hingeLies, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideOver, slideProblem, slideRoof, slideSteps, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, snapFrame, snapHold, snapHook, snapLimit, snapProblem, snapSteps, snapStrain, snapWindow, limitWords, uprightSaid, latchArm, latchFrame, latchProblem, latchReach, latchSteps, latchStrain, LATCH, SNAP_OFTEN, SHARP_ROOT, pegBore, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, followSteps, followed, type Follow, type Size, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, CLEARANCE_NORMAL, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 import { printInPlaceGap, type FitPrinter } from '../../shared/designFit';
@@ -87,7 +87,7 @@ const mechanismTool: UpstreamTool = {
       knuckles: { type: 'integer', enum: [3, 5, 7, 9], description: `hinge: how many knuckles; default by the length of the line. Lying, the pin bridges each knuckle of the moving body and may bridge at most ${String(BRIDGE_SPAN)} mm.` },
       width: { type: 'number', minimum: 2, maximum: 60, description: 'slide: width of the rail at its foot in mm; default 6. It widens by its height on each side. latch: its width along the wall (5 to 40); default 10.' },
       height: { type: 'number', minimum: 1.5, maximum: 20, description: 'slide: height of the rail in mm; default 3, at most width.' },
-      gap: { type: 'number', minimum: 0.05, maximum: 1, description: "The gap between the parts in mm. hinge: default and least the printer's nozzle, at least 0.3 (up to 1). slide: default the printer's nozzle, at least 0.3 (allowed 0.2 to 1). lid: radial, default three quarters of the nozzle, 0.3 to 0.6 (allowed 0.2 to 0.6). plug with pegs: per side, default the material's push fit to slide and glue (" + String(fitClearance('push', DEFAULT_PRINTER)) + " in PLA), its clamp fit to press (allowed 0.05 to 0.5); plug dovetail: all round, default the push fit (allowed 0.1 to 1). Not used by closure, snap, latch and screw." },
+      gap: { type: 'number', minimum: 0.05, maximum: 1, description: "The gap between the parts in mm. hinge: default and least the printer's nozzle, at least 0.3 (up to 1). slide: default the printer's nozzle, at least 0.3 (allowed 0.2 to 1, the 0.2 growing with a nozzle over 0.4). lid: radial, default three quarters of the nozzle, 0.3 to 0.6 (allowed 0.2 to 0.6, the 0.2 growing with a nozzle over 0.4). plug with pegs: per side, default the material's push fit to slide and glue (" + String(fitClearance('push', DEFAULT_PRINTER)) + " in PLA), its clamp fit to press (allowed 0.05 to 0.5); plug dovetail: all round, default the push fit (allowed 0.1 to 1). Not used by closure, snap, latch and screw." },
       name: { type: 'string', maxLength: 60, description: "The mechanism's name in the user's language, e.g. \"Lid hinge\"." },
     },
     required: ['kind', 'fixed', 'moving'],
@@ -193,7 +193,7 @@ export function slideOf(args: Record<string, unknown>, nozzle: number, least = 0
   const up = args.up === undefined ? ([0, 0, 1] as Vec3) : vec3(args.up);
   if (!up) return 'up must be three numbers';
   const spec: SlideSpec = { fixed: base.fixed, moving: base.moving, from: base.from, to: base.to, gap: base.gap, name: base.name, up, width: typeof args.width === 'number' ? args.width : 6, height: typeof args.height === 'number' ? args.height : 3 };
-  const problem = slideProblem(spec, least);
+  const problem = slideProblem(spec, gapFloor(least, nozzle));
   if (problem) return problem;
   const over = slideOver(spec, layer);
   return over === undefined ? spec : { ...spec, over };
@@ -317,7 +317,7 @@ export function lidOf(args: Record<string, unknown>, nozzle: number): LidSpec | 
     gap: typeof args.gap === 'number' ? args.gap : Math.min(0.6, Math.max(0.3, Math.round(nozzle * 75) / 100)),
     name: typeof args.name === 'string' && args.name.trim() !== '' ? args.name.trim().slice(0, 60) : 'Thread',
   };
-  return lidProblem(spec) ?? spec;
+  return lidProblem(spec, gapFloor(0.2, nozzle)) ?? spec;
 }
 
 /** The screw joint the model asked for, with PartBuddy's defaults; or what is wrong with the request. */

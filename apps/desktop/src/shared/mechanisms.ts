@@ -424,6 +424,13 @@ export function slideOver(spec: Pick<SlideSpec, 'gap' | 'up'>, layer: number): n
 }
 
 /**
+ * A gap's floor for the nozzle: the sourced value up to a 0.4 mm nozzle, growing with a wider one, whose lines spread as
+ * much wider (audit W10, MV-03: 0.2 mm took on an 0.8 mm nozzle fuses). shortcut: the growth is PartBuddy's own choice,
+ * as in designFit (T20); replace it once tolerance pieces printed on 0.6/0.8 say otherwise.
+ */
+export const gapFloor = (least: number, nozzle: number): number => Math.round(least * Math.max(1, nozzle / 0.4) * 100) / 100;
+
+/**
  * What is wrong with a guide before anything is built; null when it can be built. `least` is the smallest gap: 0.2 for a
  * guide that slides, 0.1 for a dovetail pressed together (audit W25: the plug refused the 0.1 its description offered).
  */
@@ -1003,11 +1010,11 @@ export function lidSkirt(spec: Pick<LidSpec, 'diameter' | 'starts'>): number {
 }
 
 /** What is wrong with a screw lid before anything is built; null when it can be built. */
-export function lidProblem(spec: LidSpec): string | null {
+export function lidProblem(spec: LidSpec, least = 0.2): string | null {
   if (spec.fixed === spec.moving) return 'moving is the name of the lid to make, not the container';
   if (!(spec.diameter >= 16 && spec.diameter <= 200)) return 'diameter must be 16–200 mm: the outer diameter of the neck';
   if (!Number.isInteger(spec.starts) || spec.starts < 1 || spec.starts > 3) return 'starts must be 1, 2 or 3';
-  if (!(spec.gap >= 0.2 && spec.gap <= 0.6)) return 'gap must be 0.2–0.6 mm';
+  if (!(spec.gap >= least && spec.gap <= 0.6)) return `gap must be ${String(least)}–0.6 mm`;
   return null;
 }
 
