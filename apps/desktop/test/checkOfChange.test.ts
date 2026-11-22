@@ -5,7 +5,7 @@ import { GateProxy, type ToolResult, type UpstreamTools } from '../src/main/agen
 import { policyToolSet } from '../src/main/agents/loop';
 import { Questions } from '../src/main/agents/questions';
 import { CHANGING_TOOLS, UNCHECKED_CHANGE, UNDO_CAP, designChanged, WorkLog } from '../src/main/agents/workLog';
-import { CHECK_PENDING, CHECK_PENDING_VIEW, CheckTold, printCheckNote, withCheckOfChange, type CheckState } from '../src/main/print/printCheckNote';
+import { CHECK_PENDING, CHECK_PENDING_VIEW, CheckTold, printCheckNote, settledCheck, withCheckOfChange, type CheckState } from '../src/main/print/printCheckNote';
 import type { PrintCheckReport } from '../src/shared/contract';
 import { describeToolCall } from '../src/shared/stepPhrases';
 
@@ -347,5 +347,27 @@ describe('the same check is not told in full with every step (review of PR 357)'
     const { tools } = setup();
     expect(textOf(await tools.callTool('execute', extrude))).toContain(BLOCKED);
     expect(textOf(await tools.callTool('execute', extrude))).toBe('ok\n[PartBuddy: ready-to-print check after this change: unchanged, still not ready to print, the same 1 finding as before.]');
+  });
+});
+
+describe('settledCheck (partbuddy_view)', () => {
+  const report = (revision: number, measuring = false): PrintCheckReport => ({ status: 'ready', findings: [], nozzle: 0.4, revision, ...(measuring ? { measuring } : {}) });
+
+  it('waits until the check has caught up and finished measuring', async () => {
+    let current = { report: report(1) as PrintCheckReport | null, revision: 2 as number | undefined };
+    setTimeout(() => (current = { report: report(2, true), revision: 2 }), 150);
+    setTimeout(() => (current = { report: report(2), revision: 2 }), 350);
+    const started = Date.now();
+    await settledCheck(() => current, 5000);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(300);
+    expect(current.report?.measuring).toBeUndefined();
+  });
+
+  it('returns at once without a check, and after the wait when it never comes', async () => {
+    const started = Date.now();
+    await settledCheck(() => ({ report: null, revision: 2 }), 5000);
+    expect(Date.now() - started).toBeLessThan(50);
+    await settledCheck(() => ({ report: report(1), revision: 2 }), 300);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(300);
   });
 });
