@@ -1,3 +1,4 @@
+import { TOGETHER_KEY } from '../../shared/mechanisms';
 import { assemblyGroupSchema, assemblyPlanSchema, assemblyStepSchema, type AssemblyPlan } from '../../shared/assembly';
 import type { ToolResult, UpstreamTool, UpstreamTools } from './gateProxy';
 
@@ -112,6 +113,8 @@ export const JOINT_GUIDANCE =
   "name in the user's language} and set its range with joint.limits {joint, min, max} (degrees or mm; 0 is the position as designed). " +
   'Check the range with joint.sweep {joint, from, to}, which reports where parts first touch, and widen the gap or narrow the limits when they do; ' +
   "it reports touching, not a gap narrower than the printer's: PartBuddy's ready-to-print check measures those gaps after each change. " +
+  // Audit D10: a joint of its own printed in place was measured against the push fit only; the mark makes it a print group.
+  `If the two print together, joined as printed (print in place), mark both components with component.metadata.set {component, values: {"${TOGETHER_KEY}<joint name>": {joint: "<joint name>"}}}: then the check holds their gap to the print-in-place gap, and plate and export keep them one piece. ` +
   // audit S-20: these links move the view only (SolidCraft 0.40.1 command docs, not measured).
   'joint.gear, joint.rack_pinion, joint.screw, joint.cam and joint.motion_link only couple the motion in the view: they make no teeth, thread or cam, ' +
   'so the printed parts do not drive each other unless you model that geometry; say so to the user when you use one. ' +
