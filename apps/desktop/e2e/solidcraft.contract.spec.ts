@@ -1471,8 +1471,10 @@ test('a STEP file becomes a project, meshes are inserted into it, converted to f
     // The export names the part after the file the user chose, so the import does as well.
     await expect(bodies).toHaveCount(1);
     await expect(bodies.first()).toContainText('Platine');
-    // SolidCraft has no repair for parts from STEP, so the imported part offers none.
+    // Converting is for meshes: the imported STEP part offers none.
     await expect(bodies.first().getByTestId('structure-convert')).toHaveCount(0);
+    // A sound imported part gets no repair either: only one the print check finds open does (audit S-25).
+    await expect(bodies.first().getByTestId('structure-repair')).toHaveCount(0);
 
     // A mesh as a new project says how it changes (usability U-14); then back to Platine. Its size asks nothing here.
     await app.evaluate(({ dialog }) => {

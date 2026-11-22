@@ -23,7 +23,7 @@ import type {
   TrashEntry,
   VersionComparison,
   VersionEntry,
-  RepairResult,
+  RepairResult, RepairBodyResult,
   ProjectPreview,
   ProjectRenameResult,
   AssistantState,
@@ -256,6 +256,8 @@ export interface PartBuddyApi {
     insert(path?: string): Promise<InsertResult>;
     /** Converts a mesh body to faces (B4). */
     convertMesh(body: string): Promise<RepairResult>;
+    /** Repairs an imported part that is open (`body.repair`, audit S-25). */
+    repairBody(body: string): Promise<RepairBodyResult>;
     /** "Go back to this state": undoes or redoes to a step of the work log (M2a). */
     goToStep(step: string): Promise<void>;
     /** The dimensions of these features, or of all, placed in the view (M2b-3). */

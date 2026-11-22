@@ -96,6 +96,7 @@ export const invokeChannels = {
   designRenameBody: 'design:rename-body',
   designInsert: 'design:insert',
   designRepair: 'design:repair',
+  designRepairBody: 'design:repair-body',
   designGoToStep: 'design:go-to-step',
   designDimensions: 'design:dimensions',
   designProbeParameter: 'design:probe-parameter',

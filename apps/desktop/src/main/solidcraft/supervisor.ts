@@ -710,6 +710,20 @@ export class SolidCraftSupervisor {
   }
 
   /**
+   * Repairs an imported part (`body.repair`, audit S-25): sews free edges within SolidCraft's 0.2 mm and patches the holes
+   * left, one undoable feature. True when the part is closed afterwards. SolidCraft refuses, with why, when nothing applies.
+   */
+  async repairBody(body: string): Promise<boolean> {
+    await this.probing;
+    const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'body.repair', params: { body, patch_holes: true } }], rollback: false }, 10 * 60 * 1000);
+    if (reply.failed) throw new Error(`body.repair failed: ${reply.failed.error}`);
+    await this.engine?.changed();
+    const repair = (reply.results[0] as { repair?: { closed?: unknown } } | undefined)?.repair;
+    this.options.log(`repaired the part "${body}": ${JSON.stringify(repair ?? null).slice(0, 500)}`);
+    return repair?.closed === true;
+  }
+
+  /**
    * Tries a new value for the selected edge length or radius without changing the design (the
    * dimension field, M1b). A probe moves SolidCraft's revision although the design is the same;
    * the headless engine records that quietly, so nothing is mirrored again.

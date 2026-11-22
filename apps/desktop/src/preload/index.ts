@@ -121,6 +121,7 @@ const api: PartBuddyApi = {
     renameBody: (body, name) => invoke(invokeChannels.designRenameBody, { body, name }),
     insert: (path) => invoke(invokeChannels.designInsert, path === undefined ? {} : { path }),
     convertMesh: (body) => invoke(invokeChannels.designRepair, { body }),
+    repairBody: (body) => invoke(invokeChannels.designRepairBody, { body }),
     goToStep: (step) => invoke(invokeChannels.designGoToStep, { step }),
     dimensions: (features) => invoke(invokeChannels.designDimensions, { features }),
     probeParameter: (parameter, value, body) => invoke(invokeChannels.designProbeParameter, { parameter, value, body }),

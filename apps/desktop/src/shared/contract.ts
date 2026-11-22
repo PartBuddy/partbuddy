@@ -263,13 +263,19 @@ export const templateRequestSchema = z.object({ template: z.enum(TEMPLATE_IDS), 
 export const insertResultSchema = z
   .object({ inserted: z.boolean(), name: z.string().max(255).nullable(), bodies: z.array(z.string().max(200)).max(500) })
   .strict();
-/** Convert a mesh body to faces (`mesh.convert`); SolidCraft has no repair command for imported parts. */
+/** Convert a mesh body to faces (`mesh.convert`); an imported part is repaired with `body.repair` (designRepairBody). */
 export const repairRequestSchema = z.object({ body: z.string().min(1).max(200) }).strict();
 /** How a conversion went: done, a mesh that is not closed (SolidCraft converts only closed meshes), or SolidCraft's own reason. */
 export const repairResultSchema = z.discriminatedUnion('ok', [
   // `change`: how much the volume changed, in per cent, when it was measured before and after (audit S-28).
   z.object({ ok: z.literal(true), change: z.number().optional() }).strict(),
   z.object({ ok: z.literal(false), reason: z.enum(['openMesh', 'other']), detail: z.string().max(500) }).strict(),
+]);
+
+/** How a repair of an imported part went (`body.repair`, audit S-25): whether it is closed now, or SolidCraft's reason. */
+export const repairBodyResultSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), closed: z.boolean() }).strict(),
+  z.object({ ok: z.literal(false), detail: z.string().max(500) }).strict(),
 ]);
 
 /** The ready-to-print light of a project on the start page (B3), as at its last preview. */
@@ -1440,6 +1446,7 @@ export const invokeContract = {
   [invokeChannels.designRenameBody]: { request: z.object({ body: bodyName, name: bodyName }).strict(), response: none },
   [invokeChannels.designInsert]: { request: importRequestSchema, response: insertResultSchema },
   [invokeChannels.designRepair]: { request: repairRequestSchema, response: repairResultSchema },
+  [invokeChannels.designRepairBody]: { request: repairRequestSchema, response: repairBodyResultSchema },
   [invokeChannels.notesCurrent]: { request: none, response: notesStateSchema },
   [invokeChannels.notesAdd]: { request: noteAddSchema, response: none },
   [invokeChannels.notesEdit]: { request: noteEditSchema, response: none },
@@ -1494,6 +1501,7 @@ export type GeneralSettingsInfo = z.infer<typeof generalSettingsSchema>;
 export type VersionEntry = z.infer<typeof versionEntrySchema>;
 export type VersionComparison = z.infer<typeof versionComparisonSchema>;
 export type RepairResult = z.infer<typeof repairResultSchema>;
+export type RepairBodyResult = z.infer<typeof repairBodyResultSchema>;
 export type ProjectCheck = z.infer<typeof projectCheckSchema>;
 export type ProjectEntry = z.infer<typeof projectEntrySchema>;
 export type TrashEntry = z.infer<typeof trashEntrySchema>;

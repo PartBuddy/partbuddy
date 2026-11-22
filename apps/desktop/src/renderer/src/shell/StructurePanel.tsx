@@ -1,4 +1,4 @@
-import { IconBox, IconEye, IconEyeOff, IconFileImport, IconFocusCentered, IconLayersSubtract, IconPencil, IconPencilPlus, IconNut, IconTransform } from '@tabler/icons-react';
+import { IconBox, IconEye, IconEyeOff, IconFileImport, IconFocusCentered, IconLayersSubtract, IconPencil, IconPencilPlus, IconNut, IconTransform, IconTool } from '@tabler/icons-react';
 import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ToggleButton } from 'react-aria-components';
@@ -36,9 +36,36 @@ function EyeToggle({ name, visible, onToggle }: { name: string; visible: boolean
 }
 
 /**
- * "Convert to faces" at a mesh body (B4, `mesh.convert`, closed meshes only). SolidCraft has no
- * repair for parts from STEP or IGES, so they and modelled parts get nothing.
+ * "Repair" at an imported part the print check finds open (audit S-25, `body.repair`): SolidCraft sews its gaps and
+ * patches its holes, one undoable step. Parts that are closed, mesh bodies (converted first) and modelled ones get nothing.
  */
+function RepairButton({ body }: { body: string }) {
+  const { t } = useTranslation();
+  const setNotice = useStudio((s) => s.setNotice);
+  const [busy, setBusy] = useState(false);
+  const run = () => {
+    setBusy(true);
+    void platform()
+      .design.repairBody(body)
+      .then((result) => {
+        if (!result.ok) setNotice({ tone: 'danger', text: t('structure.repairRefused', { name: body, detail: result.detail.slice(0, 200) }) });
+        else setNotice(result.closed ? { tone: 'success', text: t('structure.repairDone', { name: body }) } : { tone: 'info', text: t('structure.repairOpen', { name: body }) });
+      })
+      .catch((error: unknown) => {
+        setNotice({ tone: 'danger', text: t('actions.failed', { detail: (error as Error).message.slice(0, 200) }) });
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+  return (
+    <IconButton label={t('structure.repair', { name: body })} tooltip={t('structure.repairHint')} isDisabled={busy} onPress={run} excludeFromTabOrder data-testid="structure-repair">
+      <IconTool className="size-icon-sm" aria-hidden />
+    </IconButton>
+  );
+}
+
+/** "Convert to faces" at a mesh body (B4, `mesh.convert`, closed meshes only). */
 function ConvertButton({ body }: { body: string }) {
   const { t, i18n } = useTranslation();
   const setNotice = useStudio((s) => s.setNotice);
@@ -111,8 +138,11 @@ export function StructurePanel() {
   const [renaming, setRenaming] = useState<string | null>(null);
   // As wide as the user drags it (audit N-09), kept for the next start.
   const [width, setWidth] = useSideWidth();
+  const findings = useStudio((s) => s.printCheck?.result.findings);
   if (model.status !== 'ready') return null;
   const { bodies, sketches } = model.structure;
+  // Imported parts the print check found open get a repair (audit S-25).
+  const openBodies = new Set(findings?.flatMap((finding) => (finding.kind === 'open' ? finding.bodies : [])));
   const editing = new Set(model.sketches.filter((sketch) => sketch.active).map((sketch) => sketch.id));
   // Bodies with a face, edge or vertex selected in the view.
   const pickedInView = new Set(picks.map((pick) => model.bodies[pick.body]?.name));
@@ -239,6 +269,7 @@ export function StructurePanel() {
                 {standard || kind === 'mesh' ? ' ' : null}
                 {standard ? <span className="shrink-0 text-xs text-accent-text">{t('structure.standardPart')}</span> : kind === 'mesh' ? <span className="shrink-0 text-xs text-accent-text">{t('structure.mesh')}</span> : null}
                 {kind === 'mesh' && !standard ? <ConvertButton body={body.name} /> : null}
+                {kind === 'imported' && !standard && openBodies.has(body.name) ? <RepairButton body={body.name} /> : null}
                 {standard ? null : <PrintedToggle body={body.name} note={note} onChange={keep} />}
                 <ExpandToggle body={body.name} open={open} onToggle={() => setExpanded(open ? null : body.name)} />
                 <EyeToggle name={body.name} visible={body.visible} onToggle={(visible) => toggle({ bodies: [body.name], sketches: [], visible })} />
