@@ -528,6 +528,8 @@ export interface LipSpec {
   wall: Size;
   /** The wall with the catch and the notch; opposite the hinge, where there is one. */
   side: 'x-' | 'x+' | 'y-' | 'y+';
+  /** The room between the lip and the box's wall, mm: the material's slide fit, never under LIP.clear (audit T42). */
+  clear?: number;
   /**
    * The hinge line the lid turns half a turn about to close, along x or along y: the other coordinate of
    * the line and its height. Without it the lid is built where it closes.
@@ -552,7 +554,7 @@ export interface LipSpec {
 }
 
 /**
- * The snap closure of a printed lid: the lip at least 1.2 mm thick (`lipThick`) and 4 mm high, 0.25 mm clear of the box's
+ * The snap closure of a printed lid: the lip at least 1.2 mm thick (`lipThick`) and 4 mm high, 0.25 mm (PLA's slide fit; the material's, `lipBead`) clear of the box's
  * wall; the bead 0.5 mm proud, so 0.25 mm of catch, with 45° flanks, 14 mm long in the middle of a wall (never in a
  * corner, which cannot give way); the rille 0.2 mm deeper than the bead reaches. The bead is a bump of the lip's outline,
  * no wall of its own, so it needs no line width: the slicer's outer line follows it with any nozzle.
@@ -577,15 +579,26 @@ export function lipThick(nozzle = 0.4): number {
 export const beadHigh = (layer = 0.2) => Math.max(1, minimumFloor(layer));
 
 /**
- * The rille for a bead of that height: as deep into the box's wall as for the 1 mm bead (LIP.rille / 2 past the lip's
- * face), and as much wider than the bead at that face (0.2 mm each side). A taller bead gets a wider cylinder whose axis
- * stands `back` further into the room, so the wall behind the rille stays as thick (`RILLE_DEPTH`).
+ * The rille for a bead of that height and width: 0.2 mm past the bead's crest (LIP.rille / 2 past the lip's face for the
+ * 0.5 mm bead), and 0.2 mm wider than the bead at that face each side. A taller or wider bead gets a wider cylinder whose
+ * axis stands `back` further into the room, so the wall behind the rille stays as thick (`RILLE_DEPTH`).
  */
-export function rilleFor(high: number): { diameter: number; back: number } {
-  const reach = LIP.rille / 2;
-  const open = high / 2 + reach - 0.5;
+export function rilleFor(high: number, bead: number = LIP.bead): { diameter: number; back: number } {
+  const reach = bead + 0.2;
+  const open = high / 2 + 0.2;
   const back = (open ** 2 - reach ** 2) / (2 * reach);
   return { diameter: round(2 * (reach + back)), back: round(back) };
+}
+
+/**
+ * The lip's room and bead for a closure: the room is the material's slide fit (LIP.clear, PLA's, at the least; audit R8,
+ * T42, W36), and the bead stands as much further out, so it always catches LIP.bead − LIP.clear = 0.25 mm. Its height
+ * is beadHigh, or twice its width where that is more, so its 45° flanks leave a crest (flat to 0.05 mm each side).
+ */
+export function lipBead(spec: Pick<LipSpec, 'clear' | 'layer'>): { clear: number; bead: number; high: number } {
+  const clear = round(Math.max(LIP.clear, spec.clear ?? LIP.clear));
+  const bead = round(clear + LIP.bead - LIP.clear);
+  return { clear, bead, high: round(Math.max(beadHigh(spec.layer), 2 * bead)) };
 }
 
 /** How far the lip's tip is bevelled on its outside, a lead-in that swings clear of the box's rim as the lid closes (mm). */
@@ -629,14 +642,15 @@ export function lipSteps(spec: LipSpec): Step[] {
   const mm = (value: number) => `${String(round(Math.abs(value)))} mm`;
   // An expression moved by a number of mm.
   const by = (size: Size, value: number) => (value === 0 ? ex(size) : `${ex(size)} ${value < 0 ? '-' : '+'} ${mm(value)}`);
-  const inner = round(LIP.clear + lipThick(spec.nozzle));
+  const { clear, bead: beadOut, high } = lipBead(spec);
+  const inner = round(clear + lipThick(spec.nozzle));
   // A room with round corners gets round rings, however small the radius: a sharp ring in a round room ran its slope into
   // the corner's round and SolidCraft refused the chamfer (review of PR #370: radius 1). Each outline's radius is the
   // room's less its inset, never under 0.5 mm, and the lip's outside never under the lead-in and 0.2 mm, which SolidCraft
   // cannot roll round a smaller corner; a rounder corner only stands further from the walls.
   const round_ = at(spec.radius) > 0;
   const ringRadius = (inset: number) => {
-    const least = inset === LIP.clear ? LEAD_IN + 0.2 : 0.5;
+    const least = inset === clear ? LEAD_IN + 0.2 : 0.5;
     return typeof spec.radius === 'number' ? mm(Math.max(spec.radius - inset, least)) : `max(${by(spec.radius, -inset)}, ${mm(least)})`;
   };
   // A ring between two outlines of the lid's room, each moved in by an inset, from the height `z` upwards.
@@ -665,11 +679,10 @@ export function lipSteps(spec: LipSpec): Step[] {
   const xyz = <T,>(along: T, across: T, z: T): [T, T, T] => (alongX ? [along, across, z] : [across, along, z]);
   const size = (along: string, across: string, height: string) => (alongX ? { length: along, width: across, height } : { length: across, width: along, height });
   // The lip's outside on that wall, and where the bead's crest stands.
-  const face = -out * LIP.clear;
-  const crest = face + out * LIP.bead;
+  const face = -out * clear;
+  const crest = face + out * beadOut;
   // The bead and its rille stand round 2.5 mm past the rim.
-  const high = beadHigh(spec.layer);
-  const rille = rilleFor(high);
+  const rille = rilleFor(high, beadOut);
   const beadFrom = up > 0 ? 2.5 - high / 2 : -2.5 - high / 2;
   // Where the closed lid has a point of the open one: half a turn about the hinge line.
   const closed = (point: [string, string, string]): [string, string, string] => {
@@ -694,7 +707,7 @@ export function lipSteps(spec: LipSpec): Step[] {
   const tip = at(spec.rim) + up * LIP.high;
   const tipEdges: [number, number, number][] = round_
     ? [xyz(middleAt, at(wallAt) + face, tip)]
-    : [[(at(x0) + at(x1)) / 2, at(y0) + LIP.clear, tip], [(at(x0) + at(x1)) / 2, at(y1) - LIP.clear, tip], [at(x0) + LIP.clear, (at(y0) + at(y1)) / 2, tip], [at(x1) - LIP.clear, (at(y0) + at(y1)) / 2, tip]];
+    : [[(at(x0) + at(x1)) / 2, at(y0) + clear, tip], [(at(x0) + at(x1)) / 2, at(y1) - clear, tip], [at(x0) + clear, (at(y0) + at(y1)) / 2, tip], [at(x1) - clear, (at(y0) + at(y1)) / 2, tip]];
   // With a hinge, its wall keeps no lip: the hinge holds the lid on that side, and the knuckles turning there bit the lip
   // and the foot into faces that hung (audit 2026-11-12, T3: 63 mm² at the template; N-nach-1: 0.26 mm left at other sizes).
   // Cut after the slopes were set on the whole ring: the lid's room near that wall, out to past the corners' arcs, so the
@@ -727,7 +740,7 @@ export function lipSteps(spec: LipSpec): Step[] {
     : [];
   return [
     ...(spec.flat ? [] : ring(`${name} ·`, footZ, -0.2, foot)),
-    ...ring(name, by(spec.rim, up > 0 ? 0 : -LIP.high), LIP.clear, mm(LIP.high)),
+    ...ring(name, by(spec.rim, up > 0 ? 0 : -LIP.high), clear, mm(LIP.high)),
     ...(spec.flat ? [] : [{ command: 'solid.chamfer', params: { edges: footEdges, distance: mm(inner - 0.05), body: spec.moving, name: `${name} ◢` } }]),
     { command: 'solid.chamfer', params: { edges: tipEdges, distance: mm(LEAD_IN), body: spec.moving, name: `${name} ◥` } },
     ...unhinged,
@@ -748,20 +761,20 @@ export function lipSteps(spec: LipSpec): Step[] {
     {
       command: 'solid.box',
       params: {
-        ...size(mm(LIP.beadLong), mm(LIP.bead), mm(high)),
+        ...size(mm(LIP.beadLong), mm(beadOut), mm(high)),
         corner: xyz(`${middle} - ${mm(LIP.beadLong / 2)}`, by(wallAt, Math.min(face, crest)), by(spec.rim, beadFrom)),
         operation: 'join',
         targets: [spec.moving],
         name: `${name} ●`,
       },
     },
-    { command: 'solid.chamfer', params: { edges: [2.5 - high / 2, 2.5 + high / 2].map((z) => xyz(middleAt, at(wallAt) + crest, at(spec.rim) + up * z)), distance: mm(LIP.bead - 0.05), body: spec.moving, name: `${name} ◆` } },
+    { command: 'solid.chamfer', params: { edges: [2.5 - high / 2, 2.5 + high / 2].map((z) => xyz(middleAt, at(wallAt) + crest, at(spec.rim) + up * z)), distance: mm(beadOut - 0.05), body: spec.moving, name: `${name} ◆` } },
     {
       command: 'solid.cylinder',
       params: {
         diameter: mm(rille.diameter),
         height: mm(LIP.beadLong + 1),
-        base: closed(xyz(`${middle} - ${mm(LIP.beadLong / 2 + 0.5)}`, by(wallAt, -out * round(0.25 + rille.back)), by(spec.rim, up * 2.5))),
+        base: closed(xyz(`${middle} - ${mm(LIP.beadLong / 2 + 0.5)}`, by(wallAt, -out * round(clear + rille.back)), by(spec.rim, up * 2.5))),
         axis: alongX ? 'X' : 'Y',
         operation: 'cut',
         targets: [spec.fixed],

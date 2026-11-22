@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { LID, LIP, WEB, beadHigh, gapFloor, hangs, hingeDiameter, hingeLies, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideOver, slideProblem, slideRoof, slideSteps, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, snapFrame, snapHold, snapHook, snapLimit, snapProblem, snapSteps, snapStrain, snapWindow, limitWords, uprightSaid, latchArm, latchFrame, latchProblem, latchReach, latchSteps, latchStrain, LATCH, SNAP_OFTEN, SHARP_ROOT, pegBore, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, followSteps, followed, type Follow, type Size, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
+import { LID, LIP, WEB, lipBead, gapFloor, hangs, hingeDiameter, hingeLies, printTogether, headRecess, hingeProblem, hingeSteps, pinBridge, webFoot, lidProblem, lidSkirt, lidSteps, lidThread, lipProblem, lipSteps, lipThick, RILLE_DEPTH, pinDiameter, screwFit, screwLengths, screwProblem, screwSink, screwSteps, screwWindow, sinkMost, slideOver, slideProblem, slideRoof, slideSteps, SCREWS_MORE, HOOKS_MORE, PEGS_MORE, snapFrame, snapHold, snapHook, snapLimit, snapProblem, snapSteps, snapStrain, snapWindow, limitWords, uprightSaid, latchArm, latchFrame, latchProblem, latchReach, latchSteps, latchStrain, LATCH, SNAP_OFTEN, SHARP_ROOT, pegBore, pegFloor, pegLength, pegProblem, pegSteps, PEG, SNAP, followSteps, followed, type Follow, type Size, type HingeSpec, type HingeSide, type LatchSpec, type LidSpec, type LipSpec, type PegSpec, type ScrewSpec, type SlideSpec, type SnapSpec } from '../../shared/mechanisms';
 import { BLOCK_SIZES, CLEARANCE_NORMAL, INSERT, type BlockSize } from '../../shared/screwSizes';
 import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 import { printInPlaceGap, type FitPrinter } from '../../shared/designFit';
@@ -203,7 +203,7 @@ export function slideOf(args: Record<string, unknown>, nozzle: number, least = 0
 const gapSaid = (spec: SlideSpec, layer: number, everywhere: string) => (spec.over === undefined ? `${String(spec.gap)} mm ${everywhere}` : `${String(spec.gap)} mm clear, ${String(spec.over)} mm over the rail's head (whole layers of ${String(layer)} mm)`);
 
 /** The closure the model asked for, with PartBuddy's defaults; or what is wrong with the request. */
-export function lipOf(args: Record<string, unknown>, nozzle = 0.4, layer = 0.2): LipSpec | string {
+export function lipOf(args: Record<string, unknown>, nozzle = 0.4, layer = 0.2, clear: number = LIP.clear): LipSpec | string {
   const base = common(args, 0.4, 'Closure');
   if (typeof base === 'string') return base;
   const { from, to } = base;
@@ -235,6 +235,7 @@ export function lipOf(args: Record<string, unknown>, nozzle = 0.4, layer = 0.2):
     ...(args.flat === true ? { flat: true } : {}),
     nozzle,
     layer,
+    ...(clear > LIP.clear ? { clear } : {}),
     name: base.name,
   };
   return lipProblem(spec) ?? spec;
@@ -1302,7 +1303,7 @@ export async function closureTrial(upstream: UpstreamTools, spec: LipSpec, nozzl
       return { name: `${PROBE} ${name} ${side}`, base: start as Vec3, body: inLid ? spec.moving : spec.fixed, axis: delta.map((value) => value / length), length };
     };
     const middle = (a0 + a1) / 2;
-    const lip = plane - out * (LIP.clear + thick / 2);
+    const lip = plane - out * (lipBead(spec).clear + thick / 2);
     return [
       { side, kind: 'room', ...rod('room', plane - out * 0.15, a0 + r, a1 - r, LIP.high / 2) },
       { side, kind: 'tip', ...rod('tip', lip, a0 + r, a1 - r, LIP.high + 0.15) },
@@ -1961,7 +1962,8 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     const given = args.hinge_from !== undefined || args.hinge_to !== undefined;
     const level = hinges.find((hinge) => Math.abs(hinge.from[2] - hinge.to[2]) < 1e-6 && (Math.abs(hinge.from[0] - hinge.to[0]) < 1e-6) !== (Math.abs(hinge.from[1] - hinge.to[1]) < 1e-6));
     const takes = !given && args.flat !== true && (vec3(args.up)?.[2] ?? 1) > 0 ? level : undefined;
-    const spec = lipOf(takes ? { ...args, hinge_from: takes.from, hinge_to: takes.to } : args, nozzle, layer);
+    // The lip's room is the material's slide fit, as the lip block's (audit T42, W36).
+    const spec = lipOf(takes ? { ...args, hinge_from: takes.from, hinge_to: takes.to } : args, nozzle, layer, fitClearance('slide', printer));
     if (typeof spec === 'string') throw new Error(`${spec}${takes ? ` (the hinge line was taken from the hinge "${takes.name}")` : ''}`);
     const remade = hinges.flatMap((hinge) => hinge.steps);
     const about = takes ? ` It closes about the hinge "${takes.name}", whose line PartBuddy took from the design.` : '';
@@ -1992,10 +1994,10 @@ async function mechanism(site: Site, args: Record<string, unknown>, printer: Too
     if (spec.flat) {
       // The lip stands along up: the plate prints on its face the other way.
       const laid = await layOn(run, spec.moving, [0, 0, -spec.up], keepFace);
-      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(LIP.clear)} mm clear of the box's wall, and a bead ${String(beadHigh(layer))} mm high that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up, lying on the plate's outer face, ${laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`}. It makes no joint.${followSaid(sized)}${recut}${steep}${box}${warnings}`;
+      return `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the flat lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high on the plate, ${String(lipBead(spec).clear)} mm clear of the box's wall (the material's slide fit), and a bead ${String(lipBead(spec).high)} mm high that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall. The plate has no notch to open it: let it stand out over the box by a millimetre or two on the side of the catch. It prints with the lip up, lying on the plate's outer face, ${laid === null ? 'which is set as its print face, in place of any it had' : `which PartBuddy could not set as its print face (${laid}): set it there`}. It makes no joint.${followSaid(sized)}${recut}${steep}${box}${warnings}`;
     }
     return (
-      `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(LIP.clear)} mm clear of the box's wall, a bead ${String(beadHigh(layer))} mm high that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch through the lid's rim to open it. It makes no joint and needs no room outside the box.${about}${followSaid(sized)}${unhinged}${recut}${steep}${box}${warnings}`
+      `Built the closure "${spec.name}" between ${spec.fixed} (the box) and ${spec.moving} (the lid): a lip ${String(thick)} mm thick and ${String(LIP.high)} mm high inside the lid, ${String(lipBead(spec).clear)} mm clear of the box's wall (the material's slide fit), a bead ${String(lipBead(spec).high)} mm high that snaps ${String(LIP.bead - LIP.clear)} mm into a rille of that wall, and a notch through the lid's rim to open it. It makes no joint and needs no room outside the box.${about}${followSaid(sized)}${unhinged}${recut}${steep}${box}${warnings}`
     );
   }
   if (args.kind === 'lid') {
