@@ -36,6 +36,7 @@ import { withBlockTool } from './agents/blockTool';
 import { DEFAULT_PRINTER, blockLimit, limitRefusal, limitSaid } from './../shared/blocks';
 import { DEFAULT_MATERIAL, DEFAULT_OVERHANG, type ToolPrinter } from '../shared/toolFit';
 import { withStandardTool } from './agents/standardTool';
+import { withResizeCheck } from './agents/resizeCheck';
 import { withMechanismTool } from './agents/mechanismTool';
 import { blockPhrase, describeUserAction } from '../shared/stepPhrases';
 import { ChatGptAccount } from './chatgpt/account';
@@ -697,7 +698,7 @@ if (!app.requestSingleInstanceLock()) {
         steps.tools(
           withDesignTool(
             withAssemblyTool(
-              withViewTool(guardNotes(withStandardTool(withPrintFaces(withBlockTool(withMechanismTool(withDrawings(upstream, drawings, () => printProfiles.part().printer, log), () => toolPrinter().nozzle, keepMechanismFace, () => toolPrinter().material?.overhang ?? DEFAULT_OVERHANG, () => toolPrinter().layer, () => toolPrinter().material ?? DEFAULT_MATERIAL, log), keepMechanismFace, log, toolPrinter), keepMechanismFace)), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
+              withViewTool(guardNotes(withStandardTool(withPrintFaces(withBlockTool(withMechanismTool(withDrawings(withResizeCheck(upstream, log), drawings, () => printProfiles.part().printer, log), () => toolPrinter().nozzle, keepMechanismFace, () => toolPrinter().material?.overhang ?? DEFAULT_OVERHANG, () => toolPrinter().layer, () => toolPrinter().material ?? DEFAULT_MATERIAL, log), keepMechanismFace, log, toolPrinter), keepMechanismFace)), (trial) => supervisor.trialSteps(trial)), () => viewState, () => notesService.forView(), checkForView),
               () => viewState?.bodies.map((body) => body.name) ?? [],
               saveAssembly,
             ),
