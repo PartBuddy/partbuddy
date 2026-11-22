@@ -1483,6 +1483,8 @@ test('a STEP file becomes a project, meshes are inserted into it, converted to f
     await home.getByTestId('home-import').click();
     await expect(name).toHaveText('Deckel', { timeout: 30_000 });
     await expect(notice).toContainText('has no sizes to change');
+    // Its size as it came in, so a file in the wrong unit shows at once (audit D44).
+    await expect(notice).toContainText(/Size: [\d.,]+ × [\d.,]+ × [\d.,]+ mm\./);
     await page.getByTestId('notice-close').click();
     await page.getByTestId('home-button').click();
     await home.getByTestId('home-tile').filter({ hasText: 'Platine' }).click();
@@ -1498,6 +1500,8 @@ test('a STEP file becomes a project, meshes are inserted into it, converted to f
     await expect(lid).toContainText('mesh');
     await lid.getByTestId('structure-convert').click();
     await expect(notice).toContainText('now has faces', { timeout: 30_000 });
+    // How much the volume changed (audit S-28).
+    await expect(notice).toContainText(/Volume: [-+−]?[\d.]+ %\./);
     await expect(lid).not.toContainText('mesh', { timeout: 15_000 });
     await expect(lid.getByTestId('structure-convert')).toHaveCount(0);
 

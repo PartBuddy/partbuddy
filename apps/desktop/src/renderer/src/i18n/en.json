@@ -782,6 +782,7 @@
     "convert": "Convert {name} to faces",
     "convertHint": "Rebuilds the mesh within 0.05 mm as faces you can edit: flat and round faces SolidCraft recognises as real faces, everything else as facets. Works for closed meshes.",
     "convertDone": "{name} now has faces you can edit, within 0.05 mm of the mesh; what SolidCraft does not recognise as flat or round stays faceted.",
+    "convertChange": "Volume: {change} %.",
     "openMesh": "{name} is not closed, so SolidCraft cannot turn it into faces. It can still be exported; the slicer repairs small holes itself.",
     "standardPart": "standard part",
     "bodiesTitle": "Bodies",
@@ -1424,7 +1425,8 @@
     "exportPackage": "Export as a file …",
     "exportedPackage": "The project is saved as a .partbuddy file, with conversation, versions and sketches.",
     "trashed": "“{name}” is in the bin on the start page and can be restored there.",
-    "importedMesh": "The file became a new project (the original stays unchanged). A mesh from STL, 3MF or OBJ has no sizes to change: tell the assistant what should be different, or turn it into faces in the structure with “Convert to faces”."
+    "importedMesh": "The file became a new project (the original stays unchanged). A mesh from STL, 3MF or OBJ has no sizes to change: tell the assistant what should be different, or turn it into faces in the structure with “Convert to faces”.",
+    "importedSize": "Size: {size} mm."
   },
   "home": {
     "title": "Projects",

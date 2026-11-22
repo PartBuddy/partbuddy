@@ -250,7 +250,8 @@ export const projectRenameResultSchema = z.discriminatedUnion('ok', [
 ]);
 /** Opening asks for a folder or a design file; `imported`: a design from elsewhere was copied into a new project. */
 /** `mesh`: the import was an STL, 3MF or OBJ, which has no features to change (usability U-14). */
-export const projectOpenResultSchema = z.object({ opened: z.boolean(), imported: z.boolean(), mesh: z.literal(true).optional() }).strict();
+// `size`: a mesh's box in mm as it came in, when SolidCraft measured it (a file without units; audit D44).
+export const projectOpenResultSchema = z.object({ opened: z.boolean(), imported: z.boolean(), mesh: z.literal(true).optional(), size: z.tuple([z.number(), z.number(), z.number()]).optional() }).strict();
 /**
  * Import (B4): a file the user dropped onto the window, or none to ask with the open dialog. The
  * main process checks the path (absolute, an existing file of a known kind, not too large).
@@ -266,7 +267,8 @@ export const insertResultSchema = z
 export const repairRequestSchema = z.object({ body: z.string().min(1).max(200) }).strict();
 /** How a conversion went: done, a mesh that is not closed (SolidCraft converts only closed meshes), or SolidCraft's own reason. */
 export const repairResultSchema = z.discriminatedUnion('ok', [
-  z.object({ ok: z.literal(true) }).strict(),
+  // `change`: how much the volume changed, in per cent, when it was measured before and after (audit S-28).
+  z.object({ ok: z.literal(true), change: z.number().optional() }).strict(),
   z.object({ ok: z.literal(false), reason: z.enum(['openMesh', 'other']), detail: z.string().max(500) }).strict(),
 ]);
 
