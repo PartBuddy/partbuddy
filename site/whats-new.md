@@ -1,5 +1,6 @@
-<!-- v0.3.12 -->
+<!-- v0.3.13 -->
 ## What's new
 
-- **Hinged boxes with a closure:** the hinge keeps its joint while the closure rebuilds the lid's knuckles. Before, this could stop with an error that the joint's face no longer exists.
-- **Print check:** the assistant now waits for a print check that is still running, instead of giving up without a result.
+- **Assemblies can show green:** parts that the assembly order puts together no longer warn that they touch. Bodies outside the order still do.
+- **Thin posts:** the print check now also finds free-standing square posts under 3 mm, such as a narrow finger between two openings.
+- **More honest numbers:** the assistant no longer reads an overhang figure that no finding can place, and the peg and snap hook tools say what they really measured.
