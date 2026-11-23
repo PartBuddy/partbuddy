@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.12](https://github.com/PartBuddy/partbuddy/compare/v0.3.11...v0.3.12) (2026-11-23)
+
+
+### Bug Fixes
+
+* **assistant:** partbuddy_view waits for a check that is still running ([#569](https://github.com/PartBuddy/partbuddy/issues/569)) ([ccd6865](https://github.com/PartBuddy/partbuddy/commit/ccd68653bd314eeda78b60adbf09f41388c870e3))
+* **mechanism:** keep the hinge's joint again in the batch that remakes the lid's knuckles ([#571](https://github.com/PartBuddy/partbuddy/issues/571)) ([ca1101a](https://github.com/PartBuddy/partbuddy/commit/ca1101aa9c5bd280bf76623d934b8cc0d4565dd8))
+
 ## [0.3.11](https://github.com/PartBuddy/partbuddy/compare/v0.3.10...v0.3.11) (2026-11-22)
 
 
