@@ -23,6 +23,7 @@ export {
 } from './faceTable';
 export {
   checkPrint,
+  MIN_AREA as MIN_FINDING_AREA,
   DESIGN_HINTS,
   edgeRadius,
   withDesign,
