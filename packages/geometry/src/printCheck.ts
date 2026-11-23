@@ -347,10 +347,118 @@ export function smallHoles(body: PrintCheckBody): { tally: FaceTally; holes: num
 /**
  * The pins and posts of one body under SMALLEST_PIN across (MG-25, S28): as {@link smallHoles}, but cylinders the material
  * lies inside of, going all the way round and at least as long as they are thick (a rounded edge goes a quarter turn,
- * a disc or a boss is shorter). Returns the tally and the number of pins in `holes`.
+ * a disc or a boss is shorter), and square posts ({@link squarePosts}). Returns the tally and the number of pins in `holes`.
  */
 export function thinPins(body: PrintCheckBody): { tally: FaceTally; holes: number } {
-  return roundOnes(body, false, SMALLEST_PIN);
+  const pins = roundOnes(body, false, SMALLEST_PIN);
+  return { tally: pins.tally, holes: pins.holes + squarePosts(body, pins.tally) };
+}
+
+/** A square post counts from five times its thickness and 5 mm long (own choice): shorter, a stub that does not wobble or snap. */
+const POST_RATIO = 5;
+const SHORTEST_POST = 5;
+/** How far apart a post's thickness is read along it, mm. */
+const POST_STEP = 0.5;
+/** A flat face of more triangles is no post's end; a body of more such small faces is a mesh of facets, not a design. */
+const POST_TIP_TRIANGLES = 32;
+const MOST_POST_TIPS = 2000;
+
+/** The smallest rectangle round a flat face's triangles, along one of their edges: its ways, sides and middle. */
+function tipRectangle(points: readonly number[], normal: Vector3) {
+  let best: { area: number; u: Vector3; v: Vector3; wide: number; deep: number; centre: Vector3 } | null = null;
+  const edge = new Vector3();
+  const point = new Vector3();
+  for (let p = 0; p < points.length; p += 3) {
+    const next = p % 9 === 6 ? p - 6 : p + 3;
+    edge.set((points[next] ?? 0) - (points[p] ?? 0), (points[next + 1] ?? 0) - (points[p + 1] ?? 0), (points[next + 2] ?? 0) - (points[p + 2] ?? 0));
+    edge.addScaledVector(normal, -edge.dot(normal));
+    if (edge.lengthSq() < EPSILON ** 2) continue;
+    const u = edge.clone().normalize();
+    const v = new Vector3().crossVectors(normal, u);
+    let [uLow, uHigh, vLow, vHigh] = [Infinity, -Infinity, Infinity, -Infinity];
+    for (let q = 0; q < points.length; q += 3) {
+      point.set(points[q] ?? 0, points[q + 1] ?? 0, points[q + 2] ?? 0);
+      [uLow, uHigh] = [Math.min(uLow, point.dot(u)), Math.max(uHigh, point.dot(u))];
+      [vLow, vHigh] = [Math.min(vLow, point.dot(v)), Math.max(vHigh, point.dot(v))];
+    }
+    const area = (uHigh - uLow) * (vHigh - vLow);
+    if (best && area >= best.area - EPSILON) continue;
+    const centre = new Vector3().addScaledVector(u, (uLow + uHigh) / 2).addScaledVector(v, (vLow + vHigh) / 2).addScaledVector(normal, point.dot(normal));
+    best = { area, u, v, wide: uHigh - uLow, deep: vHigh - vLow, centre };
+  }
+  return best;
+}
+
+/**
+ * The free-standing square posts of one body under SMALLEST_PIN both ways (practice run 12, 2026-11-23: fingers 2 × 1.8 mm and
+ * 20 mm long between the windows of a Raspberry Pi case). A post ends in a small flat face; from its middle the post is
+ * read inwards, across both of its sides, for as long as it stays that thin. Round pins are `roundOnes`' own.
+ * shortcut: a post whose thickness steps over 3 mm on its way counts only up to there, and one ending in a point or a curve is not found.
+ */
+function squarePosts({ model }: PrintCheckBody, tally: FaceTally): number {
+  const faces = model.table.faces;
+  const bvh = model.geometry.boundsTree as unknown as MeshBVH | undefined;
+  const index = model.geometry.index?.array;
+  const positions = model.geometry.getAttribute('position').array;
+  if (!bvh || !index) return 0;
+  const low = new Float64Array(faces.length * 3).fill(Infinity);
+  const high = new Float64Array(faces.length * 3).fill(-Infinity);
+  for (let t = 0; t < index.length / 3; t += 1) {
+    const face = model.triangleFaces[t] ?? 0;
+    if (!faces[face]?.planeNormal) continue;
+    for (let c = 0; c < 3; c += 1) {
+      const p = (index[t * 3 + c] ?? 0) * 3;
+      for (let k = 0; k < 3; k += 1) {
+        low[face * 3 + k] = Math.min(low[face * 3 + k] ?? Infinity, positions[p + k] ?? 0);
+        high[face * 3 + k] = Math.max(high[face * 3 + k] ?? -Infinity, positions[p + k] ?? 0);
+      }
+    }
+  }
+  const tips = new Map<number, number[]>();
+  faces.forEach((info, face) => {
+    if (info.planeNormal && Math.hypot((high[face * 3] ?? 0) - (low[face * 3] ?? 0), (high[face * 3 + 1] ?? 0) - (low[face * 3 + 1] ?? 0), (high[face * 3 + 2] ?? 0) - (low[face * 3 + 2] ?? 0)) < SMALLEST_PIN * Math.SQRT2) tips.set(face, []);
+  });
+  if (tips.size === 0 || tips.size > MOST_POST_TIPS) return 0;
+  for (let t = 0; t < index.length / 3; t += 1) {
+    const own = tips.get(model.triangleFaces[t] ?? 0);
+    if (!own) continue;
+    for (let c = 0; c < 3; c += 1) {
+      const p = (index[t * 3 + c] ?? 0) * 3;
+      own.push(positions[p] ?? 0, positions[p + 1] ?? 0, positions[p + 2] ?? 0);
+    }
+  }
+  const ray = new Ray();
+  // The way out of the material from inside it; nothing within the limit, or a face met from outside, is no post there.
+  const exit = (from: Vector3, way: Vector3) => {
+    ray.origin.copy(from);
+    ray.direction.copy(way);
+    const hit = bvh.raycastFirst(ray, DoubleSide, 0, SMALLEST_PIN);
+    return hit?.face && hit.face.normal.dot(way) > 0 ? hit : null;
+  };
+  let posts = 0;
+  for (const [face, own] of tips) {
+    const planeNormal = faces[face]?.planeNormal;
+    if (!planeNormal || own.length === 0 || own.length > POST_TIP_TRIANGLES * 9) continue;
+    const normal = new Vector3(...planeNormal).normalize();
+    const tip = tipRectangle(own, normal);
+    if (!tip || tip.wide >= SMALLEST_PIN || tip.deep >= SMALLEST_PIN) continue;
+    const ways = [tip.u, tip.u.clone().negate(), tip.v, tip.v.clone().negate()];
+    const at = new Vector3();
+    let [length, thin] = [0, Infinity];
+    for (let depth = POST_STEP; depth < 1000; depth += POST_STEP) {
+      at.copy(tip.centre).addScaledVector(normal, -depth);
+      const [a, b, c, d] = ways.map((way) => exit(at, way));
+      if (!a || !b || !c || !d) break;
+      const across = Math.min(a.distance + b.distance, c.distance + d.distance);
+      if (Math.max(a.distance + b.distance, c.distance + d.distance) >= SMALLEST_PIN) break;
+      if (length === 0 && [a, b, c, d].every((hit) => faces[model.triangleFaces[hit.faceIndex ?? -1] ?? -1]?.cylinder)) break;
+      [length, thin] = [depth, Math.min(thin, across)];
+    }
+    if (length < Math.max(SHORTEST_POST, POST_RATIO * thin)) continue;
+    posts += 1;
+    tally.add(face, tip.area, thin, own);
+  }
+  return posts;
 }
 
 /** Whole round cylinders under `below` across, hollow ones (holes) or solid ones (pins). */

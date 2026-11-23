@@ -226,6 +226,20 @@ describe('small holes (BC-24, S12)', () => {
     expect(one(checkPrint([{ ...solidcraft('detail', 'Pin15'), group: 'Hinge' }], PLA).findings, 'thinPin')).toBeUndefined();
   });
 
+  it('finds a free-standing square post under 3 mm both ways, however it lies, and no stub or rib (practice run 12, 2026-11-23)', () => {
+    const post = (x: number, y: number, z: number) => boxesBody('Post', [[[0, 0, 0], [x, y, z]]]);
+    const found = (body: PrintCheckBody) => one(checkPrint([body], PLA).findings, 'thinPin');
+    for (const place of PLACES) {
+      // Free at both ends: each end is told.
+      expect(found(posed(post(2.5, 1.8, 20), place.turn, place.mirrored, place.lift)), JSON.stringify(place)).toMatchObject({ severity: 'warn', pins: 2, diameter: 1.8, minimum: 3, places: [{ body: 'Post' }] });
+    }
+    // On a plate, as the fingers between the windows stood.
+    expect(found(boxesBody('Comb', [[[0, 0, 0], [40, 20, 2]], [[10, 9, 2], [12.5, 10.8, 22]]]))).toMatchObject({ diameter: 1.8, places: [{ body: 'Comb' }] });
+    // Shorter than five times its thickness, under 5 mm, or 3 mm and more one way: no post.
+    for (const [x, y, z] of [[2.5, 1.8, 8], [1, 1, 4], [6, 1.8, 20], [3, 3, 20]] as const) expect(found(post(x, y, z)), `${String(x)} × ${String(y)} × ${String(z)}`).toBeUndefined();
+    expect(one(checkPrint([post(2.5, 1.8, 20)], { ...PLA, off: ['thinPin'] }).findings, 'thinPin')).toBeUndefined();
+  });
+
   it('takes no pocket shallower than it is wide for a hole: a dice pip is a dimple (BC-24 review)', () => {
     // A lying tube of 1.5 mm bore, 0.4, 1.4 and 1.5 mm long: the first two shallower than wide.
     for (const [length, want] of [[0.4, undefined], [1.4, undefined], [1.5, 1]] as const) expect(one(checkPrint([lyingTube('Pip', 3, 0.75, length)], PLA).findings, 'smallHole')?.holes, String(length)).toBe(want);

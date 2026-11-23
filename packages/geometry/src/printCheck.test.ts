@@ -175,14 +175,16 @@ describe('the ready-to-print check (M7)', () => {
     const table = boxesBody('Table', [[[9, 9, 0], [11, 11, 10]], [[0, 0, 10], [20, 20, 12]]]);
     // On its top the table has nothing hanging, and the whole top on the bed.
     // (The test shape is two boxes, so the leg's hidden end face is all that still faces down.)
-    const onTop = checkPrint([{ ...table, printFace: 'F2:+z' }], PLA).findings;
+    // The leg is a 2 mm post, which the check rightly tells; here only the print face counts.
+    const noPins = { ...PLA, off: ['thinPin' as const] };
+    const onTop = checkPrint([{ ...table, printFace: 'F2:+z' }], noPins).findings;
     expect(onTop.map((f) => f.kind)).toEqual(['overhang']);
     expect(onTop[0]).toMatchObject({ area: 4, places: [{ body: 'Table', faces: ['F1:+z'] }] });
     // A cut split the print face: until the next save the store holds the old name, the pieces carry it before "#".
     const split = { ...table, model: { ...table.model, table: { ...table.model.table, faces: table.model.table.faces.map((face) => (face.name === 'F2:+z' ? { ...face, name: 'F2:+z#[F1:-x,F2:-x]' } : face)) } } };
-    expect(checkPrint([{ ...split, printFace: 'F2:+z' }], PLA).findings).toEqual(onTop);
+    expect(checkPrint([{ ...split, printFace: 'F2:+z' }], noPins).findings).toEqual(onTop);
     // A print face that is gone is said, not passed over (audit H-29).
-    const gone = checkPrint([{ ...table, printFace: 'gone' }, { ...boxesBody('Block', [[[40, 0, 0], [60, 20, 10]]]), printFace: 'F1:-z' }, box('Plain', [80, 0, 0], [100, 20, 10])], PLA).findings;
+    const gone = checkPrint([{ ...table, printFace: 'gone' }, { ...boxesBody('Block', [[[40, 0, 0], [60, 20, 10]]]), printFace: 'F1:-z' }, box('Plain', [80, 0, 0], [100, 20, 10])], noPins).findings;
     expect(gone.map((f) => f.kind)).toEqual(['faceLost', 'overhang', 'contact']);
     expect(gone[0]).toEqual({ kind: 'faceLost', severity: 'warn', bodies: ['Table'] });
     // On its side the finding still names the faces where they are in the design.
