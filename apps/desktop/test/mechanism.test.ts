@@ -1747,7 +1747,7 @@ describe('snap hooks with their windows (standards)', () => {
   it('measures the wall at each hook before it cuts a window: thickness, face, height and width (audit N-mechanik-11, W23)', async () => {
     const good = await built(cover());
     expect(good.isError).toBe(false);
-    expect(good.text).toContain("an arm 12.4 mm long, 1.5 mm thick and 5 mm wide, 0.2 mm off the wall, with a catch 0.8 mm deep that reaches 0.6 mm over the window's edge (on the 0.4 mm nozzle in PLA: an arm of two lines at the least, a catch of the narrowest line a slicer lays, and long enough to hold printed standing too).");
+    expect(good.text).toContain("an arm 12.4 mm long, 1.5 mm thick and 5 mm wide, 0.2 mm off the wall, with a catch 0.8 mm deep that reaches 0.6 mm over the window's edge (on the 0.4 mm nozzle in PLA: an arm of two lines at the least, a catch of the narrowest line a slicer lays, and long enough to hold printed standing too), less by as much as from stands before the wall's face (at most 0.1 mm).");
     expect(good.text).toContain('(the arm bends 0.6 mm, about 1 % strain at the root)');
     // Two lines (0.9 mm) or four layers (0.8 mm), whichever is more, all round: how the part lies to print is not known (BC-11 review).
     expect(good.text).toContain('PartBuddy measured that wall at each hook first: 2 mm thick behind from and whole round the window, from 9.8 to 13.8 mm above the foot and 7.4 mm wide.');
@@ -2003,7 +2003,7 @@ describe('a plugged connection (standards)', () => {
     expect(String((await plate(19.39).tools.callTool('partbuddy_mechanism', peg)).content[0]?.text)).toContain('Not built: at [20, 20, 10] Right has 9.39 mm of plastic where 9.4 mm are needed');
     const thick = plate(19.4);
     const built = String((await thick.tools.callTool('partbuddy_mechanism', peg)).content[0]?.text);
-    expect(built).toContain('PartBuddy measured Right: each pocket has 2 mm of plastic round it and 0.9 mm under it.');
+    expect(built).toContain('PartBuddy measured Right: each pocket has at least 2 mm of plastic round it and at least 0.9 mm under it.');
     expect(built).not.toContain('round each pocket\'s axis');
     expect(thick.sent.some((batch) => batch.includes('solid.cone'))).toBe(true);
   });
