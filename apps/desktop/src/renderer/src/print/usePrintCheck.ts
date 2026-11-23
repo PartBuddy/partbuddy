@@ -1,3 +1,4 @@
+import { assembledBodies } from '../../../shared/assembly';
 import { HINT_RULE, PRINT_HINTS } from '../../../shared/contract';
 import { isLogoColourBody, isLogoPartBody } from '../../../shared/drawingPlacement';
 import { checkPrint, withClearance, withDesign, withMotion, type PrintCheck } from '@partbuddy/geometry';
@@ -20,6 +21,7 @@ export function usePrintCheck(): void {
   const model = useStudio((s) => s.model);
   const print = useStudio((s) => s.print);
   const printFaces = useStudio((s) => s.printFaces);
+  const assembly = useStudio((s) => s.assembly);
   useEffect(() => {
     if (model.status !== 'ready' || !print) {
       useStudio.getState().setPrintCheck(null);
@@ -33,7 +35,8 @@ export function usePrintCheck(): void {
       const standard = new Set([...(model.structure.standardParts ?? []), ...(model.structure.pendingParts ?? [])]);
       // Bodies printed as one piece (a print-in-place hinge) stand on one bed: the first body's name names the group.
       const groupOf = (name: string) => model.structure.printGroups?.find((group) => group.includes(name))?.[0];
-      const printed = model.bodies.filter((body) => !standard.has(body.name)).map((body) => ({ ...body, printFace: printFaces[body.name], group: groupOf(body.name) }));
+      const assembled = assembledBodies(assembly);
+      const printed = model.bodies.filter((body) => !standard.has(body.name)).map((body) => ({ ...body, printFace: printFaces[body.name], group: groupOf(body.name), assembled: assembled.has(body.name) }));
       // The hints the user turned off in the print settings (BC-24), or whose design rule is off for this part, are not looked for.
       const off = PRINT_HINTS.filter((hint) => {
         const rule = HINT_RULE[hint];
@@ -149,5 +152,5 @@ export function usePrintCheck(): void {
       stale = true;
       clearTimeout(timer);
     };
-  }, [model, print, printFaces]);
+  }, [model, print, printFaces, assembly]);
 }

@@ -201,6 +201,15 @@ describe('the ready-to-print check (M7)', () => {
     expect(together.findings.find((f) => f.kind === 'fused')).toEqual({ kind: 'fused', severity: 'warn', bodies: ['Leg', 'Top'] });
   });
 
+  it('takes bodies of the assembly order as apart on purpose, but not one beside them, nor a piece that fuses (practice runs 2026-11-23)', () => {
+    const leg = { ...box('Leg', [9, 9, 0], [11, 11, 10]), assembled: true };
+    const top = box('Top', [0, 0, 10], [20, 20, 12]);
+    const kinds = (bodies: PrintCheckBody[]) => checkPrint(bodies, PLA).findings.map((f) => f.kind);
+    expect(kinds([leg, { ...top, assembled: true }])).not.toContain('separate');
+    expect(kinds([leg, top])).toContain('separate');
+    expect(kinds([{ ...leg, group: 'Leg' }, { ...top, assembled: true, group: 'Leg' }])).toContain('fused');
+  });
+
   it('says where bodies printed as one piece touch, as they fuse there, and not where a gap parts them (review of PR 366)', () => {
     const pair = (gap: number) => checkPrint([{ ...box('Box', [0, 0, 0], [40, 30, 30]), group: 'Box' }, { ...box('Lid', [40 + gap, 0, 0], [80 + gap, 30, 30]), group: 'Box' }], PLA);
     expect(pair(0).findings).toEqual([{ kind: 'fused', severity: 'warn', bodies: ['Box', 'Lid'] }]);
