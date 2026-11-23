@@ -49,6 +49,8 @@ export interface PrintCheckBody {
    * their common lowest point, turned onto the print face of the first of them that has one.
    */
   group?: string | undefined;
+  /** Named in the assembly order: printed apart and put together on purpose, so touching another such body is no finding. */
+  assembled?: boolean | undefined;
 }
 
 export interface PrintCheckFeature {
@@ -1001,8 +1003,10 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
       for (let j = i + 1; j < parts.length; j += 1) {
         const a = parts[i];
         const b = parts[j];
-        if (!a || !b || !touches(a, b)) continue;
-        const found = a.group !== undefined && a.group === b.group ? fused : separate;
+        if (!a || !b) continue;
+        const onePiece = a.group !== undefined && a.group === b.group;
+        if ((!onePiece && a.assembled && b.assembled) || !touches(a, b)) continue;
+        const found = onePiece ? fused : separate;
         found.add(a.name);
         found.add(b.name);
       }

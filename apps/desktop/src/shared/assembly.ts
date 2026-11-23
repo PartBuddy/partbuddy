@@ -123,3 +123,9 @@ export function playbackOrder(plan: AssemblyPlan): PlayStep[] {
   // A body of a sub-assembly moves twice: into the sub-assembly, then with it into the parent.
   return played.filter((step) => step.bodies.length > 0);
 }
+
+/** The bodies the assistant's assembly order puts together, so printed apart on purpose; a proposal from the geometry says nothing of intent. */
+export function assembledBodies(plan: AssemblyPlan | null): Set<string> {
+  if (plan?.source !== 'assistant') return new Set();
+  return new Set(playbackOrder(plan).flatMap((step) => (step.target === null ? step.bodies : [...step.bodies, step.target])));
+}

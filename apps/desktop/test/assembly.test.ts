@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { assemblyPlanSchema, playbackOrder, type AssemblyPlan } from '../src/shared/assembly';
+import { assembledBodies, assemblyPlanSchema, playbackOrder, type AssemblyPlan } from '../src/shared/assembly';
 import { joiningDirection, suggestAssembly, type PartBox } from '../src/renderer/src/viewer/assemblyOrder';
 
 const label = (part: string, target: string | null) => (target ? `${part} onto ${target}` : part);
@@ -78,6 +78,13 @@ describe('assemblyPlanSchema', () => {
   it('adds a sub-assembly that no step of its parent names at the end of the parent', () => {
     const order = playbackOrder({ ...plan, steps: plan.steps.slice(0, 3) });
     expect(order.at(-1)).toMatchObject({ name: 'Hinge', bodies: ['Pin', 'Leaf'], direction: [0, 0, -1] });
+  });
+
+  it('names the bodies the assistant put together, also a target no step adds, and none of a proposal from the geometry', () => {
+    const bodies = assembledBodies({ ...plan, steps: [...plan.steps, { name: 'Onto the stand', part: 'Base', target: 'Stand', direction: [0, 0, -1] }] });
+    for (const body of ['Base', 'Pin', 'Leaf', 'Stand']) expect(bodies.has(body), body).toBe(true);
+    expect(assembledBodies({ ...plan, source: 'suggested' }).size).toBe(0);
+    expect(assembledBodies(null).size).toBe(0);
   });
 });
 
