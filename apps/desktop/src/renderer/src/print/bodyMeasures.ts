@@ -1,4 +1,4 @@
-import { Overhang, laidBodies, meshMetrics, overhangLimits, overhangOf, type LaidBody, type PrintCheckBody, type PrintCheckProfile } from '@partbuddy/geometry';
+import { MIN_FINDING_AREA, Overhang, laidBodies, meshMetrics, overhangLimits, overhangOf, type LaidBody, type PrintCheckBody, type PrintCheckProfile } from '@partbuddy/geometry';
 
 import type { PrintCheckReport } from '../../../shared/contract';
 
@@ -47,7 +47,8 @@ export function bodyMeasures(body: PrintCheckBody, profile: Profile, lying: Laid
     layers: profile.layer > 0 ? Math.ceil(height / profile.layer - 1e-6) : 0,
     surface: round(surface, 0),
     contact: round(map.area[Overhang.Bed], 0),
-    support: round(map.area[Overhang.Support], 0),
+    // Only the faces the overhang finding counts: slivers summed to "1 mm²" sent the assistant looking for a place no finding names (practice runs 12, 13, 2026-11-23).
+    support: round(map.supportByFace.reduce((sum, area) => (area >= MIN_FINDING_AREA ? sum + area : sum), 0), 0),
   };
   const odd = Object.entries(measures).find(([, value]) => typeof value === 'number' && !(Number.isFinite(value) && value >= 0));
   if (odd) throw new Error(`${odd[0]} is ${String(odd[1])}`);

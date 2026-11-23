@@ -190,7 +190,7 @@ function layerOf(layer: number): number {
 }
 
 /** Below this, an area is noise of the tessellation, not a finding (mm²). */
-const MIN_AREA = 1;
+export const MIN_AREA = 1;
 /** Walls under one line over at least this area make the part unprintable (mm²). */
 const BLOCK_THIN_AREA = 5;
 /**
