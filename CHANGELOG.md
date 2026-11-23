@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.13](https://github.com/PartBuddy/partbuddy/compare/v0.3.12...v0.3.13) (2026-11-23)
+
+
+### Bug Fixes
+
+* **check:** count only the overhang the finding counts in a body's measures ([#573](https://github.com/PartBuddy/partbuddy/issues/573)) ([cf6ba3f](https://github.com/PartBuddy/partbuddy/commit/cf6ba3fb9ca7e7148e24b2d4cca318b39b585eae))
+* **check:** parts of the assembly order may touch ([#576](https://github.com/PartBuddy/partbuddy/issues/576)) ([a9e09d4](https://github.com/PartBuddy/partbuddy/commit/a9e09d4cf753c91c51c19e9fb495d301c2bb870f))
+* **check:** tell free-standing square posts under 3 mm ([#577](https://github.com/PartBuddy/partbuddy/issues/577)) ([3123847](https://github.com/PartBuddy/partbuddy/commit/31238477b3d1cffcc9f9b17d723d809099beaf46))
+* **mechanism:** say what the peg and snap tools really measured ([#574](https://github.com/PartBuddy/partbuddy/issues/574)) ([da20a84](https://github.com/PartBuddy/partbuddy/commit/da20a84fc8aef560e04ce6dca4096eb423e7f3ef))
+
 ## [0.3.12](https://github.com/PartBuddy/partbuddy/compare/v0.3.11...v0.3.12) (2026-11-23)
 
 
