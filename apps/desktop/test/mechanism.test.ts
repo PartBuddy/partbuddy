@@ -510,6 +510,8 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
           const results = commands.map((step) => {
             if (step.command === 'inspect.measure') return { bodies: [{ bbox: { min: [0, 0, 0] } }, { bbox: { min: [45, 0, 0] } }] };
             if (step.command === 'component.list') return { components: [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ id: 4, name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ id: 6, name: 'Flap:1' }] }] };
+            // SolidCraft 0.48.1 on a web's room that misses the other body.
+            if (step.command === 'solid.extrude' && String(step.params.name).endsWith('◤')) return { warning: 'the cut removes no material; check where its profile lies, the direction and the distance' };
             if (step.command !== 'inspect.clearance') return {};
             // The second trial: each rod lies in its body where that body has a wall under the web's foot (a rod 0.2 mm thick and 30 mm long is 0.942 mm³).
             // Without walls (null) SolidCraft gives no answer to it. The rods behind the knuckles' rooms lie in their blocks.
@@ -527,6 +529,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     const both = await answer(['Base', 'Flap']);
     expect(both.webs).toEqual(['Base', 'Flap', 'Base', 'Flap', 'Base']);
     expect(both.text).toContain(' All 5 knuckles start above the bed and stand on webs at 45° that run from under the barrel down to their own wall, and the pin is flat underneath where it bridges from knuckle to knuckle, so the hinge prints as it stands, without support. ');
+    expect(both.text).not.toContain('SolidCraft warns');
     // Each rod lies 0.25 mm inside its wall and 0.2 mm under the web's foot, 6.743 mm below the line: at z = 9.057.
     const rods = both.sent.filter((step) => String(step.params.body_name).startsWith('PartBuddy probe ') && (step.params.base as number[])[2] !== 16);
     expect(rods.map((step) => (step.params.base as number[]).map((value) => Math.round(value * 1000) / 1000))).toEqual([[39.75, 0, 9.057], [45.25, 0, 9.057]]);

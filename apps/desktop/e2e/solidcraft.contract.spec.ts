@@ -1900,7 +1900,8 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.applyAction({ action: 'shell', body: 'Body1', points: [[10, 10, 10]], size: 3 }));
     await expect(page.getByTestId('timeline-feature')).toHaveCount(2, { timeout: 30_000 });
     const blocks = [
-      { block: 'text', body: 'Body1', point: [10, 0, 5], normal: [0, -1, 0], size: 'M3', text: 'PB', height: 4, depth: 0.6, mode: 'deboss', bold: true, font: 'Georgia' },
+      // On the back: the front stays free for the text through the form (SolidCraft 0.48 refuses a text over another one's pocket).
+      { block: 'text', body: 'Body1', point: [10, 20, 5], normal: [0, 1, 0], size: 'M3', text: 'PB', height: 4, depth: 0.6, mode: 'deboss', bold: true, font: 'Georgia' },
       { block: 'nutTrap', body: 'Body1', point: [10, 10, 0], normal: [0, 0, -1], size: 'M2', flats: 4.3, depth: 2 },
       { block: 'slot', body: 'Body1', point: [20, 10, 5], normal: [1, 0, 0], size: 'M3', length: 6, width: 3.4, depth: 3, along: 'x' },
       { block: 'lip', body: 'Body1', point: [1.5, 10, 10], size: 'M3', type: 'lip', width: 1.2, height: 2, gap: 0.2 },
@@ -1933,6 +1934,8 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     }, 'a flat face of the case and its form').toPass({ timeout: 45_000, intervals: [500] });
     await page.getByTestId('block-tile-text').click();
     await expect(page.getByTestId('block-size')).toHaveCount(0);
+    // In the face's middle: the pick can land near an edge, and SolidCraft 0.48 refuses a text that runs off its face.
+    await page.getByTestId('block-centre-both').click();
     await page.getByTestId('block-text').getByRole('textbox').fill('UI');
     // Bold capitals 3 mm high have strokes of 0.61 mm, under the two nozzle widths (0.8 mm) a stroke needs on the 0.4 mm
     // nozzle (printProfiles.ts; stroke share of Arial bold measured 2026-11-13): the form refuses them and says why.
