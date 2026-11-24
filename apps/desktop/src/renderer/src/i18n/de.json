@@ -744,6 +744,7 @@
       "fillet": "Der Radius ist für diese Kante zu groß – probier einen kleineren Wert.",
       "chamfer": "Die Fase ist für diese Kante zu breit – probier einen kleineren Wert.",
       "boolean": "Die Form lässt sich so nicht mit dem Teil verbinden – verschieb oder verkleinere sie.",
+      "offFace": "Das passt dort nicht auf die Fläche – zentrier es auf der Fläche oder mach es kleiner.",
       "other": "SolidCraft kann das so nicht bauen – probier einen anderen Wert.",
       "details": "Details"
     },

@@ -744,6 +744,7 @@
       "fillet": "The radius is too large for this edge – try a smaller value.",
       "chamfer": "The chamfer is too wide for this edge – try a smaller value.",
       "boolean": "The shape cannot be joined to the part like this – move it or make it smaller.",
+      "offFace": "It does not fit on the face there – centre it on the face or make it smaller.",
       "other": "SolidCraft cannot build it like this – try another value.",
       "details": "Details"
     },
