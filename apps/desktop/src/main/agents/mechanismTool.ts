@@ -557,9 +557,13 @@ async function build(site: Site, spec: { fixed: string; moving: string; name: st
     if (made.length === 0 || step.params.operation === 'new' || step.command === 'parts.insert') continue;
     throw new Error(`the step ${JSON.stringify(step.params.name ?? step.command)} cut ${JSON.stringify((step.params.targets as unknown[] | undefined)?.[0] ?? step.params.body ?? 'a body')} apart (${made.map((name) => JSON.stringify(name)).join(', ')} came of it): the body is too thin or too small where the mechanism goes.`);
   }
-  const warnings = built.flatMap((result) => {
+  const warnings = built.flatMap((result, i) => {
     const warning = (result as { warning?: unknown } | undefined)?.warning;
-    return typeof warning === 'string' && warning.trim() !== '' ? [warning] : [];
+    if (typeof warning !== 'string' || warning.trim() === '') return [];
+    // A hinge web's room (◤) cuts nothing where the web misses the other body; SolidCraft 0.48 warns of such a cut.
+    // shortcut: known by SolidCraft's wording (0.48.1); should it change, the warning reaches the model again.
+    if (String(sent[i]?.params.name).endsWith('◤') && warning.includes('removes no material')) return [];
+    return [warning];
   });
   // shortcut: loose pieces are known by SolidCraft's wording (0.40.1); should it change, the warning still reaches the model below, but nothing is taken back. Count each body's pieces then.
   const apart = warnings.filter((warning) => warning.includes('separate pieces')).length;
