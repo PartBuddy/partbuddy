@@ -30,18 +30,22 @@ export const GROUP_EXCEPTIONS = new Set(['edit.undo', 'edit.redo', 'view.save', 
  * sheet.measure_body and sheet.rule_library, parts.seats, occurrence.bom_type, assembly.bom.renumber and assembly.bom.item.set
  * (item numbers of the bill of materials), and browser.find (search by name). None reads or writes a file; a text `path` still
  * meets policy.ts's net, and occurrence.bom_type's `path` is a list of occurrence ids.
+ * 0.48.1 (866) adds twelve and removes none: sketch.rectangle.edge_center, sketch.spline.fit_tolerance, mesh.reduce,
+ * construct.plane.square_to_line, sheet.tab, the weldment commands frame.plate, frame.remove_member, frame.multi_trim and
+ * frame.rotate_member, motion.simulate (read-only dynamics), and the read-only body.print_faces and inspect.classify_points.
+ * None reads or writes a file.
  * A command a later SolidCraft adds to one of those groups is refused until someone has looked at it and added it
  * here; the contract test "knows every command of the allowed groups" names it. Which of these are refused is
  * policy.ts's business.
  */
-export const KNOWN_COMMANDS_VERSION = '0.45.0';
+export const KNOWN_COMMANDS_VERSION = '0.48.1';
 
 export const KNOWN_COMMANDS: ReadonlySet<string> = new Set(
   `
 appearance.assign appearance.chain appearance.copy appearance.favorite appearance.library appearance.list appearance.paint
 appearance.paste appearance.pick_up appearance.replace
 assembly.bom assembly.bom.item.set assembly.bom.renumber assembly.constraint.create assembly.constraint.edit assembly.mass_properties
-body.print_face body.rename body.repair
+body.print_face body.print_faces body.rename body.repair
 browser.collapse_all browser.expand_all browser.find browser.group browser.move browser.order browser.rename_group browser.reparent
 browser.toggle_planes browser.toggle_reference browser.ungroup browser.visibility
 canvas.calibrate canvas.decal canvas.delete canvas.edit canvas.frame_sketch canvas.insert canvas.straighten canvas.to_sketch
@@ -53,7 +57,7 @@ component.paste_new component.properties component.relink component.rename compo
 component.show_history component.unlock component.update_links
 construct.axis construct.axis.edge construct.axis.normal_to_face construct.axis.through_cylinder construct.axis.two_planes
 construct.axis.two_points construct.plane construct.plane.along_path construct.plane.at_angle construct.plane.axis_point
-construct.plane.midplane construct.plane.offset construct.plane.perpendicular construct.plane.tangent construct.plane.three_points
+construct.plane.midplane construct.plane.offset construct.plane.perpendicular construct.plane.square_to_line construct.plane.tangent construct.plane.three_points
 construct.plane.two_edges construct.point construct.point.along_path construct.point.center construct.point.edge_plane
 construct.point.three_planes construct.point.two_edges construct.point.vertex
 contact.check contact.create contact.disable_all contact.edit contact.enable_all contact.enable_sets contact.list
@@ -61,17 +65,18 @@ edit.redo edit.undo
 explode.create explode.delete explode.list explode.show
 expr.evaluate
 face.delete
-frame.end_cap frame.member frame.profile.insert frame.profile.list frame.profile.properties
-inspect.accessibility inspect.analysis inspect.center_of_mass inspect.clearance inspect.colored_components inspect.compare
+frame.end_cap frame.member frame.multi_trim frame.plate frame.profile.insert frame.profile.list frame.profile.properties
+frame.remove_member frame.rotate_member
+inspect.accessibility inspect.analysis inspect.center_of_mass inspect.classify_points inspect.clearance inspect.colored_components inspect.compare
 inspect.compare_picture inspect.continuity inspect.curvature_comb inspect.curvature_map inspect.draft inspect.environment_map
 inspect.interference inspect.isocurve inspect.measure inspect.minimum_radius inspect.parameter_sweep inspect.parameter_variants
 inspect.section inspect.silhouette inspect.zebra
 joint.as_built joint.cam joint.create joint.delete joint.drive joint.edit joint.find_limits joint.gear joint.inspect joint.limits
 joint.list joint.motion_link joint.origin joint.rack_pinion joint.reach joint.rigid_group joint.screw joint.solve joint.sweep
-mesh.convert
+mesh.convert mesh.reduce
 model.body_features model.edges model.faces model.mesh model.threads
 motion.delete motion.export motion.export_animation motion.interference motion.list motion.play motion.plot motion.study
-motion.trace motion.trace.edit motion.trace.keep
+motion.simulate motion.trace motion.trace.edit motion.trace.keep
 note.add note.delete note.list note.update
 occurrence.align occurrence.bom_type occurrence.copy occurrence.drag occurrence.ground occurrence.move occurrence.properties occurrence.reparent
 parameters.add parameters.change parameters.comment parameters.complete parameters.delete parameters.export parameters.favorite
@@ -79,7 +84,7 @@ parameters.graph parameters.import parameters.list parameters.move parameters.re
 parts.fastener parts.insert parts.library parts.resize parts.seats
 plastic.assign_rule plastic.boss plastic.lip plastic.manage_rules plastic.rest plastic.rules plastic.snap_fit
 sheet.convert sheet.export_bend_table sheet.export_dxf sheet.flange sheet.flat_pattern sheet.fold sheet.hem sheet.manage_rules
-sheet.measure_body sheet.path_flange sheet.perforate sheet.recognize sheet.refold sheet.rule_library sheet.rules sheet.unfold
+sheet.measure_body sheet.path_flange sheet.perforate sheet.recognize sheet.refold sheet.rule_library sheet.rules sheet.tab sheet.unfold
 sketch.arc.center_point sketch.arc.tangent sketch.arc.three_point sketch.arc3d sketch.auto_constrain
 sketch.auto_constrain_from_datum sketch.auto_project sketch.blend_curve sketch.break sketch.break_link sketch.cancel
 sketch.centerline sketch.chain sketch.chamfer.distance_angle sketch.chamfer.equal_distance sketch.chamfer.two_distance
@@ -98,10 +103,10 @@ sketch.insert_airfoil sketch.insert_dxf sketch.insert_svg sketch.inspect sketch.
 sketch.line sketch.line.midpoint sketch.line3d sketch.loose_ends sketch.loose_ends.tie sketch.mirror sketch.move sketch.move3d
 sketch.move_point sketch.move_points sketch.offset sketch.offset.break sketch.options sketch.paste sketch.pattern.circular
 sketch.pattern.rectangular sketch.point sketch.point.divide sketch.point3d sketch.polygon.circumscribed sketch.polygon.edge
-sketch.polygon.inscribed sketch.project sketch.project_to_surface sketch.rectangle.center sketch.rectangle.rounded
+sketch.polygon.inscribed sketch.project sketch.project_to_surface sketch.rectangle.center sketch.rectangle.edge_center sketch.rectangle.rounded
 sketch.rectangle.three_point sketch.rectangle.two_point sketch.redefine sketch.replace sketch.scale sketch.slot.arc_center
 sketch.slot.arc_three_point sketch.slot.center_point sketch.slot.center_to_center sketch.slot.overall sketch.snap sketch.solve
-sketch.spline.control_knots sketch.spline.control_point sketch.spline.control_point_5 sketch.spline.fit_point sketch.spline.handles
+sketch.spline.control_knots sketch.spline.control_point sketch.spline.control_point_5 sketch.spline.fit_point sketch.spline.fit_tolerance sketch.spline.handles
 sketch.spline.insert_point sketch.spline.remove_point sketch.spline.reset_handles sketch.spline.reverse sketch.spline3d sketch.spun_profile sketch.text sketch.toggle_diameter
 sketch.toggle_driven sketch.transform sketch.trim sketch.trim.path
 solid.align solid.boundary_fill solid.bounding_solid solid.box solid.cell_grid solid.chamfer solid.coil solid.combine solid.cone solid.cylinder
