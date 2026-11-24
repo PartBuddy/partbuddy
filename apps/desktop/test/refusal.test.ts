@@ -12,6 +12,11 @@ describe('SolidCraft refusals in words (audit B-01)', () => {
     expect(refusalKind('Chamfer distance exceeds edge')).toBe('chamfer');
     expect(refusalKind('boolean subtract produced no solid')).toBe('boolean');
     expect(refusalKind('unknown')).toBe('other');
+    // SolidCraft 0.48.1 on a text centred 1.9 mm from the edge of its face (contract test F1, 2026-11-24).
+    const off = 'invalid input: emboss: the text is not fitting the selected target face. Either scale the face up or the text down (profile 2 of 2 lies off it)';
+    expect(refusalKind(off)).toBe('offFace');
+    expect(en.hud.refused.offFace).toContain('centre it');
+    expect(de.hud.refused.offFace).toContain('zentrier');
     // PartBuddy's own print limit of a form block (main/index.ts) has its own sentence, though its reason says cut or thickness.
     expect(refusalKind(`${PRINT_LIMIT}{}`)).toBe('limit');
     // The kernel's check names curve values like offset=; it is not about wall thickness (colour logo, 2026-11-10).

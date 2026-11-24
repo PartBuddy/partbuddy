@@ -1944,6 +1944,12 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     await expect(page.getByTestId('block-status')).toContainText('Bold capitals 3 mm high have strokes 0.61 mm wide, under the 0.8 mm (two nozzle widths) a stroke needs on the 0.4 mm nozzle: give a height of 4 mm or more.');
     await page.getByTestId('block-height').getByRole('textbox').fill('4');
     await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
+    // Moved to 1 mm from the face's edge, the text runs off it: the form says so and what helps (SolidCraft 0.48 refuses it).
+    await page.getByTestId('block-x').getByRole('textbox').fill('9');
+    await page.getByTestId('block-x').getByRole('textbox').press('Tab');
+    await expect(page.getByTestId('block-status')).toContainText('It does not fit on the face there – centre it on the face or make it smaller.', { timeout: 60_000 });
+    await page.getByTestId('block-centre-both').click();
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
     await page.screenshot({ path: test.info().outputPath('block-form-text.png') });
     await page.getByTestId('block-apply').click();
     await expect(page.getByText('Text “UI”')).toBeVisible({ timeout: 30_000 });

@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next';
 import { PRINT_LIMIT, type BlockLimit } from '../../../shared/blocks';
 
 /** Kinds of SolidCraft refusals that have a sentence of their own; `limit` is PartBuddy's own: a size that does not print. */
-export type RefusalKind = 'limit' | 'check' | 'shell' | 'fillet' | 'chamfer' | 'boolean' | 'other';
+export type RefusalKind = 'limit' | 'check' | 'offFace' | 'shell' | 'fillet' | 'chamfer' | 'boolean' | 'other';
 
 /** Which known kind a raw SolidCraft error is (audit B-01); the raw text stays available as details. */
 export function refusalKind(raw: string): RefusalKind {
@@ -11,6 +11,8 @@ export function refusalKind(raw: string): RefusalKind {
   const text = raw.toLowerCase();
   // The kernel's own check of a finished shape; its report quotes values such as "offset=", which is no wall thickness.
   if (/check refuses the result|failed tests:/.test(text)) return 'check';
+  // Since 0.48 an emboss whose text or logo runs off its face (or over another one's pocket) is refused, no longer cut off.
+  if (/not fitting the selected target face|lies? off it/.test(text)) return 'offFace';
   if (/shell|hollow|thickness|offset/.test(text)) return 'shell';
   if (/fillet|blend|round/.test(text)) return 'fillet';
   if (/chamfer/.test(text)) return 'chamfer';
