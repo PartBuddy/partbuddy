@@ -80,6 +80,8 @@ export function useFindingText(): (finding: PrintFinding) => string {
         return t('check.finding.overlap', { a: finding.bodies[0], b: finding.bodies[1], volume: number.format(finding.volume) });
       case 'tight':
         return t(finding.inPlace ? 'check.finding.tightInPlace' : 'check.finding.tight', { a: finding.bodies[0], b: finding.bodies[1], gap: gap.format(finding.gap), minimum: gap.format(finding.minimum) });
+      case 'holesOffset':
+        return t('check.finding.holesOffset', { a: finding.bodies[0], b: finding.bodies[1], offset: gap.format(finding.offset), diameter: gap.format(finding.diameter) });
       case 'blocked':
         return t(finding.free ? 'check.finding.blockedFree' : 'check.finding.blocked', { joint: finding.joint, a: finding.bodies[0], b: finding.bodies[1], at: amount(finding.free && finding.unit === 'deg' ? withinTurn(finding.at) : finding.at, finding.unit), limit: amount(finding.limit, finding.unit) });
       case 'leftOut':

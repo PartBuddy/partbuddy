@@ -260,7 +260,15 @@ export class ActionService {
   async clearance(bodies: string[], gap: number): Promise<ClearanceResult> {
     const reply = await this.batch([{ command: 'inspect.clearance', params: { bodies, clearance: gap } }], false);
     if (reply.failed) throw new Error(reply.failed.error);
-    return clearanceOf(reply.results?.[0]);
+    const measured = clearanceOf(reply.results?.[0]);
+    // Screw holes only (up to an M12's clearance); a SolidCraft before 0.49 has no hole_stacks, and the clearance stands without it.
+    const stacks = await this.batch([{ command: 'inspect.hole_stacks', params: { bodies, diameters: [[1, SCREW_HOLE_MAX]] } }], false).catch((error: unknown) => {
+      console.warn('PartBuddy: finding holes that line up failed', error);
+      return null;
+    });
+    if (stacks?.failed) console.warn('PartBuddy: finding holes that line up failed', stacks.failed.error);
+    const offsetHoles = stacks && !stacks.failed ? offsetHolesOf(stacks.results?.[0]) : [];
+    return offsetHoles.length > 0 ? { ...measured, offsetHoles } : measured;
   }
 }
 
@@ -333,6 +341,47 @@ export function sweepStopOf(result: unknown): JointSweepResult[number] {
 type Vec3 = [number, number, number];
 const isVec = (value: unknown): value is Vec3 => Array.isArray(value) && value.length === 3 && value.every((item) => typeof item === 'number' && Number.isFinite(item));
 const name = (value: unknown): string | null => (typeof value === 'string' && value.length > 0 && value.length <= 200 ? value : null);
+
+/** The widest hole taken for a screw's: an M12's coarse clearance, 13.5 mm (ISO 273). */
+const SCREW_HOLE_MAX = 14;
+/** Axes this close count as one line: SolidCraft's own default for a stack (`axis_tolerance`, mm). */
+const SAME_LINE = 0.1;
+/** Two holes meet along their axis when their ends lie this close: the layers of one stack touch (mm). */
+const MEET = 0.5;
+
+/**
+ * Holes of two bodies that nearly line up, from `inspect.hole_stacks` (SolidCraft 0.49): two holes it found in no stack
+ * (`lone`) whose axes run side by side, closer than the wider hole is across but not on one line, and whose ends meet
+ * where the bodies touch. A screw through both does not pass. Anything odd in the answer is left out.
+ */
+export function offsetHolesOf(result: unknown): NonNullable<ClearanceResult['offsetHoles']> {
+  const lone = (result as { lone?: unknown } | null | undefined)?.lone;
+  const holes = (Array.isArray(lone) ? (lone as Record<string, unknown>[]) : []).flatMap((item) => {
+    const body = name(item.body);
+    const { at, axis, d_mm: diameter, depth_mm: depth } = item;
+    if (!body || !isVec(at) || !isVec(axis) || typeof diameter !== 'number' || !(diameter > 0) || typeof depth !== 'number' || !(depth > 0)) return [];
+    const length = Math.hypot(...axis);
+    return length > 0 ? [{ body, at, axis: axis.map((value) => value / length) as Vec3, diameter, depth }] : [];
+  });
+  const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const pairs: NonNullable<ClearanceResult['offsetHoles']> = [];
+  holes.forEach((one, i) => {
+    for (const other of holes.slice(i + 1)) {
+      if (other.body === one.body || Math.abs(dot(one.axis, other.axis)) < Math.cos(Math.PI / 180)) continue;
+      const between = other.at.map((value, k) => value - (one.at[k] ?? 0)) as Vec3;
+      const along = dot(between, one.axis);
+      const offset = Math.hypot(...between.map((value, k) => value - along * (one.axis[k] ?? 0)));
+      if (offset <= SAME_LINE || offset >= Math.max(one.diameter, other.diameter)) continue;
+      // Each hole's span along the first one's axis: from its mouth to its bottom.
+      const span = (hole: typeof one) => [dot(hole.at, one.axis), dot(hole.at, one.axis) + dot(hole.axis, one.axis) * hole.depth].sort((a, b) => a - b) as [number, number];
+      const [a, b] = [span(one), span(other)];
+      if (Math.max(a[0], b[0]) - Math.min(a[1], b[1]) > MEET) continue;
+      const at = one.at.map((value, k) => Math.round(((value + (other.at[k] ?? 0)) / 2) * 1000) / 1000) as Vec3;
+      pairs.push({ a: one.body, b: other.body, offset, diameter: Math.min(one.diameter, other.diameter), at });
+    }
+  });
+  return pairs.slice(0, 100);
+}
 
 /** SolidCraft's answer of `inspect.clearance`, checked field by field; anything odd is left out. */
 export function clearanceOf(result: unknown): ClearanceResult {

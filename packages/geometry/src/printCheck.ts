@@ -133,6 +133,8 @@ export type PrintFinding =
    * each other, and come closer than the print-in-place gap, so they fuse in the print (audit D10).
    */
   | ({ kind: 'tight'; severity: FindingSeverity; bodies: [string, string]; gap: number; minimum: number; inPlace?: true } & Located)
+  /** Holes of two touching bodies that nearly line up: a screw through both does not pass (`offset` between their axes, mm). */
+  | ({ kind: 'holesOffset'; severity: FindingSeverity; bodies: [string, string]; offset: number; diameter: number } & Located)
   /**
    * A joint does not reach a limit: two parts touch on the way (ADR 0027, SolidCraft's sweep). `free`: the joint has no
    * limit on that side, and `limit` is only where the run was to end (audit H-04).
@@ -1254,6 +1256,8 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
 export interface MeasuredClearance {
   overlaps: { a: string; b: string; volume: number; box: FindingBox }[];
   near: { a: string; b: string; distance: number; from: [number, number, number]; to: [number, number, number] }[];
+  /** Holes of two touching bodies that nearly line up (`inspect.hole_stacks`, SolidCraft 0.49 and later). */
+  offsetHoles?: { a: string; b: string; offset: number; diameter: number; at: [number, number, number] }[] | undefined;
 }
 
 /** Below this, a shared volume is the contact of two faces, not an overlap (mm³). */
@@ -1290,6 +1294,11 @@ export function withClearance(check: PrintCheck, measured: MeasuredClearance, pu
     const min = near.from.map((value, i) => round(Math.min(value, near.to[i] ?? value) - GAP_PAD, 3)) as [number, number, number];
     const max = near.from.map((value, i) => round(Math.max(value, near.to[i] ?? value) + GAP_PAD, 3)) as [number, number, number];
     findings.push({ kind: 'tight', severity: 'warn', bodies: [near.a, near.b], gap: round(near.distance, 3), minimum, ...(together ? { inPlace: true as const } : {}), places: [], box: { min, max } });
+  }
+  for (const holes of measured.offsetHoles ?? []) {
+    const pad = holes.diameter / 2 + GAP_PAD;
+    const box = { min: holes.at.map((value) => round(value - pad, 3)) as [number, number, number], max: holes.at.map((value) => round(value + pad, 3)) as [number, number, number] };
+    findings.push({ kind: 'holesOffset', severity: 'warn', bodies: [holes.a, holes.b], offset: round(holes.offset, 2), diameter: round(holes.diameter, 2), places: [], box });
   }
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
   return { status: statusOf(findings), findings };
