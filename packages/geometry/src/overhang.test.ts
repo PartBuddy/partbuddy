@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { Vector3 } from 'three';
+
 import { ANGLE_TOLERANCE, CURVED_TOLERANCE, Overhang, overhangLimits, overhangOf } from './overhang';
+import { uprightFaces } from './printCheck';
 import { soup } from './testShapes';
 
 /** One square face of side 10 per entry, as render buffers: corners, normal and face index. */
@@ -132,5 +135,25 @@ describe('overhangs for FDM printing (UI upgrade step 12)', () => {
     expect(new Set(overhangOf(cone, 0, overhangLimits(45)).vertices)).toEqual(new Set([Overhang.Borderline]));
     const flat = { ...cone, vertexFaces: Uint32Array.from({ length: cone.vertexFaces.length }, (_, v) => v), faceCount: cone.vertexFaces.length };
     expect(new Set(overhangOf(flat, 0, overhangLimits(45)).vertices)).toEqual(new Set([Overhang.Support]));
+  });
+});
+
+describe('faces that stand upright as laid (an engraved name round a cup, practice run 14)', () => {
+  it('counts the facets of an upright surface as wall, however they lean', () => {
+    // A facet leaning 60° down, as one of a vertical cylinder meshed across a trim can.
+    const leaning = faces([{ corners: [[0, 5, 2.11], [10, 5, 2.11], [10, 0, 5], [0, 0, 5]], normal: [0, -0.5, -Math.sqrt(3) / 2] }]);
+    expect(overhangOf(leaning, 0).area[Overhang.Support]).toBeGreaterThan(0);
+    const upright = overhangOf({ ...leaning, upright: Uint8Array.of(1) }, 0);
+    expect(upright.area[Overhang.Support]).toBe(0);
+    expect(upright.vertices[0]).toBe(Overhang.Fine);
+  });
+
+  it('takes a cylinder as upright when its axis runs along the way down, as designed or as laid', () => {
+    const along = { cylinder: { axis: [0, 0, 1] } };
+    const lying = { cylinder: { axis: [1, 0, 0] } };
+    const flat = {};
+    expect([...uprightFaces([along, lying, flat], undefined)]).toEqual([1, 0, 0]);
+    // Laid on its side (down is -X): the lying cylinder stands, the other lies.
+    expect([...uprightFaces([along, lying, flat], new Vector3(-1, 0, 0))]).toEqual([0, 1, 0]);
   });
 });

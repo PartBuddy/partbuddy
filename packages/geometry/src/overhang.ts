@@ -94,6 +94,12 @@ export interface OverhangInput {
   index: Uint32Array;
   vertexFaces: Uint32Array;
   faceCount: number;
+  /**
+   * Per face, 1 when its exact surface stands upright as the body lies (a cylinder along the print direction, uprightFaces):
+   * its facets then count as wall. Meshed across a trim, as round an engraved name on a cup, they lean far past their
+   * surface (practice run 14, 25.11.2026: 1.2 mm² of a vertical wall read as needing support).
+   */
+  upright?: Uint8Array | undefined;
 }
 
 /**
@@ -772,7 +778,7 @@ function heldTriangles(patch: readonly number[], rims: readonly Rim[], { x, y, a
  */
 export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLimits = OVERHANG_LIMITS, reach = 0): OverhangMap {
   const classOf = classifier(limits);
-  const { positions, normals, index, vertexFaces, faceCount } = mesh;
+  const { positions, normals, index, vertexFaces, faceCount, upright } = mesh;
   // A face lies on the bed when none of its vertices is above it.
   const top = new Float64Array(faceCount).fill(Number.NEGATIVE_INFINITY);
   for (let v = 0; v < vertexFaces.length; v += 1) {
@@ -805,7 +811,7 @@ export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLi
     const nz = ux * vy - uy * vx;
     const length = Math.hypot(nx, ny, nz);
     const face = vertexFaces[index[i] ?? 0] ?? 0;
-    down[i / 3] = length === 0 ? 0 : -nz / length;
+    down[i / 3] = length === 0 || upright?.[face] ? 0 : -nz / length;
     if (length > 0 && !curved[face]) {
       if (!seen[face]) {
         seen[face] = 1;
@@ -822,7 +828,7 @@ export function overhangOf(mesh: OverhangInput, bedZ: number, limits: OverhangLi
   const vertices = new Uint8Array(vertexFaces.length);
   for (let v = 0; v < vertexFaces.length; v += 1) {
     const face = vertexFaces[v] ?? 0;
-    vertices[v] = onBed(face) ? Overhang.Bed : (curved[face] ? curvedClassOf : classOf)(-(normals[v * 3 + 2] ?? 0));
+    vertices[v] = onBed(face) ? Overhang.Bed : upright?.[face] ? Overhang.Fine : (curved[face] ? curvedClassOf : classOf)(-(normals[v * 3 + 2] ?? 0));
   }
   // The roof of a lying hole overhangs between the two lines where its wall passes the limit. That line is read
   // between the facets of a curved face, so it takes the curved tolerance: with 0.1° the 90° countersinks of the wall

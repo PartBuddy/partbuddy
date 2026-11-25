@@ -67,6 +67,8 @@ const PARTS: Part[] = [
   { id: '11-schnapplasche', request: 'Bau eine Dose 60 × 40 × 30 mm mit aufgesetztem Deckel und einem Verschluss außen an der Vorderseite.' },
   { id: '12-pi-gehaeuse', request: 'Bau ein Gehäuse für einen Raspberry Pi 4 mit Lüftungsschlitzen.' },
   { id: '13-rohrschelle', request: 'Bau eine Schelle für ein 22-mm-Rohr zum Aufschnappen.' },
+  // Since 0.3.14 (SolidCraft 0.49): a name on a round wall, without naming the text block.
+  { id: '14-namensbecher', request: 'Bau einen Stiftebecher, 70 mm Durchmesser, 100 mm hoch, mit dem Namen „Anna“ außen eingraviert.' },
 ];
 
 const PRINT_CHECK =

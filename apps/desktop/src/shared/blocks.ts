@@ -32,7 +32,7 @@ export type FeatureBlock =
   | { block: 'insertSeat'; body: string; point: [number, number, number]; size: BlockSize; diameter: number; depth: number; more?: Point[] | undefined }
   | { block: 'boss'; body: string; point: [number, number, number]; size: BlockSize; diameter: number; height: number }
   /** Text embossed onto or engraved into the face, centred on the point. */
-  | { block: 'text'; body: string; point: Point; normal: Point; size: BlockSize; text: string; height: number; depth: number; mode: 'emboss' | 'deboss'; bold: boolean; /** An installed font family; none is SolidCraft's built-in Liberation Sans. */ font?: string | undefined; /** The full name of the family's bold face, for SolidCraft to try when bold with the family is refused. */ boldFace?: string | undefined }
+  | { block: 'text'; body: string; point: Point; normal: Point; size: BlockSize; text: string; height: number; depth: number; mode: 'emboss' | 'deboss'; bold: boolean; /** An installed font family; none is SolidCraft's built-in Liberation Sans. */ font?: string | undefined; /** The full name of the family's bold face, for SolidCraft to try when bold with the family is refused. */ boldFace?: string | undefined; /** On a round wall (roundText): its sketch is hidden after. */ round?: true | undefined }
   /** A hexagonal pocket for a nut with a clearance hole through the rest. */
   | { block: 'nutTrap'; body: string; point: Point; normal: Point; size: BlockSize; flats: number; depth: number; through?: Through | undefined }
   /** A slot for a screw, across or along the face, through or to a depth. */
@@ -271,14 +271,17 @@ export function nutTrapOpensDown(block: { normal: Point }): boolean {
 export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly (number | null)[], printer: ToolPrinter = DEFAULT_PRINTER): Step[] {
   const mm = (value: number) => `${String(round(value))} mm`;
   switch (block.block) {
-    case 'text':
+    case 'text': {
+      const name = sketch ?? uniqueLogoName(block.text, [], TEXT_PREFIX);
       return [
         // Named "Text <words>", so a pick finds it again and the dock changes it like a logo.
-        { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false, name: sketch ?? uniqueLogoName(block.text, [], TEXT_PREFIX) } },
+        { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false, name } },
         // SolidCraft's built-in font has no bold face; Arial comes with every Windows.
         { command: 'sketch.text', params: { text: block.text, at: [0, round(-block.height / 2)], height: block.height, align: 'center', ...textFont(block) } },
         { command: 'solid.emboss', params: { depth: mm(block.depth), mode: block.mode, face: block.point, targets: [block.body] } },
+        ...(block.round ? [hiddenSketch(name)] : []),
       ];
+    }
     case 'nutTrap': {
       const length = Math.hypot(...block.normal) || 1;
       const bottom = block.point.map((value, i) => round6(value - ((block.normal[i] ?? 0) / length) * block.depth)) as Point;
@@ -312,9 +315,11 @@ export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly
       if (colourLayers(block).length > 1) return colourSteps(block, sketch ?? uniqueLogoName(block.name, []));
       // On a round wall (roundLogo): solid.emboss wraps the material profiles onto it, as text is.
       if (block.profiles) {
+        const steps = logoSketchSteps(block, sketch);
         return [
-          ...logoSketchSteps(block, sketch),
+          ...steps,
           { command: 'solid.emboss', params: { depth: `${String(round(block.depth))} mm`, mode: block.mode, face: block.point, targets: [block.body], profiles: block.profiles } },
+          hiddenSketch(String(steps[0]?.params.name)),
         ];
       }
       return [
@@ -726,6 +731,21 @@ export function limitSaid(limit: BlockLimit): string {
     }
   })();
   return limit.reason === 'printedThread' ? why : `${limit.key} ${String(limit.value)}: ${why}`;
+}
+
+/**
+ * Hides a text's or logo's sketch once it is embossed onto a round wall: its plane only touches the wall, so its curves
+ * stand in the air beside the part (practice run 14, 25.11.2026). On a flat face they lie on the face and stay.
+ */
+function hiddenSketch(name: string): Step {
+  return { command: 'browser.visibility', params: { items: [name], visible: false } };
+}
+
+/** A text on a round wall (onRoundWall) gets `round`, so its sketch is hidden after it is embossed. */
+export async function roundText(block: Extract<FeatureBlock, { block: 'text' }>, read: (steps: Step[]) => Promise<unknown[]>): Promise<Extract<FeatureBlock, { block: 'text' }>> {
+  if (block.round) return block;
+  const [faces] = await read([{ command: 'model.faces', params: { body: block.body } }]);
+  return onRoundWall(block.point, faces) ? { ...block, round: true } : block;
 }
 
 /** A logo's sketch: a plane at its point and the drawing centred in it. */

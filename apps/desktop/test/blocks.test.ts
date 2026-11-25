@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_KINDS, blockBodies, blockLimit, cutsThrough, defaultBlock, DEFAULT_PRINTER, hasSize, hookVector, limitSaid, logoFrom, materialProfiles, needsNormal, onRoundWall, planeAt, raisedBlock, roundLogo, sizesOf, snapStrain, stepsOf, textDepth, textStroke, throughReach, throughTrial, throughWall, type FeatureBlock } from '../src/shared/blocks';
+import { BLOCK_KINDS, blockBodies, blockLimit, cutsThrough, defaultBlock, DEFAULT_PRINTER, hasSize, hookVector, limitSaid, logoFrom, materialProfiles, needsNormal, onRoundWall, planeAt, raisedBlock, roundLogo, roundText, sizesOf, snapStrain, stepsOf, textDepth, textStroke, throughReach, throughTrial, throughWall, type FeatureBlock } from '../src/shared/blocks';
 import { SNAP } from '../src/shared/mechanisms';
 import { ROOT_FIT, rootApplied, rootFillet, rootGrowth, rootOutcome, rootSteps } from '../src/shared/blocks';
 import { CLEARANCE, CLEARANCE_NORMAL, headRoom, pilotHole, printedThread } from '../src/shared/screwSizes';
@@ -485,7 +485,9 @@ describe('a logo on a round wall (SolidCraft 0.49 solid.emboss on a cylinder)', 
     });
     expect(placed.profiles).toEqual([0, 2]);
     expect(trials).toHaveLength(1);
-    expect(stepsOf(placed).map((step) => step.command)).toEqual(['sketch.create', 'sketch.insert_svg', 'solid.emboss']);
+    // Its sketch only touches the wall, so it is hidden once embossed (practice run 14).
+    expect(stepsOf(placed).map((step) => step.command)).toEqual(['sketch.create', 'sketch.insert_svg', 'solid.emboss', 'browser.visibility']);
+    expect(stepsOf(placed)[3]?.params).toEqual({ items: [stepsOf(placed)[0]?.params.name], visible: false });
     expect(stepsOf(placed)[2]?.params).toEqual({ depth: '0.8 mm', mode: 'deboss', face: [0, -20, 30], targets: ['Cup'], profiles: [0, 2] });
     // On a flat face it stays the extrusion, and nothing is tried.
     const flat = await roundLogo({ ...logo, point: [0, 5, 60], normal: [0, 0, 1] }, () => Promise.resolve([faces]), () => Promise.reject(new Error('no trial on a flat face')));
@@ -493,5 +495,15 @@ describe('a logo on a round wall (SolidCraft 0.49 solid.emboss on a cylinder)', 
     expect(stepsOf(flat).map((step) => step.command)).toEqual(['sketch.create', 'sketch.insert_svg', 'solid.extrude']);
     // No closed shape in SolidCraft's answer: refused with why.
     await expect(roundLogo(logo, () => Promise.resolve([faces]), () => Promise.resolve(null))).rejects.toThrow('no closed shape');
+  });
+
+  it('hides the sketch of a text on a round wall once embossed, and keeps it on a flat face', async () => {
+    const text: Extract<FeatureBlock, { block: 'text' }> = { block: 'text', body: 'Cup', point: [0, -20, 30], normal: [0, -1, 0], size: 'M3', text: 'Anna', height: 6, depth: 0.6, mode: 'deboss', bold: false };
+    const round = await roundText(text, () => Promise.resolve([faces]));
+    expect(round.round).toBe(true);
+    expect(stepsOf(round).at(-1)).toEqual({ command: 'browser.visibility', params: { items: ['Text Anna'], visible: false } });
+    const flat = await roundText({ ...text, point: [0, 5, 60], normal: [0, 0, 1] }, () => Promise.resolve([faces]));
+    expect(flat.round).toBeUndefined();
+    expect(stepsOf(flat).at(-1)?.command).toBe('solid.emboss');
   });
 });

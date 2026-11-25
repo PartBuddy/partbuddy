@@ -1,4 +1,4 @@
-import { MIN_FINDING_AREA, Overhang, laidBodies, meshMetrics, overhangLimits, overhangOf, type LaidBody, type PrintCheckBody, type PrintCheckProfile } from '@partbuddy/geometry';
+import { MIN_FINDING_AREA, Overhang, laidBodies, meshMetrics, uprightFaces, overhangLimits, overhangOf, type LaidBody, type PrintCheckBody, type PrintCheckProfile } from '@partbuddy/geometry';
 
 import type { PrintCheckReport } from '../../../shared/contract';
 
@@ -30,7 +30,7 @@ export function bodyMeasures(body: PrintCheckBody, profile: Profile, lying: Laid
   const bed = lying?.bed ?? bbox.min[2];
   const height = Math.max(0, bbox.max[2] - bed);
   const map = overhangOf(
-    { positions, normals: Float32Array.from(lying?.normals ?? model.geometry.getAttribute('normal').array), index, vertexFaces: model.vertexFaces, faceCount: model.table.faces.length },
+    { positions, normals: Float32Array.from(lying?.normals ?? model.geometry.getAttribute('normal').array), index, vertexFaces: model.vertexFaces, faceCount: model.table.faces.length, upright: uprightFaces(model.table.faces, lying?.down) },
     bed,
     overhangLimits(profile.overhang),
     Math.round(4 * 1.125 * profile.nozzle * 100) / 100,

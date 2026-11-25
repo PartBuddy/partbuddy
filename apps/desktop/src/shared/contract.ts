@@ -905,6 +905,8 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
       bold: z.boolean(),
       font: z.string().trim().min(1).max(100).optional(),
       boldFace: z.string().trim().min(1).max(100).optional(),
+      // On a round wall: the sketch is hidden after the emboss (roundText, blocks.ts).
+      round: z.literal(true).optional(),
     })
     .strict(),
   z.object({ block: z.literal('nutTrap'), body: bodyName, point: point3, normal: point3, size: blockSize, flats: blockLength, depth: blockLength, through }).strict(),

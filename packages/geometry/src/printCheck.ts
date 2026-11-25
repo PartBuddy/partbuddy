@@ -1000,6 +1000,21 @@ export interface LaidBody {
   bed: number;
 }
 
+/**
+ * Per face of a body, 1 when SolidCraft's exact surface stands upright as the body lies: a cylinder whose axis runs along
+ * `down` (as designed: -Z) within half a degree. Its walls lean nowhere, whatever its facets say (overhang.ts `upright`).
+ */
+export function uprightFaces(faces: readonly { cylinder?: { axis: readonly number[] } | undefined }[], down: Vector3 | undefined): Uint8Array {
+  const d = down ?? new Vector3(0, 0, -1);
+  const along = Math.cos((0.5 * Math.PI) / 180);
+  return Uint8Array.from(faces, (face) => {
+    const axis = face.cylinder?.axis;
+    if (!axis) return 0;
+    const length = Math.hypot(axis[0] ?? 0, axis[1] ?? 0, axis[2] ?? 0);
+    return length > 0 && Math.abs(((axis[0] ?? 0) * d.x + (axis[1] ?? 0) * d.y + (axis[2] ?? 0) * d.z) / length) >= along ? 1 : 0;
+  });
+}
+
 /** The bodies of one piece: the body itself, or every body of its group. */
 const pieceOf = (bodies: readonly PrintCheckBody[], b: number): number[] => {
   const group = bodies[b]?.group;
@@ -1144,6 +1159,7 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
           index: index as Uint32Array,
           vertexFaces: model.vertexFaces,
           faceCount: model.table.faces.length,
+          upright: uprightFaces(model.table.faces, mesh.down),
         },
         mesh.bed,
         limits,
