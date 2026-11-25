@@ -1,7 +1,7 @@
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { rootOutcome, rootSteps, cutsThrough, splitPieceSteps, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../../shared/blocks';
+import { rootOutcome, rootSteps, cutsThrough, roundLogo, splitPieceSteps, stepsOf, throughReach, throughTrial, type FeatureBlock } from '../../shared/blocks';
 import type { ClearanceResult, DesignAction, JointSweep, JointSweepResult, MeasureItem, MeasureResult } from '../../shared/contract';
 import type { ToolPrinter } from '../../shared/toolFit';
 import { LIP, snapHold } from '../../shared/mechanisms';
@@ -108,7 +108,9 @@ export class ActionService {
    * alone (audit W2). `unmeasured` when the reach could not be found: then it goes through all of the body on its line,
    * far walls too, and the form must say so. SolidCraft's refusal and an engine error are told apart in the log.
    */
-  async blockSteps(block: FeatureBlock, sketch: string | undefined, log: (line: string) => void, printer?: ToolPrinter): Promise<{ steps: Step[]; unmeasured: boolean }> {
+  async blockSteps(given: FeatureBlock, sketch: string | undefined, log: (line: string) => void, printer?: ToolPrinter): Promise<{ steps: Step[]; unmeasured: boolean }> {
+    // A logo on a round wall is embossed onto it with the profiles that are material (blocks.ts roundLogo).
+    const block = given.block === 'logo' ? await roundLogo(given, (steps) => this.run(steps), (steps) => this.trial(steps)) : given;
     let reach: (number | null)[] | undefined;
     if (cutsThrough(block)) {
       try {

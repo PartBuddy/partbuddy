@@ -92,6 +92,43 @@ export function flatFace(bodies: BodyModel[], picks: Pick[]): { body: string; po
   return { body: body.name, point: pick.point, normal };
 }
 
+/** The blocks that go on a round wall too: SolidCraft wraps text and a drawing onto a cylinder (solid.emboss, 0.47). */
+const ROUND_KINDS = new Set<BlockKind>(['text', 'logo']);
+
+/**
+ * One picked face a block can go on: a flat face, or a round wall (a cylinder) for text and logos. On a round wall the
+ * point is laid exactly onto the cylinder (the click hits its facets) and the normal points straight out of it, on the
+ * side the click came from, as the block's plane wants it (planeAt).
+ * shortcut: the cylinder is taken in the frame model.faces gives it, as the face's middle is (facePosition.tsx); a round wall
+ * of a part in a moved component is then missed. Compare in the component's frame if that turns up.
+ */
+export function blockFace(bodies: BodyModel[], picks: Pick[]): { body: string; point: Vec; normal: Vec; round: boolean } | null {
+  const flat = flatFace(bodies, picks);
+  if (flat) return { ...flat, round: false };
+  const [pick] = picks;
+  if (picks.length !== 1 || pick?.kind !== 'face') return null;
+  const body = bodies[pick.body];
+  const cylinder = body?.model.table.faces[pick.face]?.cylinder;
+  if (!body || !cylinder) return null;
+  const model = useStudio.getState().model;
+  if (model.status === 'ready' && model.structure.standardParts?.includes(body.name)) return null;
+  const dot = (a: readonly number[], b: readonly number[]) => (a[0] ?? 0) * (b[0] ?? 0) + (a[1] ?? 0) * (b[1] ?? 0) + (a[2] ?? 0) * (b[2] ?? 0);
+  const length = Math.hypot(...cylinder.axis);
+  if (length < 1e-9) return null;
+  const axis = cylinder.axis.map((value) => value / length) as Vec;
+  const away = pick.point.map((value, i) => value - (cylinder.origin[i] ?? 0)) as Vec;
+  const along = dot(away, axis);
+  const out = away.map((value, i) => value - along * (axis[i] ?? 0)) as Vec;
+  const reach = Math.hypot(...out);
+  if (reach < 1e-9) return null;
+  // Out of the material: away from the axis on an outer wall, towards it in a bore, as the click's own normal says.
+  const sign = dot(out, pick.normal) < 0 ? -1 : 1;
+  const r6 = (value: number) => Math.round(value * 1e6) / 1e6 + 0;
+  const normal = out.map((value) => r6((sign * value) / reach)) as Vec;
+  const point = out.map((value, i) => r6((cylinder.origin[i] ?? 0) + along * (axis[i] ?? 0) + (value / reach) * cylinder.radius)) as Vec;
+  return { body: body.name, point, normal, round: true };
+}
+
 /** The blocks with a tile of their own in the dock (decided 2026-11-09); the rest are under "More …". */
 const TILES = [
   { kind: 'logo', icon: <IconVectorBezier2 className="size-icon-sm" aria-hidden /> },
@@ -125,7 +162,9 @@ function rootNote(root: { applied: number | null; wanted: number } | undefined, 
  */
 export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel[]; picks: Pick[]; busy: boolean; onGhost: (ghost: Uint8Array | null) => void }) {
   const { t, i18n } = useTranslation();
-  const face = flatFace(bodies, picks);
+  const face = blockFace(bodies, picks);
+  // A round wall has no flat frame to move along: the block sits where it was clicked.
+  const round = face?.round === true;
   const [open, setOpen] = useState(false);
   // The block's values; body and point come from the picked face.
   const [spec, setBlock] = useState<FeatureBlock>(() => defaultBlock('tappedHole', '', [0, 0, 0], 'M3'));
@@ -147,21 +186,23 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
   // A bold text goes to SolidCraft in its bold face's full name; the form keeps the family.
   const sent = (b: FeatureBlock): FeatureBlock => (b.block === 'text' && b.font ? { ...b, ...setFont(faces, b.font, b.bold) } : b);
   const block = useMemo<FeatureBlock | null>(() => {
-    if (!at || !centre) return null;
-    const [body = '', , normal = ''] = at.split('\u0000');
+    if (!at) return null;
+    const [body = '', clicked = '', normal = ''] = at.split('\u0000');
     const vec = (text: string) => text.split(',').map(Number) as Vec;
+    const middle = round ? vec(clicked) : centre;
+    if (!middle) return null;
     const mm3 = (value: number) => Math.round(value * 1000) / 1000;
-    if (!ROW_KINDS.has(spec.block)) return { ...spec, body, point: centre.map(mm3) as Vec, ...(needsNormal(spec.block) ? { normal: vec(normal) } : {}) };
+    if (!ROW_KINDS.has(spec.block)) return { ...spec, body, point: middle.map(mm3) as Vec, ...(needsNormal(spec.block) ? { normal: vec(normal) } : {}) };
     const points: Vec[] = [];
     const [nx, ny] = row.count;
     for (let j = 0; j < ny; j++) {
       for (let i = 0; i < nx; i++) {
         const [u, v] = [(i - (nx - 1) / 2) * row.pitch[0], (j - (ny - 1) / 2) * row.pitch[1]];
-        points.push(centre.map((value, k) => mm3(value + u * (place?.x[k] ?? 0) + v * (place?.y[k] ?? 0))) as Vec);
+        points.push(middle.map((value, k) => mm3(value + u * (place?.x[k] ?? 0) + v * (place?.y[k] ?? 0))) as Vec);
       }
     }
-    return { ...spec, body, point: points[0] ?? centre, more: points.slice(1) } as FeatureBlock;
-  }, [spec, at, centre, place, row]);
+    return { ...spec, body, point: points[0] ?? middle, more: points.slice(1) } as FeatureBlock;
+  }, [spec, at, centre, round, place, row]);
 
   // The fills of a logo's drawing: with two or more it can be built a body per colour.
   const logoSvg = spec.block === 'logo' ? spec.svg : '';
@@ -256,7 +297,7 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
     <div className="flex flex-col gap-2" data-testid="block-panel">
       {/* The usual blocks as tiles of their own, the rest behind "More …" with its chooser. */}
       <div className="flex flex-wrap gap-1">
-        {TILES.map((tile) => (
+        {TILES.filter((tile) => !round || ROUND_KINDS.has(tile.kind)).map((tile) => (
           <Tip key={tile.kind} label={t(`blocks.tileHints.${tile.kind}`)}>
             <ToggleButton
               isSelected={open && block.block === tile.kind}
@@ -274,7 +315,8 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
             </ToggleButton>
           </Tip>
         ))}
-        <Tip label={t('blocks.moreHint')}>
+        {round ? null : (
+          <Tip label={t('blocks.moreHint')}>
           <ToggleButton
             isSelected={open && !tiled(block.block)}
             onChange={(next) => {
@@ -289,7 +331,8 @@ export function BlockPanel({ bodies, picks, busy, onGhost }: { bodies: BodyModel
             <IconDots className="size-icon-sm" aria-hidden />
             {t('blocks.more')}
           </ToggleButton>
-        </Tip>
+          </Tip>
+        )}
       </div>
       {open ? (
         <div

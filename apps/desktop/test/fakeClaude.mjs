@@ -375,6 +375,14 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
+    // "a plain cup": a round cup of 20 mm radius, for blocks put on its wall through the form.
+    if (content.includes('a plain cup')) {
+      const built = await client.callTool({ name: 'execute', arguments: { command: 'solid.cylinder', params: { radius: 20, height: 40, operation: 'new', body_name: 'Cup' } } });
+      await client.close();
+      out({ type: 'assistant', message: { content: [{ type: 'text', text: (built.content ?? []).map((block) => block.text ?? '').join(' ') }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
+      continue;
+    }
     // "a named cup": a round cup with a name engraved into its wall, and a mug with one raised on it, through PartBuddy's own text block.
     // One text per round wall: SolidCraft 0.49.0 refuses a second emboss on a wall that already has one.
     if (content.includes('a named cup')) {

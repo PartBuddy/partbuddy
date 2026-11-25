@@ -1,7 +1,7 @@
 import { drawingColours, drawingFacts, drawingSvg, mergedColours, withFills, type Drawing } from '../../shared/svgDrawing';
 import { detailCoarse, drawingDetail, type DetailBuild } from '../../shared/drawingDetail';
 import { centring, hostFace, LOGO_DEPTH_MAX, LOGO_PREFIX, LOGO_WIDTH_MAX, logoBase, movedPlane, uniqueLogoName } from '../../shared/drawingPlacement';
-import { blockLimit, colourLayers, DEFAULT_PRINTER, limitSaid, planeAt, splitPieceSteps, stepsOf, type FeatureBlock } from '../../shared/blocks';
+import { blockLimit, colourLayers, DEFAULT_PRINTER, limitSaid, planeAt, roundLogo, splitPieceSteps, stepsOf, type FeatureBlock } from '../../shared/blocks';
 import type { FitPrinter } from '../../shared/designFit';
 import { planLogoMove, type Run } from '../solidcraft/logoMove';
 import { leastFloor, misplaced, reachOf, volumesOf, wallTrial } from './blockTool';
@@ -20,7 +20,8 @@ const placeTool: UpstreamTool = {
   name: PLACE_DRAWING_TOOL,
   description:
     'Build an attached SVG drawing: on a face as a logo, engraved (deboss) or built up (emboss), or as a part of its own (part: a pendant, a sign, a badge), ' +
-    'optionally a body per colour for multi-colour printing. PartBuddy builds it in one step and the user can then move, turn and resize it; the sketch is named "SVG-Logo <file name>".',
+    'optionally a body per colour for multi-colour printing. PartBuddy builds it in one step and the user can then move, turn and resize it; the sketch is named "SVG-Logo <file name>". ' +
+    'On a round wall (a cup, a handle: point on the wall, normal straight out of it) it wraps round the wall, in one colour, one drawing or text per wall.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -249,6 +250,11 @@ async function placeDrawing(upstream: UpstreamTools, drawings: Drawings, args: R
     block = { ...given, point: movedPlane(plane, du, dv).origin };
     centred = ` Moved by ${mm(du)} mm along its x and ${mm(dv)} mm along its y onto the middle of face ${host.face} of ${body} before it was built; its middle is now at [${block.point.map(mm).join(', ')}] mm.`;
   }
+  // On a round wall the logo is embossed onto it (blocks.ts roundLogo); its profiles are read on trial, which fails on purpose at its end.
+  block = await roundLogo(block, run, async (commands) => {
+    const reply = jsonOf(await upstream.callTool('batch', { commands: [...commands, { command: 'sketch.inspect', params: { sketch: 2147483647 } }], rollback: true }, callId)) as { results?: unknown[]; failed?: { index?: unknown } };
+    return reply.failed?.index === commands.length ? (reply.results ?? []).slice(0, commands.length) : null;
+  });
   const steps = stepsOf(block, sketch).map((step) => (part && step.command === 'solid.extrude' && step.params.operation === 'join' ? { ...step, params: { ...step.params, operation: 'new', body_name: logoBase(kept.name) } } : step));
   // Engraved or inlaid, it must leave plastic under it: the wall at its middle, measured on trial as for engraved text.
   // shortcut: one point, the logo's middle; a logo reaching over a thinner part of the wall passes. Measure under each piece if that turns up.

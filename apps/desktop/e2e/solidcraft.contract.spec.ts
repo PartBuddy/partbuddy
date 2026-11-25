@@ -3933,6 +3933,64 @@ test('the assistant writes a name into a round cup and raises one on a mug: the 
   }
 });
 
+test('the form puts text and a logo on a round wall: only those two are offered, and the logo keeps its hole', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-roundform-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7966',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  // A ring with a dot in its hole: as engraved, the ring and the dot are cut, the hole between them stays.
+  const ring = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill-rule='evenodd' d='M50 5a45 45 0 1 0 0.001 0zM50 30a20 20 0 1 0 0.001 0z M50 42a8 8 0 1 0 0.001 0z'/></svg>";
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a plain cup');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
+    await turnEnded(page);
+    await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'saved', { timeout: 30_000 });
+    await page.waitForTimeout(1000);
+    const box = await page.getByTestId('viewport').boundingBox();
+    if (!box) throw new Error('viewport not visible');
+    // A round wall offers text and logo only: no "More …", no part and no print face.
+    const spots = [[0.45, 0.65], [0.55, 0.65], [0.5, 0.7], [0.4, 0.6], [0.6, 0.6]] as const;
+    let spot = 0;
+    await expect(async () => {
+      const [x, y] = spots[spot++ % spots.length] ?? [0.5, 0.65];
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+      await expect(page.getByTestId('block-tile-text')).toBeVisible({ timeout: 1000 });
+      await expect(page.getByTestId('action-block')).toHaveCount(0);
+    }, 'the round wall of the cup and its tiles').toPass({ timeout: 45_000, intervals: [500] });
+    await expect(page.getByTestId('block-tile-screwHole')).toHaveCount(0);
+    await page.getByTestId('block-tile-text').click();
+    await page.getByTestId('block-text').getByRole('textbox').fill('Anna');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
+    await page.screenshot({ path: test.info().outputPath('round-wall-text.png') });
+    // One emboss per round wall (SolidCraft 0.49.0): the logo is built, the text only previewed.
+    await page.getByTestId('block-tile-logo').click();
+    await page.getByTestId('block-logo').locator('input[type=file]').setInputFiles({ name: 'ring.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(ring) });
+    await expect(page.getByTestId('block-logo-name')).toHaveText('ring');
+    await page.getByTestId('block-width').getByRole('textbox').fill('12');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
+    await page.getByTestId('block-apply').click();
+    await expect(page.getByTestId('step-text').and(page.getByText(/^Logo “ring”/))).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
+    await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('round-wall-logo.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('the assistant makes a knob for a D shaft with one call: a part of its own that prints on its top', async () => {
   test.setTimeout(240_000);
   const { mkdtempSync, rmSync } = await import('node:fs');
