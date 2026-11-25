@@ -31,6 +31,7 @@ export {
   type PrintHint,
   type SharpBody,
   laidBodies,
+  uprightFaces,
   minimumFloor,
   minimumWall,
   narrowestGap,

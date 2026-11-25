@@ -1,6 +1,6 @@
 import { BRIDGE_SPAN, minimumFloor, minimumWall } from '@partbuddy/geometry';
 
-import { BLOCK_SIZES, DEFAULT_PRINTER, nutCorners, nutTrapOpensDown, nutFlatsOfFit, ENTRY_CHAMFER, INSERT, ON_FACE, blockLimit, bossFillet, limitSaid, raisedBlock, rootOutcome, rootSteps, snapRoot, SNAP_ROOT_NAME, TEXT_STROKE, cutsThrough, strokesKnown, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, tapDrill, textDepth, textStroke, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
+import { BLOCK_SIZES, DEFAULT_PRINTER, nutCorners, nutTrapOpensDown, nutFlatsOfFit, ENTRY_CHAMFER, INSERT, ON_FACE, blockLimit, bossFillet, roundText, limitSaid, raisedBlock, rootOutcome, rootSteps, snapRoot, SNAP_ROOT_NAME, TEXT_STROKE, cutsThrough, strokesKnown, defaultBlock, hasSize, needsNormal, sizesOf, snapStrain, stepsOf, tapDrill, textDepth, textStroke, throughReach, throughTrial, throughWall, type BlockSize, type FeatureBlock } from '../../shared/blocks';
 import { featureBlockSchema } from '../../shared/contract';
 import type { FitPrinter } from '../../shared/designFit';
 import { CLEARANCE, NUT, NUT_DIN_FLATS, THREAD_ALLOWANCE, headRoom, pilotHole, printedThread, screwDiameter } from '../../shared/screwSizes';
@@ -1080,14 +1080,16 @@ export function withBlockTool(upstream: UpstreamTools, keepFace: (body: string, 
       }
       const wall = wallOf(args, fit) ?? knobOf(args, fit) ?? magnetOf(args, fit);
       if (typeof wall === 'string') return { content: [{ type: 'text', text: `Not built: ${wall}` }], isError: true };
-      const block = wall ? null : blockOf(args, fit);
-      if (typeof block === 'string') return { content: [{ type: 'text', text: `Not built: ${block}` }], isError: true };
+      const parsed = wall ? null : blockOf(args, fit);
+      if (typeof parsed === 'string') return { content: [{ type: 'text', text: `Not built: ${parsed}` }], isError: true };
       try {
         const run = async (commands: { command: string; params: Record<string, unknown> }[], rollback = false) => {
           const reply = jsonOf(await upstream.callTool('batch', { commands, ...(rollback ? { rollback } : {}) }, callId)) as { results?: unknown[]; failed?: { command?: unknown; error?: unknown } };
           if (reply.failed) throw new Error(`SolidCraft refused ${String(reply.failed.command)}: ${String(reply.failed.error).slice(0, 300)}`);
           return reply.results ?? [];
         };
+        // A text on a round wall hides its sketch after it is embossed (blocks.ts roundText).
+        const block = parsed?.block === 'text' ? await roundText(parsed, (commands) => run(commands)) : parsed;
         // A sketch belongs to the component of its body: built with that component active, the block moves with the body.
         const name = block && typeof args.name === 'string' ? args.name.trim() : undefined;
         const steps = wall ? wall.steps : block ? named(stepsOf(block, undefined, undefined, fit), name) : [];
