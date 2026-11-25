@@ -33,9 +33,12 @@ import { MINIMUM_VERSION, readVersion, supportOf } from './engineVersion';
 import { supervisorMachine, type DiscoveryResult, type Launched, type SupervisorActor, type SupervisorEvent } from './machine';
 import type { DesignHistory } from '../agents/workLog';
 import { boughtParts, count, hardwareOf, mirrorActiveDesign, MirrorScheduler, type BatchResult, type BoughtPart, type ControlRequester, type PartChecks } from './mirror';
+import { edgesOf, holeLoops } from './holeLoops';
 
 /** How closely `mesh.convert` rebuilds a mesh: SolidCraft's default, said and passed on purpose (audit S-28). */
 const MESH_TOLERANCE = '0.05 mm';
+/** How far apart a patch's edge and the part's may lie and still be sewn (mm): the hand-patched holes closed at 0.01. */
+const STITCH_TOLERANCE = 0.01;
 /**
  * The most triangles a mesh is converted with; more are reduced first. SolidCraft takes 50 000 (0.49.0), but a part
  * of that many faces makes every mirror heavy: 50 000 gave 47 345 faces, 13.8 MB of model.faces (26 MB as the engine
@@ -760,15 +763,59 @@ export class SolidCraftSupervisor {
   /**
    * Repairs an imported part (`body.repair`, audit S-25): sews free edges within SolidCraft's 0.2 mm and patches the holes
    * left, one undoable feature. True when the part is closed afterwards. SolidCraft refuses, with why, when nothing applies.
+   * SolidCraft 0.45 to 0.49.0 refuses `patch_holes` when nothing was sewn first ("nothing sewn: the free edges bound holes …;
+   * patch them to close the part"), and leaves some parts open: then the holes are patched by hand (patchHoles). Measured on
+   * the wall holder with one of its 29 faces taken out (23.11.2026, 0.49.0): body.repair closed 2, by hand 23, each at the
+   * part's volume (48 587 to 48 590 mm³); the 6 left miss a curved face SolidCraft does not patch.
    */
   async repairBody(body: string): Promise<boolean> {
     await this.probing;
     const reply = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'body.repair', params: { body, patch_holes: true } }], rollback: false }, 10 * 60 * 1000);
-    if (reply.failed) throw new Error(`body.repair failed: ${reply.failed.error}`);
+    const refused = reply.failed?.error ?? null;
+    if (refused !== null && !refused.includes('bound holes')) throw new Error(`body.repair failed: ${refused}`);
+    if (refused === null) {
+      await this.engine?.changed();
+      const repair = (reply.results[0] as { repair?: { closed?: unknown } } | undefined)?.repair;
+      this.options.log(`repaired the part "${body}": ${JSON.stringify(repair ?? null).slice(0, 500)}`);
+      if (repair?.closed === true) return true;
+    }
+    if (await this.patchHoles(body)) return true;
+    if (refused !== null) throw new Error(`body.repair failed: ${refused}`);
+    return false;
+  }
+
+  /**
+   * The holes of an open part patched by hand: each closed loop of free edges (holeLoops.ts) gets a face (`surface.patch
+   * {edges}`), and the patches are sewn into the part (`surface.stitch`). Tried first and kept only when the part is
+   * closed afterwards; else it stays as it was and false comes back.
+   */
+  private async patchHoles(body: string): Promise<boolean> {
+    const long = 10 * 60 * 1000;
+    const read = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'model.edges', params: { body } }], rollback: false }, 60_000);
+    const loops = read.failed ? [] : holeLoops(edgesOf(read.results[0]));
+    if (loops.length === 0) {
+      this.options.log(`no closed loop of free edges on "${body}" to patch${read.failed ? `: ${read.failed.error}` : ''}`);
+      return false;
+    }
+    const names = loops.map((_, i) => `${body} patch ${String(i + 1)}`);
+    const steps = [
+      ...loops.map((edges, i) => ({ command: 'surface.patch', params: { body, edges, body_name: names[i] } })),
+      { command: 'surface.stitch', params: { bodies: [body, ...names], tolerance: STITCH_TOLERANCE } },
+    ];
+    // On trial, ended by a step that fails on purpose, so SolidCraft takes it all back.
+    const trial = await this.requester().request<BatchResult>(
+      'engine.batch',
+      { commands: [...steps, { command: 'inspect.measure', params: { bodies: [body] } }, { command: 'sketch.inspect', params: { sketch: 2147483647 } }], rollback: true },
+      long,
+    );
+    const finished = trial.failed?.index === steps.length + 1;
+    const closed = finished && (trial.results[steps.length] as { bodies?: { closed?: unknown }[] } | undefined)?.bodies?.[0]?.closed === true;
+    this.options.log(`patching ${String(loops.length)} hole(s) of "${body}" by hand ${closed ? 'closes it' : `leaves it open${finished ? '' : `: ${(trial.failed?.error ?? 'no answer').slice(0, 300)}`}`}`);
+    if (!closed) return false;
+    const built = await this.requester().request<BatchResult>('engine.batch', { commands: steps, rollback: true }, long);
+    if (built.failed) throw new Error(`patching the holes failed: ${built.failed.error}`);
     await this.engine?.changed();
-    const repair = (reply.results[0] as { repair?: { closed?: unknown } } | undefined)?.repair;
-    this.options.log(`repaired the part "${body}": ${JSON.stringify(repair ?? null).slice(0, 500)}`);
-    return repair?.closed === true;
+    return true;
   }
 
   /**
