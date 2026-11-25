@@ -45,7 +45,7 @@ export type FeatureBlock =
    */
   | { block: 'snapFit'; body: string; point: Point; normal: Point; size: BlockSize; length: number; thickness: number; width: number; catchDepth: number; catchLength: number; hook: HookDirection }
   /** A logo from an SVG file, engraved or built up, centred on the point; `name` is the file's name. */
-  | { block: 'logo'; body: string; point: Point; normal: Point; size: BlockSize; name: string; svg: string; width: number; depth: number; mode: 'emboss' | 'deboss'; colours?: boolean | undefined; centre?: boolean | undefined };
+  | { block: 'logo'; body: string; point: Point; normal: Point; size: BlockSize; name: string; svg: string; width: number; depth: number; mode: 'emboss' | 'deboss'; colours?: boolean | undefined; centre?: boolean | undefined; profiles?: number[] | undefined };
 
 
 /** The catch's direction in the face: along the sketch plane's x or y, either way. */
@@ -310,9 +310,15 @@ export function stepsOf(block: FeatureBlock, sketch?: string, through?: readonly
     }
     case 'logo':
       if (colourLayers(block).length > 1) return colourSteps(block, sketch ?? uniqueLogoName(block.name, []));
+      // On a round wall (roundLogo): solid.emboss wraps the material profiles onto it, as text is.
+      if (block.profiles) {
+        return [
+          ...logoSketchSteps(block, sketch),
+          { command: 'solid.emboss', params: { depth: `${String(round(block.depth))} mm`, mode: block.mode, face: block.point, targets: [block.body], profiles: block.profiles } },
+        ];
+      }
       return [
-        { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false, name: sketch ?? uniqueLogoName(block.name, []) } },
-        { command: 'sketch.insert_svg', params: { text: block.svg, at: [0, 0], width: block.width, align: 'center' } },
+        ...logoSketchSteps(block, sketch),
         // An extrusion, not solid.emboss: emboss takes every region, so a ring would become a disc;
         // an extrusion keeps a loop inside a hole as material again, as the drawing shows it.
         { command: 'solid.extrude', params: { distance: mm(block.mode === 'deboss' ? -block.depth : block.depth), operation: block.mode === 'deboss' ? 'cut' : 'join' } },
@@ -720,4 +726,75 @@ export function limitSaid(limit: BlockLimit): string {
     }
   })();
   return limit.reason === 'printedThread' ? why : `${limit.key} ${String(limit.value)}: ${why}`;
+}
+
+/** A logo's sketch: a plane at its point and the drawing centred in it. */
+function logoSketchSteps(block: LogoBlock, sketch: string | undefined): Step[] {
+  return [
+    { command: 'sketch.create', params: { plane: planeAt(block.point, block.normal), project_edges: false, name: sketch ?? uniqueLogoName(block.name, []) } },
+    { command: 'sketch.insert_svg', params: { text: block.svg, at: [0, 0], width: block.width, align: 'center' } },
+  ];
+}
+
+/**
+ * Whether a point lies on a round wall: on a cylinder of `model.faces` (its axis line and radius, within 0.01 mm) and on no
+ * flat face. A face of another kind (a ball, a spline) counts as neither, and the logo is built flat as before.
+ */
+export function onRoundWall(point: Point, faces: unknown): boolean {
+  const listed = (faces as { faces?: { plane_normal?: unknown; point?: unknown; cylinder?: { axis?: unknown; origin?: unknown; radius?: unknown } }[] } | null | undefined)?.faces ?? [];
+  const vec = (value: unknown): Point | null => (Array.isArray(value) && value.length === 3 && value.every((item) => typeof item === 'number' && Number.isFinite(item)) ? (value as Point) : null);
+  const dot = (a: Point, b: Point) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const minus = (a: Point, b: Point): Point => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const near = 0.01;
+  const flat = listed.some((face) => {
+    const [n, at] = [vec(face.plane_normal), vec(face.point)];
+    const length = n ? Math.hypot(...n) : 0;
+    return n !== null && at !== null && length > 1e-9 && Math.abs(dot(minus(point, at), n)) / length < near;
+  });
+  if (flat) return false;
+  return listed.some((face) => {
+    const [axis, origin, radius] = [vec(face.cylinder?.axis), vec(face.cylinder?.origin), face.cylinder?.radius];
+    if (!axis || !origin || typeof radius !== 'number') return false;
+    const length = Math.hypot(...axis);
+    if (length < 1e-9) return false;
+    const away = minus(point, origin);
+    const along = dot(away, axis) / length;
+    return Math.abs(Math.sqrt(Math.max(dot(away, away) - along * along, 0)) - radius) < near;
+  });
+}
+
+/**
+ * The profiles of a logo's sketch that are material (`sketch.inspect` profiles: each with its loop and the loops of its
+ * holes): those inside an even number of others, as the flat logo's extrusion keeps them (a ring keeps its hole, a dot
+ * in the hole is material again). Null when the answer holds no profile.
+ */
+export function materialProfiles(inspect: unknown): number[] | null {
+  const profiles = ((inspect as { profiles?: unknown } | null | undefined)?.profiles ?? []) as { index?: unknown; curves?: unknown; holes?: unknown }[];
+  const key = (curves: unknown) => (Array.isArray(curves) ? (curves as unknown[]).map(String).sort().join(' ') : '');
+  const listed = profiles.flatMap((profile) => (typeof profile.index === 'number' && Number.isInteger(profile.index) && profile.index >= 0 ? [{ index: profile.index, loop: key(profile.curves), holes: Array.isArray(profile.holes) ? profile.holes.map(key) : [] }] : []));
+  if (listed.length === 0) return null;
+  // The profile a profile fills the hole of; its depth is how many such steps lead out.
+  const parent = (loop: string) => listed.find((other) => other.holes.includes(loop));
+  const depth = (profile: (typeof listed)[number]) => {
+    let [steps, at] = [0, parent(profile.loop)];
+    while (at && steps < listed.length) [steps, at] = [steps + 1, parent(at.loop)];
+    return steps;
+  };
+  return listed.filter((profile) => depth(profile) % 2 === 0).map((profile) => profile.index);
+}
+
+/**
+ * A logo on a round wall gets its material profiles (`profiles`), read on trial: its sketch drawn and inspected, then taken
+ * back. On a flat face, or a face of another kind, it comes back as it was. A logo in colours stands on flat faces only:
+ * its colour bodies are extruded pieces that do not follow a wall.
+ */
+export async function roundLogo(block: LogoBlock, read: (steps: Step[]) => Promise<unknown[]>, trial: (steps: Step[]) => Promise<unknown[] | null>): Promise<LogoBlock> {
+  if (block.body === '' || block.profiles) return block;
+  const [faces] = await read([{ command: 'model.faces', params: { body: block.body } }]);
+  if (!onRoundWall(block.point, faces)) return block;
+  if (colourLayers(block).length > 0) throw new Error(`a logo in colours goes on a flat face only; on the round wall of ${block.body} build it in one colour`);
+  const tried = await trial([...logoSketchSteps(block, undefined), { command: 'sketch.inspect', params: {} }]);
+  const profiles = materialProfiles(tried?.[tried.length - 1]);
+  if (!profiles || profiles.length === 0) throw new Error(`SolidCraft found no closed shape in the drawing to put on the round wall of ${block.body}`);
+  return { ...block, profiles };
 }

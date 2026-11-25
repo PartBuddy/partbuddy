@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_KINDS, blockBodies, blockLimit, cutsThrough, defaultBlock, DEFAULT_PRINTER, hasSize, hookVector, limitSaid, logoFrom, needsNormal, planeAt, raisedBlock, sizesOf, snapStrain, stepsOf, textDepth, textStroke, throughReach, throughTrial, throughWall, type FeatureBlock } from '../src/shared/blocks';
+import { BLOCK_KINDS, blockBodies, blockLimit, cutsThrough, defaultBlock, DEFAULT_PRINTER, hasSize, hookVector, limitSaid, logoFrom, materialProfiles, needsNormal, onRoundWall, planeAt, raisedBlock, roundLogo, sizesOf, snapStrain, stepsOf, textDepth, textStroke, throughReach, throughTrial, throughWall, type FeatureBlock } from '../src/shared/blocks';
 import { SNAP } from '../src/shared/mechanisms';
 import { ROOT_FIT, rootApplied, rootFillet, rootGrowth, rootOutcome, rootSteps } from '../src/shared/blocks';
 import { CLEARANCE, CLEARANCE_NORMAL, headRoom, pilotHole, printedThread } from '../src/shared/screwSizes';
@@ -437,5 +437,61 @@ describe('function blocks (F1)', () => {
       expect('normal' in block).toBe(needsNormal(kind));
       expect(blockPhrase(block).key).not.toBe('command');
     }
+  });
+});
+
+describe('a logo on a round wall (SolidCraft 0.49 solid.emboss on a cylinder)', () => {
+  // model.faces of a cylinder of 20 mm radius along Z (0.49.0): the wall, its two caps.
+  const faces = {
+    faces: [
+      { name: 'F1:side', point: [20, 0, 30], cylinder: { axis: [0, 0, 1], origin: [0, 0, 0], radius: 20 } },
+      { name: 'F1:top', point: [0, 0, 60], plane_normal: [0, 0, 1] },
+      { name: 'F1:bottom', point: [0, 0, 0], plane_normal: [0, 0, -1] },
+    ],
+  };
+  // sketch.inspect of a ring with a dot in its hole (0.49.0): the ring, the hole round the dot, the dot.
+  const inspect = {
+    profiles: [
+      { index: 0, curves: ['a1', 'l1'], holes: [['a2', 'l2']] },
+      { index: 1, curves: ['l2', 'a2'], holes: [['a3', 'l3']] },
+      { index: 2, curves: ['a3', 'l3'], holes: [] },
+    ],
+  };
+  const ring = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill-rule='evenodd' d='M50 5a45 45 0 1 0 0.001 0zM50 30a20 20 0 1 0 0.001 0z M50 42a8 8 0 1 0 0.001 0z'/></svg>";
+  const logo: Extract<FeatureBlock, { block: 'logo' }> = { block: 'logo', body: 'Cup', point: [0, -20, 30], normal: [0, -1, 0], size: 'M3', name: 'Ring', svg: ring, width: 16, depth: 0.8, mode: 'deboss' };
+
+  it('tells a round wall from a flat face and from no face', () => {
+    expect(onRoundWall([0, -20, 30], faces)).toBe(true);
+    expect(onRoundWall([14.142136, 14.142136, 5], faces)).toBe(true);
+    // On a cap: flat, even where the cap meets the wall.
+    expect(onRoundWall([0, 10, 60], faces)).toBe(false);
+    expect(onRoundWall([0, -20, 60], faces)).toBe(false);
+    expect(onRoundWall([0, -25, 30], faces)).toBe(false);
+    expect(onRoundWall([0, -20, 30], null)).toBe(false);
+  });
+
+  it('takes the profiles inside an even number of others, as the flat extrusion keeps them', () => {
+    expect(materialProfiles(inspect)).toEqual([0, 2]);
+    expect(materialProfiles({ profiles: [{ index: 0, curves: ['c1'], holes: [] }, { index: 1, curves: ['c2'], holes: [] }] })).toEqual([0, 1]);
+    expect(materialProfiles({ profiles: [] })).toBeNull();
+    expect(materialProfiles(null)).toBeNull();
+  });
+
+  it('reads the profiles on trial on a round wall, and embosses them onto it', async () => {
+    const trials: unknown[][] = [];
+    const placed = await roundLogo(logo, () => Promise.resolve([faces]), (steps) => {
+      trials.push(steps);
+      return Promise.resolve([{}, {}, inspect]);
+    });
+    expect(placed.profiles).toEqual([0, 2]);
+    expect(trials).toHaveLength(1);
+    expect(stepsOf(placed).map((step) => step.command)).toEqual(['sketch.create', 'sketch.insert_svg', 'solid.emboss']);
+    expect(stepsOf(placed)[2]?.params).toEqual({ depth: '0.8 mm', mode: 'deboss', face: [0, -20, 30], targets: ['Cup'], profiles: [0, 2] });
+    // On a flat face it stays the extrusion, and nothing is tried.
+    const flat = await roundLogo({ ...logo, point: [0, 5, 60], normal: [0, 0, 1] }, () => Promise.resolve([faces]), () => Promise.reject(new Error('no trial on a flat face')));
+    expect(flat.profiles).toBeUndefined();
+    expect(stepsOf(flat).map((step) => step.command)).toEqual(['sketch.create', 'sketch.insert_svg', 'solid.extrude']);
+    // No closed shape in SolidCraft's answer: refused with why.
+    await expect(roundLogo(logo, () => Promise.resolve([faces]), () => Promise.resolve(null))).rejects.toThrow('no closed shape');
   });
 });

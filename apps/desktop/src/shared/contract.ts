@@ -940,6 +940,8 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
       colours: z.boolean().optional(),
       // Onto the middle of the face the point is on, instead of at the point.
       centre: z.boolean().optional(),
+      // On a round wall: the sketch profiles that are material, embossed onto the wall (roundLogo, blocks.ts).
+      profiles: z.array(z.number().int().nonnegative()).min(1).max(10_000).optional(),
     })
     .strict(),
   z
