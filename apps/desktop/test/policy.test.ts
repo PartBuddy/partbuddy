@@ -94,7 +94,8 @@ describe('tool policy: command groups are an allow list', () => {
     // Neighbours that change nothing PartBuddy cannot show stay; folders keep the order.
     // H-03 (Manuel 2026-11-22): suppressing is the user's choice; going back in the history stays for edits.
     expect(reasonOf('execute', { command: 'timeline.suppress', params: { feature: 'Extrude1', suppressed: true } })).toContain("the user's choice in the timeline");
-    for (const command of ['timeline.rollback', 'timeline.move_to_group', 'occurrence.copy', 'occurrence.ground', 'parameters.list']) {
+    expect(reasonOf('execute', { command: 'body.remove_history', params: { body: 'Body1' } })).toContain("the user's choice");
+    for (const command of ['timeline.rollback', 'timeline.step_back', 'timeline.roll_to_end', 'timeline.move_to_group', 'occurrence.copy', 'occurrence.ground', 'parameters.list']) {
       expect(execute(command, { feature: 'Extrude1' }), command).toEqual({ allow: true });
     }
     expect(execute('parameters.add', { name: 'wand', expression: '2 mm', comment: '[Gehäuse] Wand' })).toEqual({ allow: true });
@@ -135,6 +136,7 @@ describe('tool policy: files by argument, per command (audit N-normteile-policy-
     ['sketch.insert_svg', 'path'],
     ['sketch.drawing_bounds', 'path'],
     ['sketch.export_dxf', 'path'],
+    ['sketch.export_svg', 'path'],
     ['sketch.replace', 'file'],
     ['canvas.insert', 'path'],
     ['canvas.decal', 'path'],
