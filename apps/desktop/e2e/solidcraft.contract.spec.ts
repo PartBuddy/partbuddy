@@ -1539,8 +1539,10 @@ test('a mesh over the 50 000 triangles SolidCraft converts is reduced first, con
   mkdirSync(outside);
   // A closed ball of 30 mm radius as binary STL: 200 segments round, 200 rings, 79 600 triangles.
   const [S, R, r] = [200, 200, 30];
+  // The poles and the seam exactly on one point each, or SolidCraft reads the mesh as open (sin π is 1e-16, not 0).
   const at = (ring: number, seg: number): number[] => {
-    const [phi, theta] = [(Math.PI * ring) / R, (2 * Math.PI * seg) / S];
+    if (ring === 0 || ring === R) return [0, 0, ring === 0 ? 2 * r : 0];
+    const [phi, theta] = [(Math.PI * ring) / R, (2 * Math.PI * (seg % S)) / S];
     return [r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r + r * Math.cos(phi)];
   };
   const faces: number[][][] = [];
