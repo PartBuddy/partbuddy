@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentService } from '../src/main/agents/agentService';
 import { findClaudeCode, parseStreamLine, roleOf } from '../src/main/agents/claudeCode';
-import { instructionsFor, MAX_STEPS, REFUSAL_GUIDANCE } from '../src/main/agents/loop';
+import { instructionsFor, MAX_STEPS, REFUSAL_GUIDANCE, repeatsItself } from '../src/main/agents/loop';
 import { GateProxy, REPEAT_REASON, SERVER_POINTER, type ToolCallRecord, type UpstreamTools } from '../src/main/agents/gateProxy';
 import { photoFile, photoNote } from '../src/main/agents/photoNote';
 import { decide, TOOL_ARGUMENTS } from '../src/main/agents/policy';
@@ -299,6 +299,32 @@ ${TOOL_NOTES}`);
     proxy.newTurn();
     await inspect();
     expect(calls).toHaveLength(6);
+  });
+
+  it('lets undo go back every step there is, and refuses it once it keeps finding nothing left', async () => {
+    const { upstream, calls } = fakeUpstream();
+    let left = 4;
+    const history: UpstreamTools = {
+      ...upstream,
+      callTool: (name, args, id) => (left-- > 0 ? upstream.callTool(name, args, id) : Promise.resolve({ content: [{ type: 'text', text: 'nothing to undo' }], isError: true })),
+    };
+    const proxy = new GateProxy(history, () => undefined);
+    await proxy.start();
+    cleanups.push(() => proxy.stop());
+    const client = await connect(proxy);
+    const undo = () => client.callTool({ name: 'undo', arguments: {} });
+    for (let step = 0; step < 4; step += 1) expect((await undo()).isError).not.toBe(true);
+    expect(calls).toHaveLength(4);
+    expect((await undo()).content).toEqual([{ type: 'text', text: 'nothing to undo' }]);
+    await undo();
+    expect((await undo()).content).toEqual([{ type: 'text', text: REPEAT_REASON }]);
+  });
+
+  it('counts rounds of undo as a loop only when they found nothing left', () => {
+    const round = (output: string) => ({ toolCalls: [{ toolName: 'undo', input: {} }], toolResults: [{ output }] });
+    const stops = (output: string) => repeatsItself({ steps: [round(output), round(output), round(output)] as never });
+    expect(stops('{"undone":true}')).toBe(false);
+    expect(stops('nothing to undo')).toBe(true);
   });
 
   it('refuses requests without the token or for another host', async () => {

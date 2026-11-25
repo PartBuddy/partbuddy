@@ -5,7 +5,7 @@ import { Readable } from 'node:stream';
 
 import { Server, WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server';
 
-import { REPEAT_LIMIT } from './loop';
+import { isHistoryCall, REPEAT_LIMIT } from './loop';
 import { decide, decideParameterNames, inputProblem, offeredTool, type ToolDecision } from './policy';
 import { compactDescription, compactJson, withSkillNote } from './toolNotes';
 
@@ -189,6 +189,8 @@ export class GateProxy {
       try {
         const result = await this.upstream.callTool(name, args, id);
         this.onCall({ id, name, summary, decision: 'allowed', ok: result.isError !== true });
+        // Each undo that worked went a step further; refused on the third, a half-removed hinge stayed in the design.
+        if (result.isError !== true && isHistoryCall(name, args)) this.lastCall = '';
         return compactJson(withSkillNote(name, compactDescription(name, result))) as never;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

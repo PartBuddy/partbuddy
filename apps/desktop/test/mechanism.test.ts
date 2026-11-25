@@ -1774,6 +1774,15 @@ describe('snap hooks with their windows (standards)', () => {
     return { text: answer.content[0]?.type === 'text' ? answer.content[0].text : '', isError: answer.isError === true, cut: sent.some((batch) => batch.includes('plastic.snap_fit')) };
   };
 
+  it('refuses snap hooks on a lid that prints with its box on a hinge and points to closure', async () => {
+    const sent: string[][] = [];
+    const answer = await withMechanismTool(boxWorld(cover(), { sent, together: true }), () => 0.4).callTool(MECHANISM_TOOL, args, undefined);
+    expect(answer.isError).toBe(true);
+    expect(String(answer.content[0]?.text)).toContain('Not built: Cover and Base print as one piece');
+    expect(String(answer.content[0]?.text)).toContain('for a lid on a hinge use kind closure');
+    expect(sent.some((batch) => batch.includes('plastic.snap_fit'))).toBe(false);
+  });
+
   it('says how far the catch holds and the arm bends: the catch less the room to the wall (audit T58, W23)', () => {
     expect(snapHold()).toBe(0.6);
     // The window goes from 0.2 mm under the catch to 0.5 mm over the hook's tip, 0.3 mm wider than the hook each side.

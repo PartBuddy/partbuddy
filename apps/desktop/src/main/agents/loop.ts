@@ -110,10 +110,29 @@ function roundCalls(step: Parameters<StopCondition<ToolSet>>[0]['steps'][number]
   return JSON.stringify(calls.map((call) => [call.toolName, call.input as unknown]));
 }
 
+const HISTORY_COMMANDS: ReadonlySet<string> = new Set(['undo', 'redo', 'edit.undo', 'edit.redo']);
+
+/** `undo` and `redo` take no arguments: going back several steps is the same call again, and each one still moves. */
+export function isHistoryCall(name: string, args: unknown): boolean {
+  const command = name === 'execute' ? (args as { command?: unknown } | null)?.command : name;
+  return typeof command === 'string' && HISTORY_COMMANDS.has(command);
+}
+
+/** A round of only `undo` and `redo` that found a step to go to: progress, not a model circling. */
+function movedInHistory(step: Parameters<StopCondition<ToolSet>>[0]['steps'][number]): boolean {
+  return (
+    step.toolCalls.length > 0 &&
+    step.toolCalls.every((call) => isHistoryCall(call.toolName, call.input)) &&
+    step.toolResults.every((result) => typeof result.output !== 'string' || !/nothing to (?:undo|redo)|^SolidCraft tool failed/.test(result.output))
+  );
+}
+
 /** Stop condition: the last {@link REPEAT_LIMIT} rounds made the same tool calls (or only invalid ones). */
 export const repeatsItself: StopCondition<ToolSet> = ({ steps }) => {
   if (steps.length < REPEAT_LIMIT) return false;
-  const rounds = steps.slice(-REPEAT_LIMIT).map(roundCalls);
+  const last = steps.slice(-REPEAT_LIMIT);
+  if (last.some(movedInHistory)) return false;
+  const rounds = last.map(roundCalls);
   return rounds[0] !== '[]' && rounds.every((round) => round === rounds[0]);
 };
 
