@@ -37,10 +37,10 @@ import { boughtParts, count, hardwareOf, mirrorActiveDesign, MirrorScheduler, ty
 /** How closely `mesh.convert` rebuilds a mesh: SolidCraft's default, said and passed on purpose (audit S-28). */
 const MESH_TOLERANCE = '0.05 mm';
 /**
- * The most triangles a mesh is converted with; more are reduced first. SolidCraft takes 50 000 (0.49.0), but the faces
- * of such a part do not come through the mirror: 50 000 gave 47 345 faces, 13.8 MB of model.faces, and the connection
- * closed; 20 000 give 5.6 MB, room for a few such parts in one mirror.
- * shortcut: one limit per body; several converted parts in one design add up in the mirror's reply. Mirror bodies apart if that turns up.
+ * The most triangles a mesh is converted with; more are reduced first. SolidCraft takes 50 000 (0.49.0), but a part
+ * of that many faces makes every mirror heavy: 50 000 gave 47 345 faces, 13.8 MB of model.faces (26 MB as the engine
+ * sends it); 20 000 give 5.6 MB (11.4 MB sent), quick to mirror again after each change, and fine to print.
+ * shortcut: one limit per body; converted parts add up in the mirror's one reply, which closes the engine's connection past 64 MiB (headless.ts), about five such parts. Mirror bodies apart if that turns up.
  */
 const MESH_CONVERT_MAX = 20_000;
 
