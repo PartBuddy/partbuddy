@@ -49,6 +49,14 @@ const HINGED_BOX = [
   {"command":"solid.box","params":{"length":16,"width":1.2,"height":4,"corner":[22,82.8,4],"operation":"join","targets":["Lid"],"name":"Catch"}},
 ];
 
+// A pen cup of Ø 70 × 100 mm with a 3 mm wall and floor (0.3.14: a name on a round wall).
+const PEN_CUP = [
+  {"command":"solid.cylinder","params":{"radius":35,"height":100,"operation":"new","body_name":"Pen cup","name":"Cup"}},
+  {"command":"solid.cylinder","params":{"radius":32,"height":98,"base":[0,0,3],"operation":"cut","targets":["Pen cup"],"name":"Hollow"}},
+  {"command":"solid.fillet","params":{"edges":[[35,0,100],[32,0,100]],"radius":1.2,"body":"Pen cup","name":"Rim"}},
+  {"command":"solid.chamfer","params":{"edges":[[35,0,0]],"distance":0.6,"body":"Pen cup","name":"Bed chamfer"}},
+];
+
 const HOUSING_ROUND = [
   {
     header: 'Lid',
@@ -122,7 +130,7 @@ if (args[0] === '--version') {
 
     // PartBuddy's notes and earlier messages can go along with the user's words, so each answer keys on
     // the phrase of the user's own that comes last.
-    const said = ['Research the', 'Make the snap opening', 'Build a cable clip', 'Build a case and a lid', 'Build a box with a hinged lid', 'Fit this housing']
+    const said = ['Research the', 'Make the snap opening', 'Build a cable clip', 'Build a case and a lid', 'Build a box with a hinged lid', 'Fit this housing', 'Build a pen cup']
       .map((phrase) => [phrase, content.lastIndexOf(phrase)])
       .filter(([, at]) => at >= 0)
       .sort((a, b) => b[1] - a[1])[0]?.[0];
@@ -189,6 +197,12 @@ if (args[0] === '--version') {
         'The box and its lid are built side by side, as they print, joined by a **print-in-place hinge**: five knuckles, a 5 mm pin and a **0.4 mm** gap everywhere, designed to print in one piece without support.\n\n' +
           'Open **Moving parts** above the view and drag the slider to fold the lid. Its catch meets the front wall just before the lid is closed; the print check points at the place.',
       );
+    } else if (said === 'Build a pen cup') {
+      for (const step of PEN_CUP) await client?.callTool({ name: 'execute', arguments: step });
+      // The name on the side the slanted view (key 0) looks at, through PartBuddy's own text block.
+      await client?.callTool({ name: 'partbuddy_block', arguments: { block: 'text', body: 'Pen cup', point: [22.02, -27.22, 55], normal: [0.629, -0.777, 0], text: 'Anna', height: 16, mode: 'deboss' } });
+      await client?.close();
+      say('The pen cup is built: **Ø 70 × 100 mm** with a 3 mm wall, its rim rounded and its bed edge chamfered. **Anna** is engraved round the wall, 16 mm high, so it prints without support.');
     } else if (said === 'Fit this housing') {
       await client?.callTool({ name: 'partbuddy_ask', arguments: { questions: HOUSING_ROUND } });
       await client?.close();

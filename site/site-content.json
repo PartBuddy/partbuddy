@@ -33,7 +33,7 @@
         "Threads, countersinks, snap fits, inserts and nut traps on the face you pick",
         "Visible edges rounded, bed edges chamfered and sizes snapped to your nozzle, without being asked",
         "The sizes you name stay exact, and every refinement can be turned off",
-        "Logos from SVG files and text in any installed font, placed, sized and changed right on the part"
+        "Logos from SVG files and text in any installed font, placed, sized and changed right on the part, on flat faces and round walls"
       ],
       "shot": "view",
       "alt": "A cable clip with a selected face and its name, area and actions"
@@ -159,6 +159,7 @@
       "Overhangs past your material’s angle, as a hint",
       "At least 25 mm² on the bed",
       "Gaps between parts tighter than the push fit",
+      "Screw holes in two touching parts that nearly line up, so a screw would not pass through both",
       "Holes under 2 mm and slots that print closed, as a hint",
       "Design hints: sharp outer edges, mixed radii, sharp roots, shallow slopes, thin shell corners"
     ]
@@ -189,6 +190,12 @@
       "text": "The assembly plays step by step in the right order, sub-assemblies first, set by the assistant or proposed from the geometry.",
       "shot": "assembly",
       "alt": "The assembly of an enclosure halfway, with the named steps beside it"
+    },
+    {
+      "title": "Names on round parts",
+      "text": "Write a name round a cup or a handle, in any installed font, or wrap an SVG logo round it, through the form or by asking. A ring in a logo keeps its hole. One text or logo per wall; logos in colours stay on flat faces.",
+      "shot": "cup",
+      "alt": "A pen cup with the name Anna engraved round its wall"
     },
     {
       "title": "Sketch the sizes",
@@ -228,7 +235,7 @@
     },
     {
       "title": "Build around real parts",
-      "text": "Import STEP and IGES as editable bodies, STL, 3MF and OBJ as meshes.",
+      "text": "Import STEP and IGES as editable bodies, STL, 3MF and OBJ as meshes. Large meshes are thinned to 20,000 triangles before they become faces, and Repair closes most parts with a missing flat face.",
       "shot": "import",
       "alt": "A housing built around an imported circuit board",
       "size": "wide"
@@ -262,14 +269,15 @@
       "Print check and slicer hand-off",
       "English and German, installer with update checks",
       "Dimensions on the part: type them, step them or drag the arrow",
-      "Logos and text on the part, holes and blocks placed before they are built",
+      "Logos and text on the part, also round a cup or a handle, holes and blocks placed before they are built",
       "Hinges and guides that move in the view, checked through their range",
-      "Runs on the stable SolidCraft releases with the new kernel",
+      "Runs on the stable SolidCraft releases, 0.49.0 recommended",
       "Design hints after each build, not only print checks",
       "An experimental test build for macOS",
       "A failed answer says why, such as no connection, and offers the next step",
       "A crashed SolidCraft starts again by itself",
-      "Keyboard throughout: Esc closes every dialog, ? shows the shortcuts"
+      "Keyboard throughout: Esc closes every dialog, ? shows the shortcuts",
+      "Large STL files thinned to 20,000 triangles, and Repair that closes most missing flat faces"
     ],
     "next": [],
     "later": [
