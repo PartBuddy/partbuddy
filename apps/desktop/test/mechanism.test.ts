@@ -386,6 +386,39 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(depth).toBe(3);
   });
 
+  // H-09: SolidCraft 0.49.0 names no changed body for a cut that misses; only a web's room (◤) may miss.
+  it('takes everything back when a cut misses the part, but lets a web room miss', async () => {
+    const build = async (missing: (name: string) => boolean) => {
+      let depth = 3;
+      const upstream: UpstreamTools = {
+        instructions: () => undefined,
+        listTools: () => Promise.resolve([]),
+        callTool: (name, args) => {
+          if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Box' }, { name: 'Lid' }], undo: 3 }) }] });
+          const commands = args.commands as { command: string; params: { operation?: string; name?: string } }[];
+          if (commands.some((step) => step.params.operation === 'join')) depth = 11;
+          depth -= commands.filter((step) => step.command === 'edit.undo').length;
+          const results = commands.map((step) =>
+            step.command === 'document.inspect'
+              ? { bodies: ['Box', 'Lid'], timeline: Array.from({ length: depth }, (_, i) => ({ id: i + 1 })), undo: depth }
+              : step.command === 'inspect.clearance'
+                ? trial(step, { x: 0 })
+                : step.params.operation === 'cut' && missing(String(step.params.name))
+                  ? { changed_bodies: [], warning: null }
+                  : { count: 0, warning: null },
+          );
+          return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
+        },
+      };
+      return withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Box', moving: 'Lid', from: [0, 0, 3], to: [0, 48, 3] });
+    };
+    const missed = await build((name) => name.endsWith('○'));
+    expect(missed.isError).toBe(true);
+    expect(JSON.stringify(missed.content[0])).toContain('cut nothing away: the mechanism missed the part there.');
+    expect(JSON.stringify(missed.content[0])).toContain('Everything was taken back.');
+    expect(JSON.stringify((await build((name) => name.endsWith('◤'))).content[0])).not.toContain('cut nothing away');
+  });
+
   // Audit 2026-11-12, H-02: the joint was refused after the knuckles were built, the answer said "Not built" with
   // SolidCraft's JSON, and the knuckles stayed (2 → 11 features; the next call built them again).
   it('takes the knuckles back when the joint cannot be made, and passes on SolidCraft\'s reason in one sentence', async () => {
