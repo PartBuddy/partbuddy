@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ActionService, clearanceOf, commandOf } from '../src/main/solidcraft/actions';
+import { ActionService, clearanceOf, commandOf, offsetHolesOf } from '../src/main/solidcraft/actions';
 import type { ControlRequester } from '../src/main/solidcraft/mirror';
 import { actionPlan, actionPrint, actionsFor, bedOf, downEdges, startSize, type ActionPrint } from '../src/renderer/src/viewer/actionKinds';
 import { dimensionFor, draggedValue, handleOf } from '../src/renderer/src/viewer/dimensionOf';
@@ -243,6 +243,19 @@ describe('the clearance between bodies as SolidCraft measures it (F2)', () => {
       near: [{ a: 'A', b: 'C', distance: 0.1, from: [0, 10, 10], to: [0, 10.1, 10] }],
     });
     expect(clearanceOf(null)).toEqual({ overlaps: [], near: [] });
+  });
+
+  it('pairs the holes of two touching bodies that nearly line up (inspect.hole_stacks, 0.49.0)', () => {
+    // Measured with SolidCraft 0.49.0: two 5 mm plates, one pair of 3.4 mm holes on one line, one pair 1.5 mm apart.
+    const hole = (body: string, at: number[]) => ({ at, axis: [0, 0, -1], body, d_mm: 3.4, depth_mm: 5, slot: null });
+    const stacks = { lone: [hole('Base', [30, 15, 5]), hole('Cover', [31.5, 15, 10])], stacks: [{ axis: [0, 0, -1], layers: [] }] };
+    expect(offsetHolesOf(stacks)).toEqual([{ a: 'Base', b: 'Cover', offset: 1.5, diameter: 3.4, at: [30.75, 15, 7.5] }]);
+    // Further apart than a hole is wide they are two holes, not one missed; holes that do not meet along the axis, or of one body, pair with none.
+    expect(offsetHolesOf({ lone: [hole('Base', [30, 15, 5]), hole('Cover', [34, 15, 10])] })).toEqual([]);
+    expect(offsetHolesOf({ lone: [hole('Base', [30, 15, 5]), hole('Cover', [31.5, 15, 20])] })).toEqual([]);
+    expect(offsetHolesOf({ lone: [hole('Base', [30, 15, 5]), hole('Base', [31.5, 15, 10])] })).toEqual([]);
+    expect(offsetHolesOf({ lone: [{ ...hole('Base', [30, 15, 5]), d_mm: 'wide' }, hole('Cover', [31.5, 15, 10])] })).toEqual([]);
+    expect(offsetHolesOf(null)).toEqual([]);
   });
 });
 

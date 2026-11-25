@@ -437,6 +437,12 @@ describe('clearance between parts (F2)', () => {
     expect(withClearance(ready, { overlaps: [], near: [near(0.1)] }, 0).findings).toEqual([]);
   });
 
+  it('warns about holes of two bodies that nearly line up, framed round the place they meet', () => {
+    const check = withClearance(ready, { overlaps: [], near: [], offsetHoles: [{ a: 'Base', b: 'Cover', offset: 1.5, diameter: 3.4, at: [30.75, 15, 7.5] }] }, 0.15);
+    expect(check.status).toBe('warn');
+    expect(check.findings).toEqual([{ kind: 'holesOffset', severity: 'warn', bodies: ['Base', 'Cover'], offset: 1.5, diameter: 3.4, places: [], box: { min: [27.05, 11.3, 3.8], max: [34.45, 18.7, 11.2] } }]);
+  });
+
   it('compares a gap as it is said: on the minimum is enough, just under is not (audit D9)', () => {
     const gaps = (distance: number, minimum: number) => withClearance(ready, { overlaps: [], near: [{ a: 'A', b: 'C', distance, from: [0, 0, 0], to: [0, distance, 0] }] }, minimum).findings.map((finding) => finding.kind === 'tight' && finding.gap);
     // The push fits of PLA for a 0.6, 0.25 and 0.2 mm nozzle (0.225, 0.094, 0.075 mm): built as the profile says, and
