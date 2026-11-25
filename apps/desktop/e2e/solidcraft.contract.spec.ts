@@ -1594,6 +1594,49 @@ test('a mesh over the 20 000 triangles PartBuddy converts is reduced first, conv
   }
 });
 
+test('Repair closes an imported part with a whole face missing: the hole is patched by hand where body.repair refuses', async () => {
+  test.setTimeout(240_000);
+  const { copyFileSync, mkdirSync, mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-repair-'));
+  const outside = join(work, 'outside');
+  mkdirSync(outside);
+  // The wall holder template as STEP with one face (F106) taken out: SolidCraft 0.49.0 refuses body.repair {patch_holes} on it.
+  copyFileSync(join(__dirname, '..', 'test', 'fixtures', 'step', 'wall-holder-open.step'), join(outside, 'Halter.step'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7967',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_START_PAGE: '1',
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page, app } = launched;
+  const bodies = page.getByTestId('structure-body');
+  const notice = page.getByTestId('notice');
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await app.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [path] });
+      dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
+    }, join(outside, 'Halter.step'));
+    await page.getByTestId('home-page').getByTestId('home-import').click();
+    await expect(page.getByTestId('design-name')).toHaveText('Halter', { timeout: 60_000 });
+    await expect(bodies).toHaveCount(1, { timeout: 30_000 });
+    // The print check finds it open, and the part offers Repair.
+    await bodies.first().getByTestId('structure-repair').click({ timeout: 60_000 });
+    await expect(notice).toContainText('is repaired and closed', { timeout: 120_000 });
+    await expect(bodies).toHaveCount(1, { timeout: 30_000 });
+    await expect(bodies.first().getByTestId('structure-repair')).toHaveCount(0, { timeout: 60_000 });
+    await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('repair-closed.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('versions are saved by name, before requests and at exports, compared with now and restored (B5)', async () => {
   test.setTimeout(240_000);
   const { existsSync, mkdtempSync, readFileSync, rmSync } = await import('node:fs');
