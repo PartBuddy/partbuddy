@@ -27,9 +27,9 @@ PartBuddy 0.1.0 is the first preview, for Windows 10 and 11.
    [latest release](https://github.com/PartBuddy/partbuddy/releases/latest) and run it. It installs
    for your user only and checks for updates through the releases page. The installer is not
    code-signed yet, so Windows SmartScreen warns once: choose "More info", then "Run anyway".
-2. **SolidCraft 0.48.1:** PartBuddy designs in the free SolidCraft CAD kernel. Install
-   [SolidCraft 0.48.1](https://github.com/tangency-labs/solidcraft/releases/tag/v0.48.1)
-   (`SolidCraft-0.48.1-windows-x64.exe`). PartBuddy needs 0.40.1 or newer; older versions,
+2. **SolidCraft 0.49.0:** PartBuddy designs in the free SolidCraft CAD kernel. Install
+   [SolidCraft 0.49.0](https://github.com/tangency-labs/solidcraft/releases/tag/v0.49.0)
+   (`SolidCraft-0.49.0-windows-x64.exe`). PartBuddy needs 0.40.1 or newer; older versions,
    the 0.40.0 pre-releases included, are refused.
 3. **An assistant:** your Claude subscription through [Claude Code](https://claude.com/claude-code),
    your ChatGPT subscription, a local model, or [OpenCode 2](https://opencode.ai) with GitHub Copilot

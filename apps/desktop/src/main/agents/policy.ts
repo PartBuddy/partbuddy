@@ -147,6 +147,9 @@ export const REFUSED_COMMANDS: Record<string, string> = {
   'timeline.add': 'puts in a recorded feature as raw data, which PartBuddy cannot check (it may hold a file to import). Build the feature with its own command instead.',
   // Audit H-03, decided by Manuel 2026-11-22: a feature that fails is mended, not switched off out of the check's sight; rollback and roll_to stay for edits.
   'timeline.suppress': "switches a feature off, and the print check no longer sees what it was meant to build. Whether a feature is left out is the user's choice in the timeline: mend a failing one or ask the user.",
+  // 0.49.0: the body keeps its shape, but its parameters and the blocks PartBuddy built on it no longer change it.
+  'body.remove_history':
+    "turns the body's features into one fixed shape: its parameters and PartBuddy's blocks no longer change it. Whether to drop a body's history is the user's choice; keep the features and ask the user.",
   'timeline.reorder': REORDER_REASON,
   'timeline.reorder_many': REORDER_REASON,
   // Measured with 0.40.1: {features: ["Base"], position: 4, active: false} put Base behind the marker, 2 bodies became 1.
@@ -209,6 +212,7 @@ const FILE_ARGUMENTS: Record<string, readonly string[]> = {
   'sketch.insert_svg': ['path'],
   'sketch.drawing_bounds': ['path'],
   'sketch.export_dxf': ['path'],
+  'sketch.export_svg': ['path'],
   'sketch.replace': ['file'],
   'sketch.text': ['font'],
   'sketch.edit_text': ['font'],
