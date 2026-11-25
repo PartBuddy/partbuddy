@@ -1629,6 +1629,11 @@ test('Repair closes an imported part with a whole face missing: the hole is patc
     await expect(notice).toContainText('is repaired and closed', { timeout: 120_000 });
     await expect(bodies).toHaveCount(1, { timeout: 30_000 });
     await expect(bodies.first().getByTestId('structure-repair')).toHaveCount(0, { timeout: 60_000 });
+    // The import's own warning that its shell is not closed is gone with the hole (printCheck.ts).
+    await page.getByTestId('print-check').click();
+    await expect(page.getByTestId('print-check-panel')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('print-check-panel')).not.toContainText('not closed', { timeout: 30_000 });
+    await page.keyboard.press('Escape');
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('repair-closed.png') });
   } finally {

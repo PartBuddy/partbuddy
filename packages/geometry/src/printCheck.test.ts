@@ -382,6 +382,14 @@ describe('the ready-to-print check (M7)', () => {
     expect(result.findings.map((f) => (f.kind === 'feature' ? `${f.severity}:${f.feature}` : f.kind))).toEqual(['block:Fillet1', 'leftOut', 'warn:Shell1']);
   });
 
+  it('leaves out an import warning that the shell is not closed once no body is open (after Repair, #590)', () => {
+    const imported = [{ name: 'wallHolder', error: null, warning: "solid 'Wall holder': imported as surfaces: the outer shell is not closed", suppressed: false, rolledBack: false }];
+    const closed = checkPrint([box('Block', [0, 0, 0], [40, 30, 10])], PLA, imported);
+    expect(closed.findings.filter((f) => f.kind === 'feature')).toEqual([]);
+    // Other warnings of a feature stay.
+    expect(checkPrint([box('Block', [0, 0, 0], [40, 30, 10])], PLA, [{ ...imported[0]!, warning: 'thin result' }]).findings.map((f) => f.kind)).toContain('feature');
+  });
+
   it('says which features are left out of the part: suppressed, or rolled back (audit H-03)', () => {
     const feature = (name: string, more: { error?: string; suppressed?: boolean; rolledBack?: boolean } = {}) => ({ name, error: more.error ?? null, warning: null, suppressed: more.suppressed ?? false, rolledBack: more.rolledBack ?? false });
     const block = box('Block', [0, 0, 0], [40, 30, 10]);

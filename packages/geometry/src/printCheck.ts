@@ -1070,6 +1070,14 @@ export function checkPrint(bodies: readonly PrintCheckBody[], profile: PrintChec
   if (faceless.length > 0) findings.push({ kind: 'noFaces', severity: 'warn', bodies: faceless.map((body) => body.name) });
   const open = shells.filter((body) => body.model.openEdges > 0);
   if (open.length > 0) findings.push({ kind: 'open', severity: 'block', bodies: open.map((body) => body.name) });
+  // An import's own warning that its shell is not closed goes stale once Repair has closed the part (#590): while no body
+  // is open it is left out ("imported as surfaces: the outer shell is not closed" stood beside "repaired and closed").
+  if (open.length === 0) {
+    for (let i = findings.length - 1; i >= 0; i -= 1) {
+      const finding = findings[i];
+      if (finding?.kind === 'feature' && finding.severity === 'warn' && /\bnot closed\b/i.test(finding.message)) findings.splice(i, 1);
+    }
+  }
   // A model that carries no count is taken as closed, not dropped from the check.
   const parts = shells.filter((body) => !(body.model.openEdges > 0));
   if (parts.length > 0) {
