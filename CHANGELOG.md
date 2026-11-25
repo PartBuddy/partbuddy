@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.3.14](https://github.com/PartBuddy/partbuddy/compare/v0.3.13...v0.3.14) (2026-11-25)
+
+
+### Features
+
+* **blocks:** put text and logos on a round wall through the form ([#589](https://github.com/PartBuddy/partbuddy/issues/589)) ([08b45ec](https://github.com/PartBuddy/partbuddy/commit/08b45ec901581f244478025a5488a821c29d85a9))
+* **blocks:** write text onto a round wall ([#585](https://github.com/PartBuddy/partbuddy/issues/585)) ([e648a2b](https://github.com/PartBuddy/partbuddy/commit/e648a2baef312bde282c4e0330d4fa0654cc1dcf))
+* **check:** warn of screw holes in two parts that nearly line up ([#586](https://github.com/PartBuddy/partbuddy/issues/586)) ([f6ac1c1](https://github.com/PartBuddy/partbuddy/commit/f6ac1c189e1cdbb67528552d56813de97808d5cb))
+* **import:** convert a mesh over SolidCraft's triangle limit to faces ([#588](https://github.com/PartBuddy/partbuddy/issues/588)) ([1fb5ec4](https://github.com/PartBuddy/partbuddy/commit/1fb5ec4463563e863bbe8c80a24514ed30db751a))
+
+
+### Bug Fixes
+
+* **assistant:** let undo go back several steps, keep snap off hinged lids ([#579](https://github.com/PartBuddy/partbuddy/issues/579)) ([2cb5c02](https://github.com/PartBuddy/partbuddy/commit/2cb5c0229ac379f0f06d7cd0b55dae0a5471b4f9))
+* **blocks:** lay round-wall text onto the wall, keep internal marks out of the answer ([#592](https://github.com/PartBuddy/partbuddy/issues/592)) ([812c627](https://github.com/PartBuddy/partbuddy/commit/812c627f6b55e23be80bfbc1a77a2052d8cd404d))
+* **blocks:** say when a text or logo does not fit on its face ([#581](https://github.com/PartBuddy/partbuddy/issues/581)) ([ca934cd](https://github.com/PartBuddy/partbuddy/commit/ca934cd16364238dc0c81ccfe26aafcc1fd198be))
+* **check:** count an upright round wall as wall, hide the sketch of round text ([#591](https://github.com/PartBuddy/partbuddy/issues/591)) ([5b9fb4d](https://github.com/PartBuddy/partbuddy/commit/5b9fb4d808de3ad8a3e32cb4e0adba4248e903a3))
+* **check:** drop the import's "shell not closed" warning once the part is closed ([#593](https://github.com/PartBuddy/partbuddy/issues/593)) ([e76df3a](https://github.com/PartBuddy/partbuddy/commit/e76df3a05e9f7471d7268f29e4f313fbaa32ebce))
+* **mechanism:** take a mechanism back when one of its cuts misses the part ([#584](https://github.com/PartBuddy/partbuddy/issues/584)) ([edeeca1](https://github.com/PartBuddy/partbuddy/commit/edeeca1e10d81f020706b7947efeb30aa9e0e4e8))
+* **repair:** patch the holes by hand where body.repair refuses ([#590](https://github.com/PartBuddy/partbuddy/issues/590)) ([7e01570](https://github.com/PartBuddy/partbuddy/commit/7e01570a9313b5824aa571998c3cb45f25895d3e))
+
 ## [0.3.13](https://github.com/PartBuddy/partbuddy/compare/v0.3.12...v0.3.13) (2026-11-23)
 
 
