@@ -34,7 +34,7 @@ try {
     const script = join(work, `${id}.json`);
     writeFileSync(script, JSON.stringify(templateSteps(id)));
     // Arguments as an array, no shell.
-    execFileSync(cli, ['snapshot', script, '--out', join(out, `${id}.png`), '--view', 'iso', '--width', '480', '--height', '360', '--no-grid', '--no-axes'], { stdio: 'inherit' });
+    execFileSync(cli, ['snapshot', script, '--out', join(out, `${id}.png`), '--view', 'iso', '--width', '480', '--height', '360', '--no-grid', '--no-axes', '--transparent'], { stdio: 'inherit' });
     console.log(`rendered ${id}`);
   }
 } finally {
