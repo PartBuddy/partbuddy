@@ -41,7 +41,7 @@ const blockTool: UpstreamTool = {
     'Build a function block on one body at a point of a flat face, sized from the standard tables: ' +
     'screwHole (clearance hole for a screw, with a counterbore for a socket head, a countersink, or plain), tappedHole (a modelled thread with room for printing, from M5), ' +
     'insertSeat (the seat of a heat-set insert, M2 to M6), nutTrap (a hexagonal pocket with its clearance hole), boss (a screw boss with an insert seat, standing on the face), ' +
-    'slot (a slot for a screw, to adjust), text (embossed or engraved; also on a round wall such as a cup or a handle: point on the wall, normal straight out of it, and it wraps round), lip (a lip or a groove on the rim of a shelled body), snapFit (a cantilever snap hook standing on the face). ' +
+    'slot (a slot for a screw, to adjust), text (embossed or engraved; also on a round wall such as a cup or a handle: point on the wall, normal straight out of it, and it wraps round; one text per round wall, SolidCraft refuses a second), lip (a lip or a groove on the rim of a shelled body), snapFit (a cantilever snap hook standing on the face). ' +
     'To hang a part on a wall: keyhole (a keyhole slot on the face against the wall, over a screw already in the wall; point is where the screw rests, normal points to the wall, up is the way up as the part hangs) ' +
     'or woodScrew (a countersunk hole for a wood screw, at a point of the face away from the wall); screw is the wood screw in mm, needed. ' +
     "To hold with magnets: magnet (a pocket for a disc magnet at a point of a face, normal out of that face; diameter and height are the magnet's as the user measured them, needed; hold glue to drop it in on a drop of glue, press to press it in). " +

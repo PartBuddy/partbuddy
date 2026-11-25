@@ -375,11 +375,13 @@ if (args[0] === '--version') {
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });
       continue;
     }
-    // "a named cup": a round cup with a name engraved into its wall and one raised on it, through PartBuddy's own text block.
+    // "a named cup": a round cup with a name engraved into its wall, and a mug with one raised on it, through PartBuddy's own text block.
+    // One text per round wall: SolidCraft 0.49.0 refuses a second emboss on a wall that already has one.
     if (content.includes('a named cup')) {
       await client.callTool({ name: 'execute', arguments: { command: 'solid.cylinder', params: { radius: 20, height: 60, operation: 'new', body_name: 'Cup' } } });
+      await client.callTool({ name: 'execute', arguments: { command: 'solid.cylinder', params: { radius: 15, height: 40, base: [60, 0, 0], operation: 'new', body_name: 'Mug' } } });
       const engraved = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'text', body: 'Cup', point: [0, -20, 40], normal: [0, -1, 0], text: 'Anna', mode: 'deboss' } });
-      const raised = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'text', body: 'Cup', point: [0, 20, 20], normal: [0, 1, 0], text: 'Tea', mode: 'emboss' } });
+      const raised = await client.callTool({ name: 'partbuddy_block', arguments: { block: 'text', body: 'Mug', point: [60, -15, 20], normal: [0, -1, 0], text: 'Tea', mode: 'emboss' } });
       await client.close();
       out({ type: 'assistant', message: { content: [{ type: 'text', text: [engraved, raised].flatMap((built) => (built.content ?? []).map((block) => block.text ?? '')).join(' ') }] } });
       out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 12 });

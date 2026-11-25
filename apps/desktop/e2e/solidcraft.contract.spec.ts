@@ -3836,7 +3836,7 @@ test('the assistant hangs a part on the wall with its blocks: keyhole slots on t
   }
 });
 
-test('the assistant writes a name into a round cup and raises another on it: the text wraps round the wall', async () => {
+test('the assistant writes a name into a round cup and raises one on a mug: the text wraps round the wall', async () => {
   test.setTimeout(240_000);
   const { mkdtempSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
@@ -3858,7 +3858,7 @@ test('the assistant writes a name into a round cup and raises another on it: the
     // SolidCraft 0.46 and later wrap an emboss onto a cylinder wall (solid.emboss face); both texts are built on the round wall.
     await expect(page.getByTestId('assistant-text').last()).toContainText(/Built[\s\S]*Anna[\s\S]*Built[\s\S]*Tea/, { timeout: 90_000 });
     await expect(page.getByTestId('assistant-text').last()).not.toContainText('Not built');
-    await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
     await expect(page.getByText(/SolidCraft warns:/)).toHaveCount(0);
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('named-cup.png') });
