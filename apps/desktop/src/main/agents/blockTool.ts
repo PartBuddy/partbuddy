@@ -927,7 +927,8 @@ function built(block: FeatureBlock, args: Record<string, unknown> = {}, printer:
   const standard = defaultBlock(kind, body, point, block.size, 'normal' in block ? block.normal : undefined, printer) as Record<string, unknown>;
   const listed = Object.entries(sizes)
     // A size is no screw's for text, a lip or a snap fit: it is not said.
-    .filter(([key, value]) => key !== 'normal' && key !== 'more' && (key !== 'size' || hasSize(kind)) && value !== undefined && value !== null)
+    // PartBuddy's own marks for a round wall (blocks.ts roundText, roundLogo) are no size either.
+    .filter(([key, value]) => key !== 'normal' && key !== 'more' && key !== 'round' && key !== 'profiles' && (key !== 'size' || hasSize(kind)) && value !== undefined && value !== null)
     // A standard size the printer cannot print was raised (blockOf): said so, with why (second review of PR 369).
     .map(([key, value]) => `${key} ${String(value)}${typeof value === 'number' && typeof standard[key] === 'number' && standard[key] !== value ? (key in args ? ` (standard ${String(standard[key])})` : ` (raised from the standard ${String(standard[key])} for the ${String(printer.nozzle)} mm nozzle)`) : ''}`)
     .join(', ');

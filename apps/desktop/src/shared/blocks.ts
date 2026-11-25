@@ -741,11 +741,45 @@ function hiddenSketch(name: string): Step {
   return { command: 'browser.visibility', params: { items: [name], visible: false } };
 }
 
-/** A text on a round wall (onRoundWall) gets `round`, so its sketch is hidden after it is embossed. */
+/**
+ * A text on a round wall gets `round`, so its sketch is hidden after it is embossed, and is laid exactly onto the wall: a
+ * point up to half a millimetre off it, as the assistant may give one, onto the cylinder, the normal straight out of it
+ * on the side the point is (wallOnto). The wall under it is then measured where it is built.
+ */
 export async function roundText(block: Extract<FeatureBlock, { block: 'text' }>, read: (steps: Step[]) => Promise<unknown[]>): Promise<Extract<FeatureBlock, { block: 'text' }>> {
   if (block.round) return block;
   const [faces] = await read([{ command: 'model.faces', params: { body: block.body } }]);
-  return onRoundWall(block.point, faces) ? { ...block, round: true } : block;
+  if (onRoundWall(block.point, faces)) return { ...block, round: true };
+  const onto = wallOnto(block.point, block.normal, faces);
+  return onto ? { ...block, ...onto, round: true } : block;
+}
+
+/**
+ * The point laid onto the round wall it lies within half a millimetre of, and the normal straight out of that wall on the
+ * side `normal` points to; null when no cylinder of `model.faces` is that close, or a flat face is (onRoundWall).
+ */
+export function wallOnto(point: Point, normal: Point, faces: unknown): { point: Point; normal: Point } | null {
+  const listed = (faces as { faces?: { cylinder?: { axis?: unknown; origin?: unknown; radius?: unknown } }[] } | null | undefined)?.faces ?? [];
+  const vec = (value: unknown): Point | null => (Array.isArray(value) && value.length === 3 && value.every((item) => typeof item === 'number' && Number.isFinite(item)) ? (value as Point) : null);
+  const dot = (a: Point, b: Point) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const r6 = (value: number) => Math.round(value * 1e6) / 1e6 + 0;
+  for (const face of listed) {
+    const [axisRaw, origin, radius] = [vec(face.cylinder?.axis), vec(face.cylinder?.origin), face.cylinder?.radius];
+    if (!axisRaw || !origin || typeof radius !== 'number') continue;
+    const length = Math.hypot(...axisRaw);
+    if (length < 1e-9) continue;
+    const axis = axisRaw.map((value) => value / length) as Point;
+    const away = point.map((value, i) => value - (origin[i] ?? 0)) as Point;
+    const along = dot(away, axis);
+    const out = away.map((value, i) => value - along * (axis[i] ?? 0)) as Point;
+    const reach = Math.hypot(...out);
+    if (reach < 1e-9 || Math.abs(reach - radius) > 0.5) continue;
+    const sign = dot(out, normal) < 0 ? -1 : 1;
+    const onWall = out.map((value, i) => r6((origin[i] ?? 0) + along * (axis[i] ?? 0) + (value / reach) * radius)) as Point;
+    if (!onRoundWall(onWall, faces)) continue;
+    return { point: onWall, normal: out.map((value) => r6((sign * value) / reach)) as Point };
+  }
+  return null;
 }
 
 /** A logo's sketch: a plane at its point and the drawing centred in it. */

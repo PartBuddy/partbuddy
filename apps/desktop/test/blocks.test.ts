@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BLOCK_KINDS, blockBodies, blockLimit, cutsThrough, defaultBlock, DEFAULT_PRINTER, hasSize, hookVector, limitSaid, logoFrom, materialProfiles, needsNormal, onRoundWall, planeAt, raisedBlock, roundLogo, roundText, sizesOf, snapStrain, stepsOf, textDepth, textStroke, throughReach, throughTrial, throughWall, type FeatureBlock } from '../src/shared/blocks';
+import { BLOCK_KINDS, blockBodies, blockLimit, cutsThrough, defaultBlock, DEFAULT_PRINTER, hasSize, hookVector, limitSaid, logoFrom, materialProfiles, needsNormal, onRoundWall, planeAt, raisedBlock, roundLogo, roundText, wallOnto, sizesOf, snapStrain, stepsOf, textDepth, textStroke, throughReach, throughTrial, throughWall, type FeatureBlock } from '../src/shared/blocks';
 import { SNAP } from '../src/shared/mechanisms';
 import { ROOT_FIT, rootApplied, rootFillet, rootGrowth, rootOutcome, rootSteps } from '../src/shared/blocks';
 import { CLEARANCE, CLEARANCE_NORMAL, headRoom, pilotHole, printedThread } from '../src/shared/screwSizes';
@@ -505,5 +505,17 @@ describe('a logo on a round wall (SolidCraft 0.49 solid.emboss on a cylinder)', 
     const flat = await roundText({ ...text, point: [0, 5, 60], normal: [0, 0, 1] }, () => Promise.resolve([faces]));
     expect(flat.round).toBeUndefined();
     expect(stepsOf(flat).at(-1)?.command).toBe('solid.emboss');
+  });
+
+  it('lays a text given a little off the round wall onto it, the normal straight out', async () => {
+    const text: Extract<FeatureBlock, { block: 'text' }> = { block: 'text', body: 'Cup', point: [0.3, -20.3, 30], normal: [0, -1, 0], size: 'M3', text: 'Anna', height: 6, depth: 0.6, mode: 'deboss', bold: false };
+    const placed = await roundText(text, () => Promise.resolve([faces]));
+    expect(placed.round).toBe(true);
+    expect(Math.hypot(placed.point[0], placed.point[1])).toBeCloseTo(20, 5);
+    expect(placed.point[2]).toBe(30);
+    expect(Math.hypot(...placed.normal)).toBeCloseTo(1, 5);
+    expect(placed.normal[1]).toBeLessThan(-0.99);
+    // A millimetre off is no point on the wall: left as given.
+    expect(wallOnto([0, -21.5, 30], [0, -1, 0], faces)).toBeNull();
   });
 });
