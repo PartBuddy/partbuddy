@@ -744,6 +744,7 @@
       "fillet": "The radius is too large for this edge – try a smaller value.",
       "chamfer": "The chamfer is too wide for this edge – try a smaller value.",
       "boolean": "The shape cannot be joined to the part like this – move it or make it smaller.",
+      "offFace": "It does not fit on the face there – centre it on the face or make it smaller.",
       "other": "SolidCraft cannot build it like this – try another value.",
       "details": "Details"
     },
@@ -788,6 +789,7 @@
     "repairOpen": "{name} was repaired but is still open. The print check shows where.",
     "repairRefused": "{name} could not be repaired: {detail}",
     "convertChange": "Volume: {change} %.",
+    "convertReduced": "The mesh had {from} triangles; PartBuddy converts at most {to}, so that the part can still be shown and checked. A copy reduced to {to} was converted as {name} and the original mesh removed.",
     "openMesh": "{name} is not closed, so SolidCraft cannot turn it into faces. It can still be exported; the slicer repairs small holes itself.",
     "standardPart": "standard part",
     "bodiesTitle": "Bodies",
@@ -1342,6 +1344,7 @@
       "overlap": "{a} and {b} overlap by {volume} mm³ – as separate parts they do not go together; combine them if they are one part",
       "tight": "{a} and {b} come within {gap} mm without touching – under the push fit of {minimum} mm per side, they only go together with force",
       "tightInPlace": "{a} and {b} print as one piece and move against each other, but come within {gap} mm – under the print-in-place gap of {minimum} mm they fuse there in the print",
+      "holesOffset": "The {diameter} mm holes in {a} and {b} are {offset} mm off one line – a screw through both does not pass",
       "blocked": "{joint}: {a} and {b} touch at {at} – the joint does not reach its limit of {limit}",
       "blockedFree": "{joint}: {a} and {b} touch at {at} – the joint has no limit that way and stops there",
       "posed": "{joint} stands at {value}, not as designed – the part is exported and checked the way it stands",

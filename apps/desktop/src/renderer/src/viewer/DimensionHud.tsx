@@ -1,6 +1,6 @@
 import { parseTagged3mf } from '@partbuddy/geometry';
 import { IconBolt, IconChevronDown, IconChevronUp, IconNote, IconSparkles, IconX } from '@tabler/icons-react';
-import { BlockPanel, flatFace } from './BlockPanel';
+import { BlockPanel, blockFace, flatFace } from './BlockPanel';
 import { LogoPanel, logoTitleOf, useLogoSpot } from './LogoPanel';
 import { actionsFor } from './actionKinds';
 import { PartPanel } from './PartPanel';
@@ -378,15 +378,18 @@ function HudCard({ bodies, selection, picks }: { bodies: BodyModel[]; selection:
               <ActionPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
             </DockGroup>
           ) : null}
-          {logo === null && flatFace(bodies, picks) ? (
+          {logo === null && blockFace(bodies, picks) ? (
             <>
               <DockGroup title={t('hud.group.add')}>
                 <BlockPanel bodies={bodies} picks={picks} busy={busy} onGhost={setActionGhost} />
-                <PartPanel bodies={bodies} picks={picks} busy={busy} />
+                {/* A part and a print face want a flat face; a round wall takes text and logos only. */}
+                {flatFace(bodies, picks) ? <PartPanel bodies={bodies} picks={picks} busy={busy} /> : null}
               </DockGroup>
-              <DockGroup title={t('hud.group.print')}>
-                <PrintFaceButton bodies={bodies} picks={picks} busy={busy} />
-              </DockGroup>
+              {flatFace(bodies, picks) ? (
+                <DockGroup title={t('hud.group.print')}>
+                  <PrintFaceButton bodies={bodies} picks={picks} busy={busy} />
+                </DockGroup>
+              ) : null}
             </>
           ) : null}
         </div>

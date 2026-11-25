@@ -744,6 +744,7 @@
       "fillet": "Der Radius ist für diese Kante zu groß – probier einen kleineren Wert.",
       "chamfer": "Die Fase ist für diese Kante zu breit – probier einen kleineren Wert.",
       "boolean": "Die Form lässt sich so nicht mit dem Teil verbinden – verschieb oder verkleinere sie.",
+      "offFace": "Das passt dort nicht auf die Fläche – zentrier es auf der Fläche oder mach es kleiner.",
       "other": "SolidCraft kann das so nicht bauen – probier einen anderen Wert.",
       "details": "Details"
     },
@@ -788,6 +789,7 @@
     "repairOpen": "{name} wurde repariert, ist aber noch offen. Die Druckprüfung zeigt, wo.",
     "repairRefused": "{name} ließ sich nicht reparieren: {detail}",
     "convertChange": "Volumen: {change} %.",
+    "convertReduced": "Das Netz hatte {from} Dreiecke; PartBuddy wandelt höchstens {to} um, damit das Teil noch angezeigt und geprüft werden kann. Eine auf {to} ausgedünnte Kopie wurde als {name} umgewandelt und das ursprüngliche Netz entfernt.",
     "openMesh": "{name} ist nicht geschlossen, deshalb kann SolidCraft es nicht in Flächen umwandeln. Exportieren geht trotzdem; kleine Löcher repariert der Slicer selbst.",
     "standardPart": "Normteil",
     "bodiesTitle": "Körper",
@@ -1342,6 +1344,7 @@
       "overlap": "{a} und {b} überschneiden sich um {volume} mm³ – als getrennte Teile passen sie so nicht zusammen; gehören sie zu einem Teil, vereinen",
       "tight": "{a} und {b} kommen sich bis auf {gap} mm nahe, ohne sich zu berühren – unter der Steckpassung von {minimum} mm je Seite gehen sie nur mit Kraft zusammen",
       "tightInPlace": "{a} und {b} werden in einem Stück gedruckt und bewegen sich gegeneinander, kommen sich aber bis auf {gap} mm nahe – unter dem Print-in-Place-Spalt von {minimum} mm verschmelzen sie dort im Druck",
+      "holesOffset": "Die {diameter}-mm-Löcher in {a} und {b} liegen {offset} mm neben einer Linie – eine Schraube geht nicht durch beide",
       "blocked": "{joint}: {a} und {b} stoßen bei {at} aneinander – das Gelenk erreicht seine Grenze von {limit} nicht",
       "blockedFree": "{joint}: {a} und {b} stoßen bei {at} aneinander – das Gelenk hat in diese Richtung keine Grenze und bleibt dort stehen",
       "posed": "{joint} steht auf {value}, nicht wie konstruiert – exportiert und geprüft wird diese Stellung",

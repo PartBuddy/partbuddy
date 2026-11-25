@@ -268,7 +268,8 @@ export const repairRequestSchema = z.object({ body: z.string().min(1).max(200) }
 /** How a conversion went: done, a mesh that is not closed (SolidCraft converts only closed meshes), or SolidCraft's own reason. */
 export const repairResultSchema = z.discriminatedUnion('ok', [
   // `change`: how much the volume changed, in per cent, when it was measured before and after (audit S-28).
-  z.object({ ok: z.literal(true), change: z.number().optional() }).strict(),
+  // `reduced`: the mesh had more triangles than SolidCraft converts, so a copy reduced to `to` was converted as `body`.
+  z.object({ ok: z.literal(true), change: z.number().optional(), reduced: z.object({ from: z.number().int().positive(), to: z.number().int().positive(), body: z.string().max(200) }).strict().optional() }).strict(),
   z.object({ ok: z.literal(false), reason: z.enum(['openMesh', 'other']), detail: z.string().max(500) }).strict(),
 ]);
 
@@ -939,6 +940,8 @@ export const featureBlockSchema = z.discriminatedUnion('block', [
       colours: z.boolean().optional(),
       // Onto the middle of the face the point is on, instead of at the point.
       centre: z.boolean().optional(),
+      // On a round wall: the sketch profiles that are material, embossed onto the wall (roundLogo, blocks.ts).
+      profiles: z.array(z.number().int().nonnegative()).min(1).max(10_000).optional(),
     })
     .strict(),
   z
@@ -1012,6 +1015,8 @@ export const clearanceResultSchema = z
   .object({
     overlaps: z.array(z.object({ a: bodyName, b: bodyName, volume: finite.nonnegative(), box: boxSchema }).strict()).max(100),
     near: z.array(z.object({ a: bodyName, b: bodyName, distance: finite.nonnegative(), from: point3, to: point3 }).strict()).max(100),
+    /** Holes of two touching bodies that nearly line up (`inspect.hole_stacks`, SolidCraft 0.49 and later). */
+    offsetHoles: z.array(z.object({ a: bodyName, b: bodyName, offset: finite.nonnegative(), diameter: finite.nonnegative(), at: point3 }).strict()).max(100).optional(),
     /** Bodies SolidCraft left out of the measure (a mesh body): nothing is known of their clearance. */
     unchecked: z.array(bodyName).max(200).optional(),
     /** Pairs SolidCraft did not finish measuring (its time budget ran out): the measure is not whole. */
@@ -1299,6 +1304,7 @@ export const printFindingSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('faceLost'), severity: findingSeveritySchema, bodies: z.array(z.string().max(200)).min(1).max(20) }).strict(),
   z.object({ kind: z.literal('overlap'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), volume: finite.nonnegative(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('tight'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), gap: mmValue, minimum: mmValue, inPlace: z.literal(true).optional(), places: findingPlacesSchema }).strict(),
+  z.object({ kind: z.literal('holesOffset'), severity: findingSeveritySchema, bodies: z.tuple([bodyName, bodyName]), offset: mmValue, diameter: mmValue, places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('blocked'), severity: findingSeveritySchema, joint: z.string().max(200), bodies: z.tuple([bodyName, bodyName]), at: finite, limit: finite, unit: z.enum(['deg', 'mm']), free: z.literal(true).optional(), places: findingPlacesSchema }).strict(),
   z.object({ kind: z.literal('posed'), severity: findingSeveritySchema, joint: z.string().max(200), value: finite, unit: z.enum(['deg', 'mm']) }).strict(),
   z.object({ kind: z.literal('leftOut'), severity: findingSeveritySchema, rolledBack: z.boolean(), features: z.array(z.string().max(200)).min(1).max(40) }).strict(),

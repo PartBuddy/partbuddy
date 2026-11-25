@@ -108,6 +108,8 @@ function line(finding: Finding, nozzle: number): string {
       return finding.inPlace
         ? `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} print as one piece and move against each other, but come within ${mm(finding.gap)} of each other, under the print-in-place gap of ${mm(finding.minimum)} for this nozzle: they fuse there in the print and do not move. Widen the gap there.`
         : `- ${tag}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} come within ${mm(finding.gap)} of each other without touching, under the push fit of ${mm(finding.minimum)} per side for this nozzle (as in the print profile); they only go together with force. Widen the gap unless that is meant.`;
+    case 'holesOffset':
+      return `- ${tag}: a hole of ${mm(finding.diameter)} in body ${JSON.stringify(finding.bodies[0])} and one in body ${JSON.stringify(finding.bodies[1])} nearly line up where the bodies touch, but their axes are ${mm(finding.offset)} apart: a screw through both does not pass. Put them on one line unless that is meant.`;
     case 'blocked':
       return finding.free
         ? `- ${tag}: joint ${JSON.stringify(finding.joint)} has no limit that way and stops at ${String(finding.unit === 'deg' ? withinTurn(finding.at) : finding.at)} ${finding.unit}: bodies ${finding.bodies.map((body) => JSON.stringify(body)).join(' and ')} touch there. Make room where they touch, or set its limits with joint.limits if that is the stop you mean.`

@@ -386,6 +386,39 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     expect(depth).toBe(3);
   });
 
+  // H-09: SolidCraft 0.49.0 names no changed body for a cut that misses; only a web's room (◤) may miss.
+  it('takes everything back when a cut misses the part, but lets a web room miss', async () => {
+    const build = async (missing: (name: string) => boolean) => {
+      let depth = 3;
+      const upstream: UpstreamTools = {
+        instructions: () => undefined,
+        listTools: () => Promise.resolve([]),
+        callTool: (name, args) => {
+          if (name === 'inspect_design') return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ bodies: [{ name: 'Box' }, { name: 'Lid' }], undo: 3 }) }] });
+          const commands = args.commands as { command: string; params: { operation?: string; name?: string } }[];
+          if (commands.some((step) => step.params.operation === 'join')) depth = 11;
+          depth -= commands.filter((step) => step.command === 'edit.undo').length;
+          const results = commands.map((step) =>
+            step.command === 'document.inspect'
+              ? { bodies: ['Box', 'Lid'], timeline: Array.from({ length: depth }, (_, i) => ({ id: i + 1 })), undo: depth }
+              : step.command === 'inspect.clearance'
+                ? trial(step, { x: 0 })
+                : step.params.operation === 'cut' && missing(String(step.params.name))
+                  ? { changed_bodies: [], warning: null }
+                  : { count: 0, warning: null },
+          );
+          return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify({ results }) }] });
+        },
+      };
+      return withMechanismTool(upstream, () => 0.4).callTool('partbuddy_mechanism', { kind: 'hinge', fixed: 'Box', moving: 'Lid', from: [0, 0, 3], to: [0, 48, 3] });
+    };
+    const missed = await build((name) => name.endsWith('○'));
+    expect(missed.isError).toBe(true);
+    expect(JSON.stringify(missed.content[0])).toContain('cut nothing away: the mechanism missed the part there.');
+    expect(JSON.stringify(missed.content[0])).toContain('Everything was taken back.');
+    expect(JSON.stringify((await build((name) => name.endsWith('◤'))).content[0])).not.toContain('cut nothing away');
+  });
+
   // Audit 2026-11-12, H-02: the joint was refused after the knuckles were built, the answer said "Not built" with
   // SolidCraft's JSON, and the knuckles stayed (2 → 11 features; the next call built them again).
   it('takes the knuckles back when the joint cannot be made, and passes on SolidCraft\'s reason in one sentence', async () => {
@@ -510,6 +543,8 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
           const results = commands.map((step) => {
             if (step.command === 'inspect.measure') return { bodies: [{ bbox: { min: [0, 0, 0] } }, { bbox: { min: [45, 0, 0] } }] };
             if (step.command === 'component.list') return { components: [{ id: 3, parent: 0, bodies: ['Base'], occurrences: [{ id: 4, name: 'Base:1' }] }, { id: 5, parent: 0, bodies: ['Flap'], occurrences: [{ id: 6, name: 'Flap:1' }] }] };
+            // SolidCraft 0.48.1 on a web's room that misses the other body.
+            if (step.command === 'solid.extrude' && String(step.params.name).endsWith('◤')) return { warning: 'the cut removes no material; check where its profile lies, the direction and the distance' };
             if (step.command !== 'inspect.clearance') return {};
             // The second trial: each rod lies in its body where that body has a wall under the web's foot (a rod 0.2 mm thick and 30 mm long is 0.942 mm³).
             // Without walls (null) SolidCraft gives no answer to it. The rods behind the knuckles' rooms lie in their blocks.
@@ -527,6 +562,7 @@ describe('the print-in-place hinge (ADR 0027, G3)', () => {
     const both = await answer(['Base', 'Flap']);
     expect(both.webs).toEqual(['Base', 'Flap', 'Base', 'Flap', 'Base']);
     expect(both.text).toContain(' All 5 knuckles start above the bed and stand on webs at 45° that run from under the barrel down to their own wall, and the pin is flat underneath where it bridges from knuckle to knuckle, so the hinge prints as it stands, without support. ');
+    expect(both.text).not.toContain('SolidCraft warns');
     // Each rod lies 0.25 mm inside its wall and 0.2 mm under the web's foot, 6.743 mm below the line: at z = 9.057.
     const rods = both.sent.filter((step) => String(step.params.body_name).startsWith('PartBuddy probe ') && (step.params.base as number[])[2] !== 16);
     expect(rods.map((step) => (step.params.base as number[]).map((value) => Math.round(value * 1000) / 1000))).toEqual([[39.75, 0, 9.057], [45.25, 0, 9.057]]);

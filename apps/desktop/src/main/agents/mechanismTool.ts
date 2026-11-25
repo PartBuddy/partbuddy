@@ -557,19 +557,30 @@ async function build(site: Site, spec: { fixed: string; moving: string; name: st
     if (made.length === 0 || step.params.operation === 'new' || step.command === 'parts.insert') continue;
     throw new Error(`the step ${JSON.stringify(step.params.name ?? step.command)} cut ${JSON.stringify((step.params.targets as unknown[] | undefined)?.[0] ?? step.params.body ?? 'a body')} apart (${made.map((name) => JSON.stringify(name)).join(', ')} came of it): the body is too thin or too small where the mechanism goes.`);
   }
-  const warnings = built.flatMap((result) => {
+  const warnings = built.flatMap((result, i) => {
     const warning = (result as { warning?: unknown } | undefined)?.warning;
-    return typeof warning === 'string' && warning.trim() !== '' ? [warning] : [];
+    if (typeof warning !== 'string' || warning.trim() === '') return [];
+    // A hinge web's room (◤) cuts nothing where the web misses the other body; SolidCraft 0.48 warns of such a cut.
+    // shortcut: known by SolidCraft's wording (0.48.1); should it change, the warning reaches the model again.
+    if (String(sent[i]?.params.name).endsWith('◤') && warning.includes('removes no material')) return [];
+    return [warning];
   });
   // shortcut: loose pieces are known by SolidCraft's wording (0.40.1); should it change, the warning still reaches the model below, but nothing is taken back. Count each body's pieces then.
   const apart = warnings.filter((warning) => warning.includes('separate pieces')).length;
   if (apart > 0) throw new Error(`${String(apart)} piece(s) did not touch their body and stand apart from it. ${where}`);
+  // H-09: a cut that changed no body missed it (measured with 0.49.0: box and cylinder cuts say nothing else, an extrusion warns too).
+  // A hinge web's room (◤) misses by design where the web misses the other body. An answer without changed_bodies is not judged.
+  const missed = sent.flatMap((step, i) => {
+    const changed = (built[i] as { changed_bodies?: unknown } | undefined)?.changed_bodies;
+    return step.params.operation === 'cut' && Array.isArray(changed) && changed.length === 0 && !String(step.params.name).endsWith('◤') ? [JSON.stringify(step.params.name ?? step.command)] : [];
+  });
+  if (missed.length > 0) throw new Error(`the step(s) ${missed.join(', ')} cut nothing away: the mechanism missed the part there. ${where}`);
   // Bodies that share volume are a fault, not a warning (audit W26: a lid pushed 0.5 mm into its box was built and kept).
   const [clash] = await run([{ command: 'inspect.interference', params: { bodies: [spec.fixed, spec.moving] } }]);
   const after = overlapOf(clash);
   if (after.count > 0) throw new Error(`after the build ${spec.fixed} and ${spec.moving} share volume${after.volume > 0 ? ` (${String(after.volume)} mm³)` : ''}: the mechanism runs into the other body. Make room between them (inspect.interference shows where), then call again`);
   // Every other warning of SolidCraft's goes on as it said it (audit H-09: all but the loose pieces were dropped).
-  // shortcut: no step is checked to have cut or added anything (H-09); a hinge's web room cuts nothing where the web misses the other body, so a per-step volume check needs to know which steps must hit first.
+  // shortcut: a join is not checked to have added anything (H-09): SolidCraft names the body as changed even when the join lies wholly inside it (0.49.0); measure its volume if that turns up.
   const said = [...new Set(warnings)].map((warning) => warning.slice(0, 200));
   const unchecked = after.unchecked ? ` SolidCraft could not check whether ${spec.fixed} and ${spec.moving} overlap.` : '';
   return `${unchecked}${said.length > 0 ? ` SolidCraft warns: ${said.join(' ')}` : ''}`;

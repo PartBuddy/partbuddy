@@ -1529,6 +1529,71 @@ test('a STEP file becomes a project, meshes are inserted into it, converted to f
   }
 });
 
+test('a mesh over the 20 000 triangles PartBuddy converts is reduced first, converted, and says so', async () => {
+  test.setTimeout(300_000);
+  const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-bigmesh-'));
+  const outside = join(work, 'outside');
+  mkdirSync(outside);
+  // A closed ball of 30 mm radius as binary STL: 200 segments round, 200 rings, 79 600 triangles.
+  const [S, R, r] = [200, 200, 30];
+  // The poles and the seam exactly on one point each, or SolidCraft reads the mesh as open (sin π is 1e-16, not 0).
+  const at = (ring: number, seg: number): number[] => {
+    if (ring === 0 || ring === R) return [0, 0, ring === 0 ? 2 * r : 0];
+    const [phi, theta] = [(Math.PI * ring) / R, (2 * Math.PI * (seg % S)) / S];
+    return [r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r + r * Math.cos(phi)];
+  };
+  const faces: number[][][] = [];
+  for (let ring = 0; ring < R; ring++) {
+    for (let seg = 0; seg < S; seg++) {
+      const [a, b, c, d] = [at(ring, seg), at(ring, seg + 1), at(ring + 1, seg + 1), at(ring + 1, seg)];
+      if (ring > 0) faces.push([a, d, b]);
+      if (ring < R - 1) faces.push([b, d, c]);
+    }
+  }
+  const stl = Buffer.alloc(84 + 50 * faces.length);
+  stl.writeUInt32LE(faces.length, 80);
+  faces.forEach((face, i) => face.forEach((point, k) => point.forEach((value, j) => stl.writeFloatLE(value, 84 + 50 * i + 12 + 12 * k + 4 * j))));
+  writeFileSync(join(outside, 'Kugel.stl'), stl);
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7965',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_START_PAGE: '1',
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page, app } = launched;
+  const bodies = page.getByTestId('structure-body');
+  const notice = page.getByTestId('notice');
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await app.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [path] });
+      dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
+    }, join(outside, 'Kugel.stl'));
+    await page.getByTestId('home-page').getByTestId('home-import').click();
+    await expect(page.getByTestId('design-name')).toHaveText('Kugel', { timeout: 60_000 });
+    await page.getByTestId('notice-close').click();
+    await expect(bodies).toHaveCount(1, { timeout: 30_000 });
+    await expect(bodies.first()).toContainText('mesh');
+    await bodies.first().getByTestId('structure-convert').click();
+    // Over 20 000 triangles PartBuddy reduces a copy first (the faces of more do not come through the mirror) and removes the original.
+    await expect(notice).toContainText('now has faces', { timeout: 180_000 });
+    await expect(notice).toContainText(/had 79,600 triangles; PartBuddy converts at most 20,000/);
+    await expect(notice).toContainText(/Volume: [-+−]?0(\.\d+)? %\./);
+    await expect(bodies).toHaveCount(1, { timeout: 30_000 });
+    await expect(bodies.first()).not.toContainText('mesh', { timeout: 30_000 });
+    await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('big-mesh-converted.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('versions are saved by name, before requests and at exports, compared with now and restored (B5)', async () => {
   test.setTimeout(240_000);
   const { existsSync, mkdtempSync, readFileSync, rmSync } = await import('node:fs');
@@ -1900,7 +1965,8 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     await page.evaluate(() => (globalThis as unknown as Bridge).partbuddy.design.applyAction({ action: 'shell', body: 'Body1', points: [[10, 10, 10]], size: 3 }));
     await expect(page.getByTestId('timeline-feature')).toHaveCount(2, { timeout: 30_000 });
     const blocks = [
-      { block: 'text', body: 'Body1', point: [10, 0, 5], normal: [0, -1, 0], size: 'M3', text: 'PB', height: 4, depth: 0.6, mode: 'deboss', bold: true, font: 'Georgia' },
+      // On the back: the front stays free for the text through the form (SolidCraft 0.48 refuses a text over another one's pocket).
+      { block: 'text', body: 'Body1', point: [10, 20, 5], normal: [0, 1, 0], size: 'M3', text: 'PB', height: 4, depth: 0.6, mode: 'deboss', bold: true, font: 'Georgia' },
       { block: 'nutTrap', body: 'Body1', point: [10, 10, 0], normal: [0, 0, -1], size: 'M2', flats: 4.3, depth: 2 },
       { block: 'slot', body: 'Body1', point: [20, 10, 5], normal: [1, 0, 0], size: 'M3', length: 6, width: 3.4, depth: 3, along: 'x' },
       { block: 'lip', body: 'Body1', point: [1.5, 10, 10], size: 'M3', type: 'lip', width: 1.2, height: 2, gap: 0.2 },
@@ -1933,6 +1999,8 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     }, 'a flat face of the case and its form').toPass({ timeout: 45_000, intervals: [500] });
     await page.getByTestId('block-tile-text').click();
     await expect(page.getByTestId('block-size')).toHaveCount(0);
+    // In the face's middle: the pick can land near an edge, and SolidCraft 0.48 refuses a text that runs off its face.
+    await page.getByTestId('block-centre-both').click();
     await page.getByTestId('block-text').getByRole('textbox').fill('UI');
     // Bold capitals 3 mm high have strokes of 0.61 mm, under the two nozzle widths (0.8 mm) a stroke needs on the 0.4 mm
     // nozzle (printProfiles.ts; stroke share of Arial bold measured 2026-11-13): the form refuses them and says why.
@@ -1940,6 +2008,12 @@ test('sketched blocks and a lip are previewed and built: text, nut trap, slot, l
     await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'false', { timeout: 60_000 });
     await expect(page.getByTestId('block-status')).toContainText('Bold capitals 3 mm high have strokes 0.61 mm wide, under the 0.8 mm (two nozzle widths) a stroke needs on the 0.4 mm nozzle: give a height of 4 mm or more.');
     await page.getByTestId('block-height').getByRole('textbox').fill('4');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
+    // Moved to 1 mm from the face's edge, the text runs off it: the form says so and what helps (SolidCraft 0.48 refuses it).
+    await page.getByTestId('block-x').getByRole('textbox').fill('9');
+    await page.getByTestId('block-x').getByRole('textbox').press('Tab');
+    await expect(page.getByTestId('block-status')).toContainText('It does not fit on the face there – centre it on the face or make it smaller.', { timeout: 60_000 });
+    await page.getByTestId('block-centre-both').click();
     await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
     await page.screenshot({ path: test.info().outputPath('block-form-text.png') });
     await page.getByTestId('block-apply').click();
@@ -3821,6 +3895,96 @@ test('the assistant hangs a part on the wall with its blocks: keyhole slots on t
     await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
     await expect(page.getByTestId('print-check')).not.toHaveAttribute('data-status', 'block', { timeout: 30_000 });
     await page.screenshot({ path: test.info().outputPath('wall-plate-built.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
+test('the assistant writes a name into a round cup and raises one on a mug: the text wraps round the wall', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-cup-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7964',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a named cup');
+    await page.getByRole('button', { name: 'Send' }).click();
+    // SolidCraft 0.46 and later wrap an emboss onto a cylinder wall (solid.emboss face); both texts are built on the round wall.
+    await expect(page.getByTestId('assistant-text').last()).toContainText(/Built[\s\S]*Anna[\s\S]*Built[\s\S]*Tea/, { timeout: 90_000 });
+    await expect(page.getByTestId('assistant-text').last()).not.toContainText('Not built');
+    await expect(page.getByTestId('mesh-summary')).toContainText('2 bodies', { timeout: 30_000 });
+    await expect(page.getByText(/SolidCraft warns:/)).toHaveCount(0);
+    await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('named-cup.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
+test('the form puts text and a logo on a round wall: only those two are offered, and the logo keeps its hole', async () => {
+  test.setTimeout(240_000);
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-roundform-'));
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7966',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+    PARTBUDDY_CLAUDE_COMMAND: JSON.stringify([process.execPath, join(__dirname, '..', 'test', 'fakeClaude.mjs')]),
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page } = launched;
+  // A ring with a dot in its hole: as engraved, the ring and the dot are cut, the hole between them stays.
+  const ring = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path fill-rule='evenodd' d='M50 5a45 45 0 1 0 0.001 0zM50 30a20 20 0 1 0 0.001 0z M50 42a8 8 0 1 0 0.001 0z'/></svg>";
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Message to the assistant' }).fill('Build a plain cup');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
+    await turnEnded(page);
+    await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'saved', { timeout: 30_000 });
+    await page.waitForTimeout(1000);
+    const box = await page.getByTestId('viewport').boundingBox();
+    if (!box) throw new Error('viewport not visible');
+    // A round wall offers text and logo only: no "More …", no part and no print face.
+    const spots = [[0.45, 0.65], [0.55, 0.65], [0.5, 0.7], [0.4, 0.6], [0.6, 0.6]] as const;
+    let spot = 0;
+    await expect(async () => {
+      const [x, y] = spots[spot++ % spots.length] ?? [0.5, 0.65];
+      await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
+      await expect(page.getByTestId('block-tile-text')).toBeVisible({ timeout: 1000 });
+      await expect(page.getByTestId('action-block')).toHaveCount(0);
+    }, 'the round wall of the cup and its tiles').toPass({ timeout: 45_000, intervals: [500] });
+    await expect(page.getByTestId('block-tile-screwHole')).toHaveCount(0);
+    await page.getByTestId('block-tile-text').click();
+    await page.getByTestId('block-text').getByRole('textbox').fill('Anna');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
+    await page.screenshot({ path: test.info().outputPath('round-wall-text.png') });
+    // One emboss per round wall (SolidCraft 0.49.0): the logo is built, the text only previewed.
+    await page.getByTestId('block-tile-logo').click();
+    await page.getByTestId('block-logo').locator('input[type=file]').setInputFiles({ name: 'ring.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(ring) });
+    await expect(page.getByTestId('block-logo-name')).toHaveText('ring');
+    await page.getByTestId('block-width').getByRole('textbox').fill('12');
+    await expect(page.getByTestId('block-status')).toHaveAttribute('data-ok', 'true', { timeout: 60_000 });
+    await page.getByTestId('block-apply').click();
+    await expect(page.getByTestId('step-text').and(page.getByText(/^Logo “ring”/))).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 30_000 });
+    await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('round-wall-logo.png') });
   } finally {
     await launched.close();
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
