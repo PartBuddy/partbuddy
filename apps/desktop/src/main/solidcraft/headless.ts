@@ -16,6 +16,8 @@ import type { ControlRequester } from './mirror';
 
 /** Rebuilds of large parts take minutes; the SDK's default request timeout is one minute. */
 const LONG_TIMEOUT_MS = 10 * 60 * 1000;
+/** The longest reply line taken from the engine, as the CLI calls allow (`maxBuffer` 64 MiB). */
+const MAX_REPLY_BYTES = 64 * 1024 * 1024;
 const SHORT_TIMEOUT_MS = 30_000;
 const CLOSE_WAIT_MS = 3000;
 
@@ -89,6 +91,8 @@ export class HeadlessEngine {
       args,
       env: Object.fromEntries(Object.entries(options.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string')),
       stderr: 'ignore',
+      // The SDK closes the connection on a line over 10 MiB; a mirror of a converted mesh of 20 000 triangles is 11.4 MB.
+      maxBufferSize: MAX_REPLY_BYTES,
     });
     const client = new Client({ name: 'partbuddy', version: '0.1.0' });
     await client.connect(transport);

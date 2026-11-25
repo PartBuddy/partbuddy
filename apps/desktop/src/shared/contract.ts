@@ -268,7 +268,8 @@ export const repairRequestSchema = z.object({ body: z.string().min(1).max(200) }
 /** How a conversion went: done, a mesh that is not closed (SolidCraft converts only closed meshes), or SolidCraft's own reason. */
 export const repairResultSchema = z.discriminatedUnion('ok', [
   // `change`: how much the volume changed, in per cent, when it was measured before and after (audit S-28).
-  z.object({ ok: z.literal(true), change: z.number().optional() }).strict(),
+  // `reduced`: the mesh had more triangles than SolidCraft converts, so a copy reduced to `to` was converted as `body`.
+  z.object({ ok: z.literal(true), change: z.number().optional(), reduced: z.object({ from: z.number().int().positive(), to: z.number().int().positive(), body: z.string().max(200) }).strict().optional() }).strict(),
   z.object({ ok: z.literal(false), reason: z.enum(['openMesh', 'other']), detail: z.string().max(500) }).strict(),
 ]);
 

@@ -1529,6 +1529,71 @@ test('a STEP file becomes a project, meshes are inserted into it, converted to f
   }
 });
 
+test('a mesh over the 20 000 triangles PartBuddy converts is reduced first, converted, and says so', async () => {
+  test.setTimeout(300_000);
+  const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const work = mkdtempSync(join(tmpdir(), 'partbuddy-bigmesh-'));
+  const outside = join(work, 'outside');
+  mkdirSync(outside);
+  // A closed ball of 30 mm radius as binary STL: 200 segments round, 200 rings, 79 600 triangles.
+  const [S, R, r] = [200, 200, 30];
+  // The poles and the seam exactly on one point each, or SolidCraft reads the mesh as open (sin π is 1e-16, not 0).
+  const at = (ring: number, seg: number): number[] => {
+    if (ring === 0 || ring === R) return [0, 0, ring === 0 ? 2 * r : 0];
+    const [phi, theta] = [(Math.PI * ring) / R, (2 * Math.PI * (seg % S)) / S];
+    return [r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r + r * Math.cos(phi)];
+  };
+  const faces: number[][][] = [];
+  for (let ring = 0; ring < R; ring++) {
+    for (let seg = 0; seg < S; seg++) {
+      const [a, b, c, d] = [at(ring, seg), at(ring, seg + 1), at(ring + 1, seg + 1), at(ring + 1, seg)];
+      if (ring > 0) faces.push([a, d, b]);
+      if (ring < R - 1) faces.push([b, d, c]);
+    }
+  }
+  const stl = Buffer.alloc(84 + 50 * faces.length);
+  stl.writeUInt32LE(faces.length, 80);
+  faces.forEach((face, i) => face.forEach((point, k) => point.forEach((value, j) => stl.writeFloatLE(value, 84 + 50 * i + 12 + 12 * k + 4 * j))));
+  writeFileSync(join(outside, 'Kugel.stl'), stl);
+  const env = {
+    SOLIDCRAFT_CONTROL_DIR: join(work, 'control'),
+    PARTBUDDY_SOLIDCRAFT_PORT: '7965',
+    PARTBUDDY_PROJECTS_DIR: join(work, 'projects'),
+    PARTBUDDY_START_PAGE: '1',
+    PARTBUDDY_KEYRING_SERVICE: 'PartBuddy-e2e',
+  };
+  const launched = await launchApp({ isolated: false, work, env });
+  const { page, app } = launched;
+  const bodies = page.getByTestId('structure-body');
+  const notice = page.getByTestId('notice');
+  try {
+    await expect(page.getByTestId('connection-status')).toHaveAttribute('data-engine', 'headless', { timeout: 30_000 });
+    await app.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [path] });
+      dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
+    }, join(outside, 'Kugel.stl'));
+    await page.getByTestId('home-page').getByTestId('home-import').click();
+    await expect(page.getByTestId('design-name')).toHaveText('Kugel', { timeout: 60_000 });
+    await page.getByTestId('notice-close').click();
+    await expect(bodies).toHaveCount(1, { timeout: 30_000 });
+    await expect(bodies.first()).toContainText('mesh');
+    await bodies.first().getByTestId('structure-convert').click();
+    // Over 20 000 triangles PartBuddy reduces a copy first (the faces of more do not come through the mirror) and removes the original.
+    await expect(notice).toContainText('now has faces', { timeout: 180_000 });
+    await expect(notice).toContainText(/had 79,600 triangles; PartBuddy converts at most 20,000/);
+    await expect(notice).toContainText(/Volume: [-+−]?0(\.\d+)? %\./);
+    await expect(bodies).toHaveCount(1, { timeout: 30_000 });
+    await expect(bodies.first()).not.toContainText('mesh', { timeout: 30_000 });
+    await expect(page.locator('[data-testid="timeline-feature"][data-state="error"]')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('big-mesh-converted.png') });
+  } finally {
+    await launched.close();
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  }
+});
+
 test('versions are saved by name, before requests and at exports, compared with now and restored (B5)', async () => {
   test.setTimeout(240_000);
   const { existsSync, mkdtempSync, readFileSync, rmSync } = await import('node:fs');

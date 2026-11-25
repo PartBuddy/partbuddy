@@ -77,7 +77,11 @@ function ConvertButton({ body }: { body: string }) {
       .design.convertMesh(body)
       .then((result) => {
         // The volume's change, so a conversion that lost or added material shows (audit S-28).
-        if (result.ok) setNotice({ tone: 'success', text: t('structure.convertDone', { name: body }) + (result.change === undefined ? '' : ` ${t('structure.convertChange', { change: new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2, signDisplay: 'exceptZero' }).format(result.change) })}`) });
+        if (result.ok) {
+          const count = new Intl.NumberFormat(i18n.language);
+          const reduced = result.reduced ? ` ${t('structure.convertReduced', { from: count.format(result.reduced.from), to: count.format(result.reduced.to), name: result.reduced.body })}` : '';
+          setNotice({ tone: 'success', text: t('structure.convertDone', { name: result.reduced?.body ?? body }) + reduced + (result.change === undefined ? '' : ` ${t('structure.convertChange', { change: new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2, signDisplay: 'exceptZero' }).format(result.change) })}`) });
+        }
         else if (result.reason === 'openMesh') setNotice({ tone: 'danger', text: t('structure.openMesh', { name: body }) });
         else setNotice({ tone: 'danger', text: t('actions.failed', { detail: result.detail.slice(0, 200) }) });
       })
