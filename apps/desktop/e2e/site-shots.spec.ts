@@ -643,6 +643,18 @@ test('website pictures', async () => {
       await shot('text');
       await page.keyboard.press('Escape');
     });
+    // Release 0.3.14: a name engraved round the wall of a pen cup, by the assistant with its text block.
+    await step('cup', async () => {
+      await fresh();
+      await send('Build a pen cup, 70 mm across and 100 mm high, with the name Anna engraved on it');
+      await expect(page.getByTestId('mesh-summary')).toContainText('1 body', { timeout: 60_000 });
+      await expect(page.getByTestId('composer-stop')).toHaveCount(0, { timeout: 3 * 60_000 });
+      await expect(page.getByText('Text Anna', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+      await page.getByTestId('viewport').hover();
+      await page.keyboard.press('0');
+      await page.waitForTimeout(1500);
+      await shot('cup');
+    });
     await step('settings', async () => {
       await page.getByTestId('settings').click();
       // The assistant's page: the general page shows the projects folder with the account's name.
