@@ -1533,12 +1533,12 @@ if (!app.requestSingleInstanceLock()) {
     bridge.handle(invokeChannels.designRepair, async ({ body }) => {
       assistantIdle();
       try {
-        let change = null as number | null;
+        let result: Awaited<ReturnType<typeof supervisor.convertMesh>> = { change: null };
         await steps.recordUser(describeUserAction({ kind: 'convertMesh', body }), async () => {
-          change = await supervisor.convertMesh(body);
+          result = await supervisor.convertMesh(body);
         });
         log('converted a mesh body to faces');
-        return change === null ? { ok: true } : { ok: true, change };
+        return { ok: true, ...(result.change === null ? {} : { change: result.change }), ...(result.reduced ? { reduced: result.reduced } : {}) };
       } catch (error) {
         const detail = (error as Error).message.replace(/^\S+ failed: /, '').slice(0, 500);
         if (/must be closed/i.test(detail)) return { ok: false, reason: 'openMesh', detail };

@@ -789,6 +789,7 @@
     "repairOpen": "{name} wurde repariert, ist aber noch offen. Die Druckprüfung zeigt, wo.",
     "repairRefused": "{name} ließ sich nicht reparieren: {detail}",
     "convertChange": "Volumen: {change} %.",
+    "convertReduced": "Das Netz hatte {from} Dreiecke, SolidCraft wandelt höchstens {to} um: Eine auf {to} ausgedünnte Kopie wurde als {name} umgewandelt und das ursprüngliche Netz entfernt.",
     "openMesh": "{name} ist nicht geschlossen, deshalb kann SolidCraft es nicht in Flächen umwandeln. Exportieren geht trotzdem; kleine Löcher repariert der Slicer selbst.",
     "standardPart": "Normteil",
     "bodiesTitle": "Körper",
