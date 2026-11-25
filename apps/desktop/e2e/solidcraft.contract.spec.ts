@@ -1529,7 +1529,7 @@ test('a STEP file becomes a project, meshes are inserted into it, converted to f
   }
 });
 
-test('a mesh over the 50 000 triangles SolidCraft converts is reduced first, converted, and says so', async () => {
+test('a mesh over the 20 000 triangles PartBuddy converts is reduced first, converted, and says so', async () => {
   test.setTimeout(300_000);
   const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
@@ -1580,9 +1580,9 @@ test('a mesh over the 50 000 triangles SolidCraft converts is reduced first, con
     await expect(bodies).toHaveCount(1, { timeout: 30_000 });
     await expect(bodies.first()).toContainText('mesh');
     await bodies.first().getByTestId('structure-convert').click();
-    // SolidCraft 0.49.0 converts no mesh over 50 000 triangles: PartBuddy reduces a copy to that first and removes the original.
+    // Over 20 000 triangles PartBuddy reduces a copy first (the faces of more do not come through the mirror) and removes the original.
     await expect(notice).toContainText('now has faces', { timeout: 180_000 });
-    await expect(notice).toContainText(/had 79,600 triangles and SolidCraft converts at most 50,000/);
+    await expect(notice).toContainText(/had 79,600 triangles; PartBuddy converts at most 20,000/);
     await expect(notice).toContainText(/Volume: [-+−]?0(\.\d+)? %\./);
     await expect(bodies).toHaveCount(1, { timeout: 30_000 });
     await expect(bodies.first()).not.toContainText('mesh', { timeout: 30_000 });

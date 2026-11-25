@@ -36,6 +36,13 @@ import { boughtParts, count, hardwareOf, mirrorActiveDesign, MirrorScheduler, ty
 
 /** How closely `mesh.convert` rebuilds a mesh: SolidCraft's default, said and passed on purpose (audit S-28). */
 const MESH_TOLERANCE = '0.05 mm';
+/**
+ * The most triangles a mesh is converted with; more are reduced first. SolidCraft takes 50 000 (0.49.0), but the faces
+ * of such a part do not come through the mirror: 50 000 gave 47 345 faces, 13.8 MB of model.faces, and the connection
+ * closed; 20 000 give 5.6 MB, room for a few such parts in one mirror.
+ * shortcut: one limit per body; several converted parts in one design add up in the mirror's reply. Mirror bodies apart if that turns up.
+ */
+const MESH_CONVERT_MAX = 20_000;
 
 export interface SupervisorOptions {
   environment: Environment;
@@ -697,39 +704,24 @@ export class SolidCraftSupervisor {
     const measure = (name: string) =>
       this.requester()
         .request<BatchResult>('engine.batch', { commands: [{ command: 'inspect.measure', params: { bodies: [name] } }], rollback: false }, 60_000)
-        .then((reply) => (reply.failed ? null : ((reply.results[0] as { bodies?: { volume_mm3?: unknown; face_types?: unknown }[] } | undefined)?.bodies?.[0] ?? null)))
+        .then((reply) => (reply.failed ? null : ((reply.results[0] as { bodies?: { volume_mm3?: unknown; face_types?: unknown; faces?: unknown }[] } | undefined)?.bodies?.[0] ?? null)))
         .catch(() => null);
     await this.probing;
     const before = await measure(body);
+    // A mesh body's faces are its triangles (inspect.measure, 0.49.0).
+    const triangles = typeof before?.faces === 'number' ? before.faces : null;
     let reduced: { from: number; to: number; body: string } | undefined;
-    try {
-      await this.run({ command: 'mesh.convert', params: { body, tolerance: MESH_TOLERANCE } });
-    } catch (error) {
-      // SolidCraft converts no mesh over 50 000 triangles (0.49.0: "the mesh has 442898 triangles, more than the 50000
-      // conversion can take"). Then the mesh is reduced to that first (mesh.reduce, 0.48), its copy converted and the
-      // original removed, in one batch that is taken back whole if a step fails. Measured on a sphere of 443 000
-      // triangles: 3 s to reduce, 6 s to convert, the volume 0.03 % under the mesh's.
-      const limit = /the mesh has (\d+) triangles, more than the (\d+) conversion can take/.exec((error as Error).message);
-      if (!limit) throw error;
-      const [from, to] = [Number(limit[1]), Number(limit[2])];
-      this.options.log(`the mesh "${body}" has ${String(from)} triangles, SolidCraft converts ${String(to)}: reducing it first`);
-      const batch = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'mesh.reduce', params: { body, triangle_count: to } }], rollback: false }, 10 * 60 * 1000);
-      const copy = (batch.results[0] as { created_bodies?: unknown } | undefined)?.created_bodies;
-      const name = Array.isArray(copy) && typeof copy[0] === 'string' ? copy[0] : null;
-      if (batch.failed || !name) throw new Error(`mesh.reduce failed: ${batch.failed?.error ?? 'it made no body'}`, { cause: error });
-      const rest = await this.requester().request<BatchResult>(
-        'engine.batch',
-        { commands: [{ command: 'mesh.convert', params: { body: name, tolerance: MESH_TOLERANCE } }, { command: 'solid.remove', params: { bodies: [body] } }], rollback: true },
-        10 * 60 * 1000,
-      );
-      if (rest.failed) {
-        // The reduced copy stays out of the user's way: the reduce is taken back as well.
-        await this.requester().request('engine.batch', { commands: [{ command: 'edit.undo', params: {} }], rollback: false }, 60_000).catch(() => undefined);
-        await this.engine?.changed();
-        throw new Error(`mesh.convert failed: ${rest.failed.error}`, { cause: error });
+    if (triangles !== null && triangles > MESH_CONVERT_MAX) {
+      reduced = await this.reduceAndConvert(body, triangles, MESH_CONVERT_MAX);
+    } else {
+      try {
+        await this.run({ command: 'mesh.convert', params: { body, tolerance: MESH_TOLERANCE } });
+      } catch (error) {
+        // SolidCraft's own limit, should the measure not have told the triangles: "the mesh has 442898 triangles, more than the 50000 conversion can take" (0.49.0).
+        const limit = /the mesh has (\d+) triangles, more than the (\d+) conversion can take/.exec((error as Error).message);
+        if (!limit) throw error;
+        reduced = await this.reduceAndConvert(body, Number(limit[1]), Math.min(Number(limit[2]), MESH_CONVERT_MAX));
       }
-      await this.engine?.changed();
-      reduced = { from, to, body: name };
     }
     const after = await measure(reduced?.body ?? body);
     const [v0, v1] = [before?.volume_mm3, after?.volume_mm3];
@@ -737,6 +729,33 @@ export class SolidCraftSupervisor {
     this.options.log(`converted the mesh "${body}"${reduced ? ` as "${reduced.body}"` : ''} within ${MESH_TOLERANCE}: ${change}, faces ${JSON.stringify(after?.face_types ?? null)}`);
     return { change: typeof v0 === 'number' && typeof v1 === 'number' && v0 > 0 ? ((v1 - v0) / v0) * 100 : null, ...(reduced ? { reduced } : {}) };
   }
+
+  /**
+   * A mesh with more triangles than {@link MESH_CONVERT_MAX}: a copy reduced to `to` (mesh.reduce, 0.48) is converted and
+   * the original removed. Convert and remove go in one batch that is taken back whole; if it fails the reduce is undone too.
+   * Measured on a sphere of 443 000 triangles (0.49.0): 3 s to reduce, 6 s to convert, the volume 0.03 % under the mesh's.
+   */
+  private async reduceAndConvert(body: string, from: number, to: number): Promise<{ from: number; to: number; body: string }> {
+    this.options.log(`the mesh "${body}" has ${String(from)} triangles, more than ${String(to)} PartBuddy converts: reducing it first`);
+    const batch = await this.requester().request<BatchResult>('engine.batch', { commands: [{ command: 'mesh.reduce', params: { body, triangle_count: to } }], rollback: false }, 10 * 60 * 1000);
+    const copy = (batch.results[0] as { created_bodies?: unknown } | undefined)?.created_bodies;
+    const name = Array.isArray(copy) && typeof copy[0] === 'string' ? copy[0] : null;
+    if (batch.failed || !name) throw new Error(`mesh.reduce failed: ${batch.failed?.error ?? 'it made no body'}`);
+    const rest = await this.requester().request<BatchResult>(
+      'engine.batch',
+      { commands: [{ command: 'mesh.convert', params: { body: name, tolerance: MESH_TOLERANCE } }, { command: 'solid.remove', params: { bodies: [body] } }], rollback: true },
+      10 * 60 * 1000,
+    );
+    if (rest.failed) {
+      // The reduced copy stays out of the user's way: the reduce is taken back as well.
+      await this.requester().request('engine.batch', { commands: [{ command: 'edit.undo', params: {} }], rollback: false }, 60_000).catch(() => undefined);
+      await this.engine?.changed();
+      throw new Error(`mesh.convert failed: ${rest.failed.error}`);
+    }
+    await this.engine?.changed();
+    return { from, to, body: name };
+  }
+
 
   /**
    * Repairs an imported part (`body.repair`, audit S-25): sews free edges within SolidCraft's 0.2 mm and patches the holes

@@ -789,7 +789,7 @@
     "repairOpen": "{name} was repaired but is still open. The print check shows where.",
     "repairRefused": "{name} could not be repaired: {detail}",
     "convertChange": "Volume: {change} %.",
-    "convertReduced": "The mesh had {from} triangles and SolidCraft converts at most {to}, so a copy reduced to {to} was converted as {name} and the original mesh removed.",
+    "convertReduced": "The mesh had {from} triangles; PartBuddy converts at most {to}, so that the part can still be shown and checked. A copy reduced to {to} was converted as {name} and the original mesh removed.",
     "openMesh": "{name} is not closed, so SolidCraft cannot turn it into faces. It can still be exported; the slicer repairs small holes itself.",
     "standardPart": "standard part",
     "bodiesTitle": "Bodies",
