@@ -252,8 +252,15 @@ if (chosenLanguage !== 'system' && !process.argv.some((arg) => arg.startsWith('-
 }
 
 // The graphics (issue #484) are fixed when the GPU process starts, so a change applies at the next start.
-const startGraphics = { gpu: settingsStore.get('gpuPreference'), software: settingsStore.get('softwareRendering') };
-if (startGraphics.software) app.disableHardwareAcceleration();
+const startGraphics = { gpu: settingsStore.get('gpuPreference'), software: settingsStore.get('softwareRendering') || process.env.PARTBUDDY_SOFTWARE_RENDERING === '1' };
+if (startGraphics.software) {
+  if (process.platform === 'linux') {
+    // Disabling acceleration alone leaves WebGL unavailable on Linux when no GPU driver works.
+    // The user's software-rendering choice opts into Chromium's software WebGL implementation.
+    app.commandLine.appendSwitch('use-angle', 'swiftshader');
+    app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+  } else app.disableHardwareAcceleration();
+}
 const macSwitch = process.platform === 'darwin' ? macGpuSwitch(startGraphics.gpu) : null;
 if (macSwitch) app.commandLine.appendSwitch(macSwitch);
 // On Windows the preference is Windows' own entry for the program; only the installed app writes it (not

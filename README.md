@@ -76,6 +76,9 @@ young. Known limits:
 
 - Windows is the supported platform; the installer is not code-signed. Since 0.3.1 each release also
   carries a first experimental macOS build (unsigned dmg) that has not been tested on a real Mac yet.
+- Experimental Linux x86_64 AppImage packaging is available in the source tree; see the
+  [Linux build and test instructions](CONTRIBUTING.md#linux-experimental). SolidCraft is installed
+  separately. Broader desktop compatibility and AppImage updates still need real-world testing.
 - The ready-to-print light checks the part as designed, standing on its lowest point; supports,
   bridges and the orientation in detail stay with your slicer.
 - Hinges and guides the assistant builds are designed to print in one piece and are checked through
@@ -96,6 +99,7 @@ pnpm --filter @partbuddy/desktop dev          # run the desktop app
 pnpm lint && pnpm typecheck && pnpm test      # all packages
 pnpm --filter @partbuddy/desktop test:e2e     # Playwright flows against a fake SolidCraft
 pnpm --filter @partbuddy/desktop dist         # Windows installer in apps/desktop/dist
+pnpm --filter @partbuddy/desktop dist:linux   # experimental Linux x86_64 AppImage (build on Linux)
 ```
 
 ```text

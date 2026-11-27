@@ -52,6 +52,8 @@ pnpm --filter @partbuddy/desktop build      # bundle into apps/desktop/out
 pnpm --filter @partbuddy/desktop test:e2e   # Electron flows against a fake SolidCraft
 pnpm --filter @partbuddy/desktop dist       # Windows installer in apps/desktop/dist (B10)
 pnpm --filter @partbuddy/desktop dist:mac   # macOS dmg (universal, signed ad hoc); runs on a Mac only, see installer.yml
+pnpm --filter @partbuddy/desktop dist:linux # experimental Linux x86_64 AppImage; build on Linux
+pnpm --filter @partbuddy/desktop dist:linux:dir # unpacked Linux app for local smoke tests
 ```
 
 The app finds a running SolidCraft through its control folder, or starts `solidcraft --control 7878`
@@ -75,7 +77,67 @@ live-view latency test, which builds the synthetic cable clip step by step in an
 | `PARTBUDDY_FIRST_START` | `0` never shows the first-start setup; the E2E launcher sets it |
 | `PARTBUDDY_PROJECTS_DIR` | The project folder, instead of the setting or `Documents\PartBuddy` |
 | `PARTBUDDY_UPDATES=0` | The installed app does not look for updates |
-| `PARTBUDDY_E2E_PACKAGED=1` | Run the smoke test of the packaged app after `dist:dir` or `dist` |
+| `PARTBUDDY_SOFTWARE_RENDERING=1` | Start with software rendering, even if a broken graphics driver prevents changing the setting in the app |
+| `PARTBUDDY_E2E_PACKAGED=1` | Run the packaged-app smoke test after a Windows or Linux distribution build |
+| `PARTBUDDY_E2E_EXECUTABLE` | Packaged executable for the smoke test; defaults to `dist/linux-unpacked/partbuddy` on Linux or `dist/win-unpacked/PartBuddy.exe` on Windows |
+
+### Linux (experimental)
+
+The initial Linux package targets x86_64 with glibc. Use the Node.js and pnpm versions pinned in
+`package.json`, then run `pnpm install --frozen-lockfile` and `pnpm --filter @partbuddy/desktop dist:linux`
+on Linux. The result is `apps/desktop/dist/PartBuddy-<version>-linux-x86_64.AppImage`, with
+`latest-linux.yml` for the existing GitHub release updater. Make the AppImage executable and run it:
+
+```sh
+chmod +x apps/desktop/dist/PartBuddy-*-linux-x86_64.AppImage
+./apps/desktop/dist/PartBuddy-*-linux-x86_64.AppImage
+```
+
+When `DISPLAY` is available, Linux startup uses X11 (XWayland in a Wayland session). Native Wayland
+can leave the window hidden on NVIDIA systems. `--ozone-platform=wayland` explicitly opts into native
+Wayland; hosts without an X11 display keep Electron's default backend. The package smoke test uses
+normal graphics settings and checks that the native window actually becomes visible.
+
+If the graphics driver cannot create a WebGL context, start once with software rendering:
+
+```sh
+PARTBUDDY_SOFTWARE_RENDERING=1 ./apps/desktop/dist/PartBuddy-*-linux-x86_64.AppImage
+```
+
+The General settings option “Draw without the graphics card” keeps this choice for future launches.
+On Linux this explicitly enables SwiftShader software WebGL; rendering is slower and uses the CPU.
+
+The host needs a graphical desktop, Electron's GTK/NSS/audio/GBM libraries, and a working desktop
+credential store for sign-ins. CI builds on Ubuntu 22.04 and tests with GNOME Keyring in an isolated
+D-Bus session. Real desktop testing should cover both X11 and Wayland, 3D rendering, credential
+persistence across restarts, assistant sign-in, and SolidCraft import/export. Building successfully
+does not establish support for every distribution or desktop.
+
+Install SolidCraft separately. Native packages need `solidcraft` and `solidcraft-cli` in the same
+directory; put `solidcraft` on `PATH` or choose it in PartBuddy's settings. Linux also discovers
+SolidCraft AppImages registered in the desktop menu, including Gear Lever installations outside
+`PATH`. You can select a SolidCraft AppImage in settings or set `PARTBUDDY_SOLIDCRAFT_EXE` to its
+absolute path. PartBuddy uses the CLI already bundled in the AppImage through a private launcher
+under the user's cache directory; it does not extract or modify the Gear Lever installation.
+AppImage support requires the bundled `SOLIDCRAFT_APPIMAGE_CLI` entry point (verified with SolidCraft
+0.50.0). Flatpak integration is not covered by this initial package.
+
+For a smoke test after `dist:linux` or `dist:linux:dir`:
+
+```sh
+PARTBUDDY_E2E_PACKAGED=1 pnpm --filter @partbuddy/desktop exec playwright test e2e/package.spec.ts --project=app
+```
+
+This checks startup, the bundled licence notices and a credential write/read/delete using a unique
+test entry. It needs an unlocked credential store and a display; headless runners can use `xvfb-run`.
+`installer.yml` also extracts the final AppImage and runs this test through its `AppRun` launcher,
+including on pull requests that change the packaging definitions. On hosts without FUSE,
+`--appimage-extract` can be used to extract the package and `squashfs-root/AppRun` to start it.
+The smoke test checks that Chromium's sandbox stays enabled.
+
+AppImage updates use the existing user-approved download/install flow. The release job uploads
+the AppImage and `latest-linux.yml` together. Verify updating between two published versions on
+a real desktop before treating automatic updates as validated.
 
 ### Installer and releases
 
@@ -85,7 +147,8 @@ now, so SmartScreen warns until code signing comes before the public release. Th
 looks for updates in the GitHub releases (electron-updater) and installs them only on the user's
 word. Nothing is uploaded by hand: release-please creates the release as a draft, the release
 workflow calls `installer.yml` for the new tag, which builds the Windows installer (with its
-`.blockmap` and `latest.yml`) and the macOS dmg on GitHub-hosted runners, attests their build
+`.blockmap` and `latest.yml`), the macOS dmg and the experimental Linux AppImage (with
+`latest-linux.yml`) on GitHub-hosted runners, attests their build
 provenance (`gh attestation verify <file> --repo PartBuddy/partbuddy`) and attaches them, and only
 then is the release published and the website updated. If a build fails, the release stays a draft:
 rerun the failed jobs of the release run.
