@@ -781,7 +781,7 @@ if (!app.requestSingleInstanceLock()) {
     );
     assistant = new Assistant({ 'claude-code': claude, chatgpt, local, opencode }, (state) => {
       bridge.emit(mainWindow?.webContents ?? null, eventChannels.agentStatus, state);
-    });
+    }, assistantSettings.selected(), (kind) => assistantSettings.setSelected(kind));
     const agent = assistant;
     bridge.handle(invokeChannels.agentStatus, () => agent.state());
     bridge.handle(invokeChannels.agentRefresh, () => agent.refresh());
@@ -914,6 +914,7 @@ if (!app.requestSingleInstanceLock()) {
       }
       if (section === 'assistant' || section === 'all') {
         settingsStore.reset(RESET_KEYS.assistant);
+        await agent.select(assistantSettings.selected());
         printProfiles.save({ ...printProfiles.settings(), design: DESIGN_DEFAULTS });
         changed();
       }

@@ -20,7 +20,7 @@ afterEach(() => {
 describe('settings store', () => {
   it('starts with the defaults', () => {
     const store = new SettingsStore(join(folder(), 'settings.json'));
-    expect(store.all()).toEqual({ language: 'system', theme: 'system', projectsFolder: null, zoom: 1, startPage: 'home', checkUpdates: true, viewportStats: false, viewportQuality: 'balanced', gpuPreference: 'auto', softwareRendering: false, setupDone: false, webResearch: true, claudeApiBilling: false, models: {}, phaseModels: {} });
+    expect(store.all()).toEqual({ language: 'system', theme: 'system', projectsFolder: null, zoom: 1, startPage: 'home', checkUpdates: true, viewportStats: false, viewportQuality: 'balanced', gpuPreference: 'auto', softwareRendering: false, setupDone: false, selectedAgent: 'claude-code', webResearch: true, claudeApiBilling: false, models: {}, phaseModels: {} });
   });
 
   it('takes over the files of earlier versions and leaves them in place', () => {
@@ -42,6 +42,7 @@ describe('settings store', () => {
       gpuPreference: 'auto',
       softwareRendering: false,
       setupDone: true,
+      selectedAgent: 'claude-code',
       webResearch: false,
       claudeApiBilling: true,
       models: { chatgpt: { model: 'gpt-x', effort: 'high' } },
@@ -83,5 +84,16 @@ describe('settings store', () => {
     expect(store.get('language')).toBe('system');
     expect(store.get('setupDone')).toBe(true);
     expect(store.get('webResearch')).toBe(false);
+  });
+
+  it('restores the selected assistant and resets it with the assistant settings', () => {
+    const file = join(folder(), 'settings.json');
+    const store = new SettingsStore(file);
+    store.set('selectedAgent', 'chatgpt');
+    expect(new SettingsStore(file).get('selectedAgent')).toBe('chatgpt');
+    store.reset(RESET_KEYS.assistant);
+    expect(store.get('selectedAgent')).toBe('claude-code');
+    writeFileSync(file, JSON.stringify({ selectedAgent: 'unknown-route' }));
+    expect(store.get('selectedAgent')).toBe('claude-code');
   });
 });

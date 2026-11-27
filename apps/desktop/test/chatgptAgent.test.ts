@@ -305,6 +305,25 @@ describe('assistant routes', () => {
     expect(state.agents.map((a) => a.agent)).toEqual(['claude-code', 'chatgpt', 'local', 'opencode']);
     expect(states.length).toBeGreaterThan(0);
   });
+
+  it('saves the chosen route before its refresh completes and accepts it on restart', async () => {
+    const routes = {
+      'claude-code': backend('claude-code').route,
+      chatgpt: backend('chatgpt').route,
+      local: backend('local').route,
+      opencode: backend('opencode').route,
+    };
+    let finishRefresh: (status: AgentStatus) => void = () => undefined;
+    routes.chatgpt.refresh = () => new Promise((resolve) => { finishRefresh = resolve; });
+    let saved: AgentKind = 'claude-code';
+    const assistant = new Assistant(routes, () => undefined, saved, (kind) => { saved = kind; });
+    const selecting = assistant.select('chatgpt');
+    await vi.waitFor(() => expect(saved).toBe('chatgpt'));
+    const restarted = new Assistant(routes, () => undefined, saved);
+    expect(restarted.state().selected).toBe('chatgpt');
+    finishRefresh(routes.chatgpt.status());
+    await selecting;
+  });
 });
 
 describe('ChatGPT plan limits (issue 446)', () => {

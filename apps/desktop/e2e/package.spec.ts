@@ -16,7 +16,7 @@ const executablePath = process.env.PARTBUDDY_E2E_EXECUTABLE ?? (process.platform
 
 test('the packaged app starts with its bundled main process and the native credential store (B10)', async () => {
   const work = mkdtempSync(join(tmpdir(), 'partbuddy-packaged-'));
-  const app = await electron.launch({
+  const launch = () => electron.launch({
     executablePath,
     chromiumSandbox: process.platform === 'linux',
     // Exercise the normal startup path, including the app's own choice of Linux display backend.
@@ -38,6 +38,7 @@ test('the packaged app starts with its bundled main process and the native crede
       PARTBUDDY_OPENCODE_COMMAND: JSON.stringify([process.execPath, join(appDir, 'test', 'fakeOpenCode.mjs')]),
     },
   });
+  let app = await launch();
   try {
     const page = await app.firstWindow();
     const errors: string[] = [];
@@ -76,6 +77,15 @@ test('the packaged app starts with its bundled main process and the native crede
     await expect(page.getByTestId('settings-version')).toHaveText(/^Version \d/);
     await page.screenshot({ path: test.info().outputPath('packaged.png') });
     expect(errors).toEqual([]);
+    await app.close();
+    app = await launch();
+    const restarted = await app.firstWindow();
+    await expect(restarted.getByTestId('agent-status')).toHaveText('ChatGPT · not signed in', { timeout: 15_000 });
+    await restarted.getByTestId('settings').click();
+    await restarted.getByTestId('settings-assistant').click();
+    await restarted.getByTestId('settings-reset-assistant').click();
+    await restarted.getByTestId('settings-reset-go').click();
+    await expect(restarted.getByTestId('agent-status')).toContainText('Claude Code');
   } finally {
     await app.close();
     rmSync(work, { recursive: true, force: true });

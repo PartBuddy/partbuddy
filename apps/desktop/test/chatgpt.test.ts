@@ -122,16 +122,16 @@ describe('Sign in with ChatGPT', () => {
     // The browser gets a branded page in its language that never repeats the code or state.
     const page = openai.pages[0] ?? '';
     expect(page).toContain('aria-label="PartBuddy"');
-    expect(page).toContain('Bei PartBuddy angemeldet');
+    expect(page).toContain('Autorisierung empfangen');
     expect(page).not.toContain('code-1');
     expect(page).not.toContain(authorize?.searchParams.get('state') ?? 'state');
   });
 
   it('words the callback page by outcome and browser language', () => {
-    expect(callbackPage('signedIn')).toContain('Signed in to PartBuddy');
+    expect(callbackPage('received')).toContain('Return to PartBuddy to check whether the connection completed');
     expect(callbackPage('declined', 'en-US,en;q=0.9')).toContain('Sign-in cancelled');
     expect(callbackPage('declined', 'de')).toContain('Anmeldung abgebrochen');
-    expect(callbackPage('signedIn', 'fr-FR,de;q=0.8')).toContain('lang="en"');
+    expect(callbackPage('received', 'fr-FR,de;q=0.8')).toContain('lang="en"');
   });
 
   it('reports a declined consent without exchanging a code', async () => {
@@ -168,10 +168,11 @@ describe('ChatGPT account', () => {
 
   it('signs in, stores tokens only in the credential store and reuses the client while it stays signed in', async () => {
     const openai = await fakeOpenAI();
-    const { instance, store } = account(openai);
+    const { instance, store, backend } = account(openai);
     const status = await instance.signIn();
     expect(status).toEqual({ state: 'signedIn', email: 'someone@example.com' });
     expect(JSON.parse(store.read('chatgpt/client') ?? '{}')).toMatchObject({ clientId: 'oaiapp_test', subject: 'user-1' });
+    expect(account(openai, backend).instance.load()).toEqual(status);
     // A second sign-in without signing out (e.g. after the session ended) keeps the registration.
     await instance.signIn();
     expect(openai.authorize()?.searchParams.get('client_id')).toBe('oaiapp_test');
