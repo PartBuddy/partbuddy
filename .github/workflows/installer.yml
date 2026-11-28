@@ -1,14 +1,24 @@
 name: Installer
 
-# Builds the Windows installer and the macOS dmg from a tag or branch on GitHub-hosted runners and
+# Builds the Windows installer, macOS dmg and Linux AppImage on GitHub-hosted runners and
 # keeps them as workflow artifacts. Started by hand it publishes nothing unless "attach" is set; the
-# release workflow calls it to hang both installers, with build provenance, onto the new release
+# release workflow calls it to attach the packages, with build provenance, to the new release
 # while that release is still a draft. Code signing through the
 # SignPath Foundation needs exactly this: every job up to the signing request on GitHub-hosted
 # runners, and the unsigned file stored as a workflow artifact first (docs/code-signing-policy.md).
 # The self-hosted runners of ADR 0022 are therefore not used here.
 
 on:
+  pull_request:
+    paths:
+      - .github/workflows/installer.yml
+      - apps/desktop/electron-builder.yml
+      - apps/desktop/package.json
+      - apps/desktop/e2e/package.spec.ts
+      - tools/linux/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .node-version
   workflow_dispatch:
     inputs:
       ref:
@@ -32,12 +42,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: installer-${{ inputs.ref }}
+  group: installer-${{ inputs.ref || github.ref }}
   cancel-in-progress: false
 
 jobs:
   windows:
     name: Windows installer
+    if: github.event_name != 'pull_request'
     runs-on: windows-2025
     timeout-minutes: 30
     steps:
@@ -75,6 +86,7 @@ jobs:
 
   macos:
     name: macOS dmg
+    if: github.event_name != 'pull_request'
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -136,9 +148,80 @@ jobs:
           kill "$pid"
           tail -n 40 start.log
 
+  linux:
+    name: Linux AppImage (experimental)
+    # Build on an older distribution to keep the packaged native module broadly compatible.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          lfs: true
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install desktop test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y xvfb libgtk-3-0 libnss3 libasound2 libgbm1 libsecret-1-0 gnome-keyring dbus-x11
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the AppImage
+        run: pnpm --filter @partbuddy/desktop dist:linux
+
+      # Extract the final artifact so this also checks what was put inside the AppImage, without
+      # requiring a FUSE mount in CI. Keep Chromium's sandbox enabled.
+      - name: Extract the AppImage
+        env:
+          EXTRACT_DIR: ${{ runner.temp }}/partbuddy-appimage
+        run: |
+          mkdir -p "$EXTRACT_DIR"
+          image=$(realpath apps/desktop/dist/PartBuddy-*-linux-x86_64.AppImage)
+          cd "$EXTRACT_DIR"
+          "$image" --appimage-extract
+
+      - name: Check the packaged app and credential store
+        env:
+          PARTBUDDY_E2E_PACKAGED: '1'
+          PARTBUDDY_E2E_EXECUTABLE: ${{ runner.temp }}/partbuddy-appimage/squashfs-root/AppRun
+        run: |
+          dbus-run-session -- bash -euo pipefail -c '
+            printf "" | gnome-keyring-daemon --unlock --components=secrets
+            xvfb-run --auto-servernum pnpm --filter @partbuddy/desktop exec playwright test e2e/package.spec.ts --project=app
+          '
+
+      - name: Keep the AppImage and update metadata
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: partbuddy-appimage-linux
+          path: |
+            apps/desktop/dist/PartBuddy-*-linux-x86_64.AppImage
+            apps/desktop/dist/latest-linux.yml
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Keep the results of failed flows
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-package-results
+          path: apps/desktop/test-results
+          retention-days: 14
+
   attach:
     name: Attach the installers to the release
-    needs: [windows, macos]
+    needs: [windows, macos, linux]
     if: inputs.attach
     runs-on: ubuntu-26.04
     timeout-minutes: 10
@@ -160,6 +243,7 @@ jobs:
           subject-path: |
             PartBuddy-Setup-*.exe
             PartBuddy-*-mac-universal.dmg
+            PartBuddy-*-linux-x86_64.AppImage
 
       # latest.yml is what installed apps read for updates; it goes up with the files it names.
       - name: Upload the installers to the release
@@ -167,4 +251,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REF: ${{ inputs.ref }}
         run: |
-          gh release upload "$REF" PartBuddy-Setup-*.exe PartBuddy-Setup-*.exe.blockmap latest.yml             PartBuddy-*-mac-universal.dmg --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$REF" PartBuddy-Setup-*.exe PartBuddy-Setup-*.exe.blockmap latest.yml \
+            PartBuddy-*-mac-universal.dmg PartBuddy-*-linux-x86_64.AppImage latest-linux.yml \
+            --clobber --repo "$GITHUB_REPOSITORY"

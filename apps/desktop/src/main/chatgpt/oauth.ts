@@ -86,20 +86,20 @@ interface TokenResponse {
 
 const PAGE_TEXT = {
   en: {
-    signedIn: ['Signed in to PartBuddy', 'Your ChatGPT account is connected. You can close this window and return to PartBuddy.'],
+    received: ['Authorization received', 'Return to PartBuddy to check whether the connection completed. You can close this window.'],
     declined: ['Sign-in cancelled', 'PartBuddy was not connected to ChatGPT. You can close this window and start the sign-in again in PartBuddy.'],
   },
   de: {
-    signedIn: ['Bei PartBuddy angemeldet', 'Dein ChatGPT-Konto ist verbunden. Du kannst dieses Fenster schließen und zu PartBuddy zurückkehren.'],
+    received: ['Autorisierung empfangen', 'Kehre zu PartBuddy zurück, um zu prüfen, ob die Verbindung hergestellt wurde. Du kannst dieses Fenster schließen.'],
     declined: ['Anmeldung abgebrochen', 'PartBuddy wurde nicht mit ChatGPT verbunden. Du kannst dieses Fenster schließen und die Anmeldung in PartBuddy neu starten.'],
   },
 } as const;
 
 /** The page the browser shows after the callback; self-contained, it never echoes the query. */
-export function callbackPage(outcome: 'signedIn' | 'declined', acceptLanguage = ''): string {
+export function callbackPage(outcome: 'received' | 'declined', acceptLanguage = ''): string {
   const lang = /^\s*de\b/i.test(acceptLanguage) ? 'de' : 'en';
   const [title, text] = PAGE_TEXT[lang][outcome];
-  const stripe = outcome === 'signedIn' ? 'var(--ok)' : 'var(--warn)';
+  const stripe = outcome === 'received' ? 'var(--ok)' : 'var(--warn)';
   // Colours from packages/design-tokens; dark mode turns logo.svg into logo-inverse.svg, which
   // differs from it only in these two fills.
   return `<!doctype html><html lang="${lang}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title} · PartBuddy</title>
@@ -137,7 +137,8 @@ export async function signIn(options: SignInOptions): Promise<Credentials> {
     }
     const declined = url.searchParams.has('error');
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    response.end(callbackPage(declined ? 'declined' : 'signedIn', request.headers['accept-language']));
+    // The code still needs exchanging and verifying; the callback alone is not a completed sign-in.
+    response.end(callbackPage(declined ? 'declined' : 'received', request.headers['accept-language']));
     finish(url.searchParams);
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

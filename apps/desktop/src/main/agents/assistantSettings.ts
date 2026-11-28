@@ -10,6 +10,14 @@ import type { ChoiceStore, PhaseStore } from './modelChoice';
 export class AssistantSettings implements ChoiceStore, PhaseStore {
   constructor(private readonly store: SettingsStore) {}
 
+  selected(): AgentKind {
+    return this.store.get('selectedAgent');
+  }
+
+  setSelected(agent: AgentKind): void {
+    this.store.set('selectedAgent', agent);
+  }
+
   apiBilling(): boolean {
     return this.store.get('claudeApiBilling');
   }

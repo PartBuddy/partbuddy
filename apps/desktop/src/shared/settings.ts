@@ -28,6 +28,8 @@ export const settingsSchema = z.object({
   softwareRendering: z.boolean().catch(false),
   /** The first-start setup (B9) was finished or skipped. */
   setupDone: z.boolean().catch(false),
+  /** The assistant chosen for the next message, restored when PartBuddy starts. */
+  selectedAgent: agentKindSchema.catch('claude-code'),
   /** The assistant may search the web and read pages (B7). */
   webResearch: z.boolean().catch(true),
   /** Claude Code may run with an API key (off by default, decided 2026-11-04). */
@@ -66,7 +68,7 @@ export type SettingKey = keyof Settings;
 /** What "reset" puts back per section of the settings dialog; the first-start flag is never reset. */
 export const RESET_KEYS: Record<Exclude<SettingsReset, 'solidcraft' | 'print' | 'all'>, readonly SettingKey[]> = {
   general: ['language', 'theme', 'projectsFolder', 'zoom', 'startPage', 'checkUpdates', 'viewportStats', 'viewportQuality', 'gpuPreference', 'softwareRendering'],
-  assistant: ['webResearch', 'claudeApiBilling', 'models', 'phaseModels'],
+  assistant: ['selectedAgent', 'webResearch', 'claudeApiBilling', 'models', 'phaseModels'],
 };
 
 /**

@@ -2,6 +2,7 @@
 # shortcuts. Unsigned for now, so SmartScreen warns; signing comes before the public release.
 # macOS: a universal dmg as a test build, signed ad hoc only (no Apple developer account yet), so
 # Gatekeeper asks once and there are no automatic updates on the Mac.
+# Linux: an experimental x86_64 AppImage, built on Linux with the native credential store.
 # Updates come from the GitHub releases of the repository (electron-updater).
 appId: io.github.manuelstaggl.partbuddy
 productName: PartBuddy
@@ -21,8 +22,10 @@ files:
   - node_modules/@napi-rs/keyring-win32-x64-msvc/**
   - node_modules/@napi-rs/keyring-darwin-arm64/**
   - node_modules/@napi-rs/keyring-darwin-x64/**
+  - node_modules/@napi-rs/keyring-linux-x64-gnu/**
 # Licence texts of every bundled library (ADR 0007), written before packing, next to the asar.
 beforePack: ../../tools/licenses/notices.mjs
+afterPack: ../../tools/linux/after-pack.mjs
 extraResources:
   - from: out/THIRD-PARTY-NOTICES.txt
     to: THIRD-PARTY-NOTICES.txt
@@ -52,6 +55,18 @@ mac:
   # Merging the two archives left an empty app.asar (installer run 43276112067); they are the same
   # JavaScript anyway, so one of them is taken as it is.
   mergeASARs: false
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  executableName: partbuddy
+  syncDesktopName: true
+  icon: ../../assets/brand/icon/png/partbuddy-256.png
+  category: Graphics
+appImage:
+  # Override the legacy AppImage target's unconditional --no-sandbox desktop argument.
+  executableArgs: []
+  artifactName: PartBuddy-${version}-linux-${arch}.${ext}
 dmg:
   artifactName: PartBuddy-${version}-mac-universal.${ext}
 nsis:

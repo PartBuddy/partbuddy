@@ -1,9 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, isAbsolute } from 'node:path';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 
 import type { EngineChoiceError, EngineInfo } from '../../shared/contract';
 import { cliBeside, locateExecutable, type Environment } from './discovery';
 import { MINIMUM_VERSION, RECOMMENDED_VERSION, supportOf } from './engineVersion';
+import { isAppImage } from './linuxAppImage';
 
 export interface EngineChoiceOptions {
   /** The small settings file that keeps the user's choice. */
@@ -78,8 +79,9 @@ export class EngineChoice {
 
   private async check(path: string): Promise<EngineChoiceError | null> {
     const name = this.platform === 'win32' ? 'solidcraft.exe' : 'solidcraft';
-    if (!isAbsolute(path) || basename(path).toLowerCase() !== name || !this.isFile(path)) return 'notSolidCraft';
-    if (!this.exists(cliBeside(path, this.platform))) return 'noCli';
+    const image = this.platform === 'linux' && isAppImage(path) && /^solidcraft[ ._-]/i.test(basename(path));
+    if (!isAbsolute(path) || (basename(path).toLowerCase() !== name && !image) || !this.isFile(path)) return 'notSolidCraft';
+    if (!this.exists(this.cli(path))) return 'noCli';
     const version = await this.version(path);
     if (!version) return 'noVersion';
     return supportOf(version) === 'tooOld' ? 'tooOld' : null;
@@ -102,9 +104,14 @@ export class EngineChoice {
   private version(path: string): Promise<string | null> {
     let version = this.versions.get(path);
     if (!version) {
-      version = this.options.readVersion(cliBeside(path, this.platform));
+      version = this.options.readVersion(this.cli(path));
       this.versions.set(path, version);
     }
     return version;
+  }
+
+  private cli(path: string): string {
+    const { env, home } = this.options.environment;
+    return cliBeside(path, this.platform, env.XDG_CACHE_HOME ?? join(home, '.cache'));
   }
 }

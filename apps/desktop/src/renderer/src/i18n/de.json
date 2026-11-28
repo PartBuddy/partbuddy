@@ -1388,7 +1388,7 @@
     },
     "hint": "PartBuddy wird mit SolidCraft {recommended} entwickelt (neuer Kern solidcore). Ab {minimum} läuft es auch, ältere Designs können in 0.40 aber Fasen, Rundungen und Gewinde verlieren. Was 0.40 speichert, öffnet 0.30 nicht mehr.",
     "error": {
-      "notSolidCraft": "Das ist nicht das SolidCraft-Programm. Wähle solidcraft.exe.",
+      "notSolidCraft": "Wähle das SolidCraft-Programm oder unter Linux dessen AppImage.",
       "noCli": "Neben diesem Programm fehlt solidcraft-cli, PartBuddy braucht es für die Arbeit ohne Fenster.",
       "noVersion": "Dieses SolidCraft nennt keine Version.",
       "tooOld": "Dieses SolidCraft ist zu alt. PartBuddy braucht mindestens {minimum}."

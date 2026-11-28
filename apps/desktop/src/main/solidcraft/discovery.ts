@@ -2,6 +2,8 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 
+import { appImageCli, findLinuxAppImage, isAppImage } from './linuxAppImage';
+
 /**
  * Finds a running SolidCraft through the files its control channel writes (SolidCraft 0.30.1,
  * docs/control-protocol.md "Token" and "Finding the port"): `current.port`, `<port>.token` and
@@ -118,7 +120,9 @@ export function locateExecutable(
   for (const dir of (env.PATH ?? env.Path ?? '').split(delimiter)) {
     if (dir) candidates.push(join(dir, name));
   }
-  return { path: candidates.find((path) => exists(path)) ?? null, source: 'automatic' };
+  const native = candidates.find((path) => exists(path));
+  const image = !native && platform === 'linux' ? findLinuxAppImage(environment.home, env, exists) : null;
+  return { path: native ?? image, source: 'automatic' };
 }
 
 /**
@@ -134,7 +138,8 @@ export function findExecutable(environment: Environment, exists: (path: string) 
   return locateExecutable(environment, exists).path;
 }
 
-/** The command-line program next to the desktop app (`solidcraft-cli`), which runs the headless engine. */
-export function cliBeside(executable: string, platform: NodeJS.Platform = process.platform): string {
+/** The CLI beside a native install, or a private launcher for an AppImage's bundled CLI. */
+export function cliBeside(executable: string, platform: NodeJS.Platform = process.platform, cacheHome = process.env.XDG_CACHE_HOME ?? join(homedir(), '.cache')): string {
+  if (platform === 'linux' && isAppImage(executable)) return appImageCli(executable, cacheHome);
   return join(dirname(executable), platform === 'win32' ? 'solidcraft-cli.exe' : 'solidcraft-cli');
 }

@@ -52,6 +52,7 @@ export class Assistant {
     private readonly backends: Record<AgentKind, AgentBackend>,
     private readonly onState: (state: AssistantState) => void,
     initial: AgentKind = 'claude-code',
+    private readonly onSelected: (agent: AgentKind) => void = () => undefined,
   ) {
     this.selected = initial;
   }
@@ -73,6 +74,8 @@ export class Assistant {
   async select(agent: AgentKind): Promise<AssistantState> {
     const switched = agent !== this.selected;
     if (switched) await this.current().stop();
+    // Save before refreshing: a slow or unavailable service must not lose the choice on exit.
+    this.onSelected(agent);
     this.selected = agent;
     this.changed();
     // The picked route looks again: a server started after the last look is found without "Check again"
